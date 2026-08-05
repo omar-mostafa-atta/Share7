@@ -73,18 +73,46 @@ using (var scope = app.Services.CreateScope())
     }
 
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-    const string adminEmail = "admin@admin.com";
-    if (await userManager.FindByEmailAsync(adminEmail) is null)
+    var seedConfig = app.Configuration.GetSection("SeedAdmin");
+    var adminUsername = seedConfig["Username"] ?? "admin";
+    var adminEmail = seedConfig["Email"] ?? "admin@admin.com";
+    var adminPassword = seedConfig["Password"] ?? "Admin123";
+
+    var adminUser = await userManager.FindByNameAsync(adminUsername);
+
+    if (adminUser is null)
     {
-        var adminUser = new ApplicationUser
+        var legacyAdmin = await userManager.FindByNameAsync(adminEmail);
+        if (legacyAdmin is not null)
         {
-            UserName = adminEmail,
+            await userManager.SetUserNameAsync(legacyAdmin, adminUsername);
+            adminUser = legacyAdmin;
+        }
+    }
+
+    if (adminUser is null)
+    {
+        adminUser = new ApplicationUser
+        {
+            UserName = adminUsername,
             Email = adminEmail,
-            EmailConfirmed = true
+            EmailConfirmed = true,
+            PreferredLanguageId = LanguageIds.English
         };
 
-        var createResult = await userManager.CreateAsync(adminUser, "Admin123");
+        var createResult = await userManager.CreateAsync(adminUser, adminPassword);
         if (createResult.Succeeded)
+            await userManager.AddToRoleAsync(adminUser, Roles.Admin);
+    }
+    else
+    {
+        if (adminUser.PreferredLanguageId is null)
+        {
+            adminUser.PreferredLanguageId = LanguageIds.English;
+            await userManager.UpdateAsync(adminUser);
+        }
+
+        if (!await userManager.IsInRoleAsync(adminUser, Roles.Admin))
             await userManager.AddToRoleAsync(adminUser, Roles.Admin);
     }
 }

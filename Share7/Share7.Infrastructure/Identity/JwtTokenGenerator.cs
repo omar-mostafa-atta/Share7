@@ -5,6 +5,7 @@ using System.Text;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Share7.Application.Auth.Interfaces;
+using Share7.Domain.Constants;
 
 namespace Share7.Infrastructure.Identity;
 
@@ -17,7 +18,12 @@ public class JwtTokenGenerator : IJwtTokenGenerator
         _settings = options.Value;
     }
 
-    public (string Token, DateTime ExpiresAt) GenerateAccessToken(Guid userId, string username, string? email, IEnumerable<string> roles)
+    public (string Token, DateTime ExpiresAt) GenerateAccessToken(
+        Guid userId,
+        string username,
+        string? email,
+        IEnumerable<string> roles,
+        Guid? preferredLanguageId = null)
     {
         var expiresAt = DateTime.UtcNow.AddMinutes(_settings.AccessTokenExpirationMinutes);
 
@@ -30,6 +36,10 @@ public class JwtTokenGenerator : IJwtTokenGenerator
 
         if (!string.IsNullOrWhiteSpace(email))
             claims.Add(new Claim(JwtRegisteredClaimNames.Email, email));
+
+        // Lets content endpoints resolve the language tree without a per-request database hit.
+        if (preferredLanguageId is not null)
+            claims.Add(new Claim(CustomClaimTypes.PreferredLanguage, preferredLanguageId.Value.ToString()));
 
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
 

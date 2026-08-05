@@ -16,10 +16,15 @@ public class GradesController : ControllerBase
         _gradeService = gradeService;
     }
 
+    /// <summary>
+    /// Grades in one language. With a bearer token the caller's preferred language is used;
+    /// <paramref name="langId"/> overrides it and is the way anonymous callers (e.g. the
+    /// admin page before sign-in) pick a language explicitly. Defaults to English.
+    /// </summary>
     [HttpGet]
-    public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAll([FromQuery] Guid? langId, CancellationToken cancellationToken)
     {
-        var grades = await _gradeService.GetAllAsync(cancellationToken);
+        var grades = await _gradeService.GetAllAsync(langId, cancellationToken);
         return Ok(grades);
     }
 }

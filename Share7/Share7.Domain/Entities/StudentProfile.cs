@@ -1,4 +1,3 @@
-using Share7.Domain.Enums;
 using Share7.Domain.LookUps;
 
 namespace Share7.Domain.Entities;
@@ -13,7 +12,6 @@ public class StudentProfile
     public string? Email { get; set; }
     public Guid GradeId { get; set; }
     public Grade? Grade { get; set; }
-    public LearningLanguage LearningLanguage { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 }

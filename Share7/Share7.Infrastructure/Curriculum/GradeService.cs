@@ -8,17 +8,23 @@ namespace Share7.Infrastructure.Curriculum;
 public class GradeService : IGradeService
 {
     private readonly ApplicationDbContext _dbContext;
+    private readonly ILanguageService _languageService;
 
-    public GradeService(ApplicationDbContext dbContext)
+    public GradeService(ApplicationDbContext dbContext, ILanguageService languageService)
     {
         _dbContext = dbContext;
+        _languageService = languageService;
     }
 
-    public async Task<IReadOnlyList<GradeDto>> GetAllAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<GradeDto>> GetAllAsync(Guid? langId = null, CancellationToken cancellationToken = default)
     {
+        var resolvedLangId = langId ?? await _languageService.ResolveCurrentAsync(cancellationToken);
+
         return await _dbContext.Grades
-            .OrderBy(g => g.Order)
-            .Select(g => new GradeDto { Id = g.Id, NameEn = g.NameEn, NameAr = g.NameAr })
+            .AsNoTracking()
+            .Where(g => g.LangId == resolvedLangId)
+            .OrderBy(g => g.Name)
+            .Select(g => new GradeDto { Id = g.Id, Name = g.Name, LangId = g.LangId })
             .ToListAsync(cancellationToken);
     }
 }

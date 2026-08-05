@@ -125,6 +125,230 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("Share7.Domain.Curriculum.Chapter", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("LangId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("Lang_Id");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("Chapter");
+
+                    b.Property<Guid>("SubjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LangId");
+
+                    b.HasIndex("SubjectId");
+
+                    b.ToTable("Chapters", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Curriculum.Lesson", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ChapterId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("LangId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("Lang_Id");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("Lesson");
+
+                    b.Property<int>("QuestionsVersion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChapterId");
+
+                    b.HasIndex("LangId");
+
+                    b.ToTable("Lessons", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Curriculum.LessonQuestionUpload", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<Guid>("LessonId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("QuestionCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UploadedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UploadedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LessonId", "Version")
+                        .IsUnique();
+
+                    b.ToTable("LessonQuestionUploads", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Curriculum.Question", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CorrectChoiceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DeactivatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<Guid>("LangId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("Lang_Id");
+
+                    b.Property<Guid>("LessonId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("RowNumber")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("Question");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LangId");
+
+                    b.HasIndex("LessonId", "IsActive");
+
+                    b.ToTable("Questions", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Curriculum.QuestionChoice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("OrderIndex")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("QuestionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("Choice");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("QuestionId");
+
+                    b.ToTable("QuestionChoices", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Curriculum.Subject", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("LangId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("Lang_Id");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("Subject");
+
+                    b.Property<Guid>("TermId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LangId");
+
+                    b.HasIndex("TermId");
+
+                    b.ToTable("Subjects", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Curriculum.Term", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("GradeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("LangId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("Lang_Id");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("Term");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GradeId");
+
+                    b.HasIndex("LangId");
+
+                    b.ToTable("Terms", (string)null);
+                });
+
             modelBuilder.Entity("Share7.Domain.Entities.RefreshToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -196,11 +420,6 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("GradeId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("LearningLanguage")
-                        .IsRequired()
-                        .HasMaxLength(2)
-                        .HasColumnType("nvarchar(2)");
-
                     b.Property<string>("PhoneNumber")
                         .IsRequired()
                         .HasMaxLength(30)
@@ -228,20 +447,19 @@ namespace Share7.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("NameAr")
+                    b.Property<Guid>("LangId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("Lang_Id");
+
+                    b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("NameEn")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<int>("Order")
-                        .HasColumnType("int");
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("Grade");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("LangId");
 
                     b.ToTable("Grades", (string)null);
 
@@ -249,86 +467,184 @@ namespace Share7.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = new Guid("ee0bc8b5-de4a-4a25-afaa-cfdec9e9e27a"),
-                            NameAr = "الصف الأول",
-                            NameEn = "Grade 1",
-                            Order = 1
+                            LangId = new Guid("9c4d7f2a-3e51-4b6c-8d0a-2f7b1e5c9a34"),
+                            Name = "Grade 1"
                         },
                         new
                         {
                             Id = new Guid("cc203a51-cc8c-4814-ae5e-587c9903e17c"),
-                            NameAr = "الصف الثاني",
-                            NameEn = "Grade 2",
-                            Order = 2
+                            LangId = new Guid("9c4d7f2a-3e51-4b6c-8d0a-2f7b1e5c9a34"),
+                            Name = "Grade 2"
                         },
                         new
                         {
                             Id = new Guid("52c97299-9356-46d5-87e9-fc1ac17d5c14"),
-                            NameAr = "الصف الثالث",
-                            NameEn = "Grade 3",
-                            Order = 3
+                            LangId = new Guid("9c4d7f2a-3e51-4b6c-8d0a-2f7b1e5c9a34"),
+                            Name = "Grade 3"
                         },
                         new
                         {
                             Id = new Guid("2b004d42-ca9c-4823-ac5b-1cb59cba0467"),
-                            NameAr = "الصف الرابع",
-                            NameEn = "Grade 4",
-                            Order = 4
+                            LangId = new Guid("9c4d7f2a-3e51-4b6c-8d0a-2f7b1e5c9a34"),
+                            Name = "Grade 4"
                         },
                         new
                         {
                             Id = new Guid("b14d62e5-56ee-42a4-916a-5554d811f72f"),
-                            NameAr = "الصف الخامس",
-                            NameEn = "Grade 5",
-                            Order = 5
+                            LangId = new Guid("9c4d7f2a-3e51-4b6c-8d0a-2f7b1e5c9a34"),
+                            Name = "Grade 5"
                         },
                         new
                         {
                             Id = new Guid("76e10c16-da74-4731-8818-448262946b70"),
-                            NameAr = "الصف السادس",
-                            NameEn = "Grade 6",
-                            Order = 6
+                            LangId = new Guid("9c4d7f2a-3e51-4b6c-8d0a-2f7b1e5c9a34"),
+                            Name = "Grade 6"
                         },
                         new
                         {
                             Id = new Guid("c3f4e414-cde4-4929-a235-d4f09b5f748d"),
-                            NameAr = "الصف السابع",
-                            NameEn = "Grade 7",
-                            Order = 7
+                            LangId = new Guid("9c4d7f2a-3e51-4b6c-8d0a-2f7b1e5c9a34"),
+                            Name = "Grade 7"
                         },
                         new
                         {
                             Id = new Guid("de6e690a-9bbf-4e32-afea-7e36942f7957"),
-                            NameAr = "الصف الثامن",
-                            NameEn = "Grade 8",
-                            Order = 8
+                            LangId = new Guid("9c4d7f2a-3e51-4b6c-8d0a-2f7b1e5c9a34"),
+                            Name = "Grade 8"
                         },
                         new
                         {
                             Id = new Guid("895f300d-21b4-4167-afc7-6c06677abf0e"),
-                            NameAr = "الصف التاسع",
-                            NameEn = "Grade 9",
-                            Order = 9
+                            LangId = new Guid("9c4d7f2a-3e51-4b6c-8d0a-2f7b1e5c9a34"),
+                            Name = "Grade 9"
                         },
                         new
                         {
                             Id = new Guid("f4313c32-260c-4e55-8877-c68b9d5ae33d"),
-                            NameAr = "الصف العاشر",
-                            NameEn = "Grade 10",
-                            Order = 10
+                            LangId = new Guid("9c4d7f2a-3e51-4b6c-8d0a-2f7b1e5c9a34"),
+                            Name = "Grade 10"
                         },
                         new
                         {
                             Id = new Guid("c2287d7b-e111-45ef-ac10-a3669c8a5eeb"),
-                            NameAr = "الصف الحادي عشر",
-                            NameEn = "Grade 11",
-                            Order = 11
+                            LangId = new Guid("9c4d7f2a-3e51-4b6c-8d0a-2f7b1e5c9a34"),
+                            Name = "Grade 11"
                         },
                         new
                         {
                             Id = new Guid("38111b66-de42-4adc-b20c-464b1dd2a9d1"),
-                            NameAr = "الصف الثاني عشر",
-                            NameEn = "Grade 12",
-                            Order = 12
+                            LangId = new Guid("9c4d7f2a-3e51-4b6c-8d0a-2f7b1e5c9a34"),
+                            Name = "Grade 12"
+                        },
+                        new
+                        {
+                            Id = new Guid("a1e6c390-7d24-4f81-9b05-3c8e2a6f4d17"),
+                            LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
+                            Name = "الصف الأول"
+                        },
+                        new
+                        {
+                            Id = new Guid("b2f7d4a1-8e35-4092-ac16-4d9f3b7e5a28"),
+                            LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
+                            Name = "الصف الثاني"
+                        },
+                        new
+                        {
+                            Id = new Guid("c3a8e5b2-9f46-41a3-bd27-5e0a4c8f6b39"),
+                            LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
+                            Name = "الصف الثالث"
+                        },
+                        new
+                        {
+                            Id = new Guid("d4b9f6c3-a057-42b4-ce38-6f1b5d907c4a"),
+                            LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
+                            Name = "الصف الرابع"
+                        },
+                        new
+                        {
+                            Id = new Guid("e5c0a7d4-b168-43c5-df49-701c6e018d5b"),
+                            LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
+                            Name = "الصف الخامس"
+                        },
+                        new
+                        {
+                            Id = new Guid("f6d1b8e5-c279-44d6-e05a-812d7f129e6c"),
+                            LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
+                            Name = "الصف السادس"
+                        },
+                        new
+                        {
+                            Id = new Guid("07e2c9f6-d38a-45e7-f16b-923e80230f7d"),
+                            LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
+                            Name = "الصف السابع"
+                        },
+                        new
+                        {
+                            Id = new Guid("18f3d007-e49b-46f8-021c-a34f9134108e"),
+                            LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
+                            Name = "الصف الثامن"
+                        },
+                        new
+                        {
+                            Id = new Guid("2904e118-f5ac-4709-132d-b450a245219f"),
+                            LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
+                            Name = "الصف التاسع"
+                        },
+                        new
+                        {
+                            Id = new Guid("3a15f229-06bd-481a-243e-c561b35632a0"),
+                            LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
+                            Name = "الصف العاشر"
+                        },
+                        new
+                        {
+                            Id = new Guid("4b260330-17ce-492b-354f-d672c46743b1"),
+                            LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
+                            Name = "الصف الحادي عشر"
+                        },
+                        new
+                        {
+                            Id = new Guid("5c371441-28df-4a3c-4650-e783d57854c2"),
+                            LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
+                            Name = "الصف الثاني عشر"
+                        });
+                });
+
+            modelBuilder.Entity("Share7.Domain.LookUps.Language", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(5)
+                        .HasColumnType("nvarchar(5)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("Languages", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("9c4d7f2a-3e51-4b6c-8d0a-2f7b1e5c9a34"),
+                            Code = "en",
+                            Name = "English"
+                        },
+                        new
+                        {
+                            Id = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
+                            Code = "ar",
+                            Name = "العربية"
                         });
                 });
 
@@ -406,6 +722,9 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.Property<bool>("PhoneNumberConfirmed")
                         .HasColumnType("bit");
 
+                    b.Property<Guid?>("PreferredLanguageId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("nvarchar(max)");
 
@@ -480,6 +799,123 @@ namespace Share7.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Share7.Domain.Curriculum.Chapter", b =>
+                {
+                    b.HasOne("Share7.Domain.LookUps.Language", "Language")
+                        .WithMany()
+                        .HasForeignKey("LangId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Domain.Curriculum.Subject", "Subject")
+                        .WithMany("Chapters")
+                        .HasForeignKey("SubjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Language");
+
+                    b.Navigation("Subject");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Curriculum.Lesson", b =>
+                {
+                    b.HasOne("Share7.Domain.Curriculum.Chapter", "Chapter")
+                        .WithMany("Lessons")
+                        .HasForeignKey("ChapterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Domain.LookUps.Language", "Language")
+                        .WithMany()
+                        .HasForeignKey("LangId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Chapter");
+
+                    b.Navigation("Language");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Curriculum.LessonQuestionUpload", b =>
+                {
+                    b.HasOne("Share7.Domain.Curriculum.Lesson", "Lesson")
+                        .WithMany()
+                        .HasForeignKey("LessonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Lesson");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Curriculum.Question", b =>
+                {
+                    b.HasOne("Share7.Domain.LookUps.Language", "Language")
+                        .WithMany()
+                        .HasForeignKey("LangId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Domain.Curriculum.Lesson", "Lesson")
+                        .WithMany("Questions")
+                        .HasForeignKey("LessonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Language");
+
+                    b.Navigation("Lesson");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Curriculum.QuestionChoice", b =>
+                {
+                    b.HasOne("Share7.Domain.Curriculum.Question", "Question")
+                        .WithMany("Choices")
+                        .HasForeignKey("QuestionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Question");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Curriculum.Subject", b =>
+                {
+                    b.HasOne("Share7.Domain.LookUps.Language", "Language")
+                        .WithMany()
+                        .HasForeignKey("LangId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Domain.Curriculum.Term", "Term")
+                        .WithMany("Subjects")
+                        .HasForeignKey("TermId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Language");
+
+                    b.Navigation("Term");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Curriculum.Term", b =>
+                {
+                    b.HasOne("Share7.Domain.LookUps.Grade", "Grade")
+                        .WithMany("Terms")
+                        .HasForeignKey("GradeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Domain.LookUps.Language", "Language")
+                        .WithMany()
+                        .HasForeignKey("LangId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Grade");
+
+                    b.Navigation("Language");
+                });
+
             modelBuilder.Entity("Share7.Domain.Entities.StudentProfile", b =>
                 {
                     b.HasOne("Share7.Domain.LookUps.Grade", "Grade")
@@ -489,6 +925,47 @@ namespace Share7.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Grade");
+                });
+
+            modelBuilder.Entity("Share7.Domain.LookUps.Grade", b =>
+                {
+                    b.HasOne("Share7.Domain.LookUps.Language", "Language")
+                        .WithMany()
+                        .HasForeignKey("LangId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Language");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Curriculum.Chapter", b =>
+                {
+                    b.Navigation("Lessons");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Curriculum.Lesson", b =>
+                {
+                    b.Navigation("Questions");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Curriculum.Question", b =>
+                {
+                    b.Navigation("Choices");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Curriculum.Subject", b =>
+                {
+                    b.Navigation("Chapters");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Curriculum.Term", b =>
+                {
+                    b.Navigation("Subjects");
+                });
+
+            modelBuilder.Entity("Share7.Domain.LookUps.Grade", b =>
+                {
+                    b.Navigation("Terms");
                 });
 #pragma warning restore 612, 618
         }

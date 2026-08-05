@@ -38,9 +38,15 @@ public class AuthService : IAuthService
         if (existing is not null)
             return AuthResult.Failure("A user with this username already exists.");
 
+        var languageExists = await _dbContext.Languages
+            .AnyAsync(l => l.Id == request.LanguageId, cancellationToken);
+        if (!languageExists)
+            return AuthResult.Failure("Invalid language.");
+
         var user = new ApplicationUser
         {
-            UserName = request.Username
+            UserName = request.Username,
+            PreferredLanguageId = request.LanguageId
         };
 
         var createResult = await _userManager.CreateAsync(user, request.Password);
@@ -159,9 +165,14 @@ public class AuthService : IAuthService
         if (user is null)
             return CompleteProfileResult.Failure("User not found.");
 
-        var gradeExists = await _dbContext.Grades.AnyAsync(g => g.Id == request.GradeId, cancellationToken);
-        if (!gradeExists)
+        var grade = await _dbContext.Grades.FirstOrDefaultAsync(g => g.Id == request.GradeId, cancellationToken);
+        if (grade is null)
             return CompleteProfileResult.Failure("Invalid grade.");
+
+        // Grades are language-scoped rows. Letting a user attach to a grade from the other
+        // tree would leave them with a grade whose terms/subjects they can never see.
+        if (user.PreferredLanguageId is not null && grade.LangId != user.PreferredLanguageId)
+            return CompleteProfileResult.Failure("The selected grade belongs to a different language than this account.");
 
         var profile = await _dbContext.StudentProfiles.SingleOrDefaultAsync(p => p.UserId == userId, cancellationToken);
         var isNew = profile is null;
@@ -172,7 +183,6 @@ public class AuthService : IAuthService
         profile.PhoneNumber = request.PhoneNumber;
         profile.Email = request.Email;
         profile.GradeId = request.GradeId!.Value;
-        profile.LearningLanguage = request.LearningLanguage!.Value;
         profile.UpdatedAt = DateTime.UtcNow;
 
         if (isNew)
@@ -189,10 +199,20 @@ public class AuthService : IAuthService
         return CompleteProfileResult.Success();
     }
 
+    public async Task<AuthResult> ReissueTokensAsync(Guid userId, string? ipAddress, CancellationToken cancellationToken = default)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user is null)
+            return AuthResult.Failure("User not found.");
+
+        return await IssueTokensAsync(user, ipAddress, cancellationToken);
+    }
+
     private async Task<AuthResult> IssueTokensAsync(ApplicationUser user, string? ipAddress, CancellationToken cancellationToken)
     {
         var roles = await _userManager.GetRolesAsync(user);
-        var (accessToken, accessTokenExpiresAt) = _jwtTokenGenerator.GenerateAccessToken(user.Id, user.UserName!, user.Email, roles);
+        var (accessToken, accessTokenExpiresAt) = _jwtTokenGenerator.GenerateAccessToken(
+            user.Id, user.UserName!, user.Email, roles, user.PreferredLanguageId);
         var refreshTokenValue = _jwtTokenGenerator.GenerateRefreshToken();
         var refreshTokenExpiresAt = DateTime.UtcNow.AddDays(_jwtSettings.RefreshTokenExpirationDays);
 

@@ -63,6 +63,12 @@ public static class DependencyInjection
         services.AddScoped<IExternalLoginValidator, GoogleLoginValidator>();
         services.AddScoped<IExternalLoginValidator, FacebookLoginValidator>();
         services.AddScoped<IGradeService, GradeService>();
+        services.AddScoped<ILanguageService, LanguageService>();
+        services.AddScoped<ICurriculumService, CurriculumService>();
+        services.AddScoped<ICurriculumAdminService, CurriculumAdminService>();
+        services.AddScoped<IUserAdminService, UserAdminService>();
+        services.AddScoped<ILessonQuestionService, LessonQuestionService>();
+        services.AddScoped<IQuestionImportService, QuestionImportService>();
 
         return services;
     }

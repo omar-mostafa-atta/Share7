@@ -14,7 +14,6 @@ public class StudentProfileConfiguration : IEntityTypeConfiguration<StudentProfi
         builder.Property(p => p.FullName).IsRequired().HasMaxLength(200);
         builder.Property(p => p.PhoneNumber).IsRequired().HasMaxLength(30);
         builder.Property(p => p.Email).HasMaxLength(256);
-        builder.Property(p => p.LearningLanguage).HasConversion<string>().HasMaxLength(2);
 
         builder.HasOne(p => p.Grade)
             .WithMany()

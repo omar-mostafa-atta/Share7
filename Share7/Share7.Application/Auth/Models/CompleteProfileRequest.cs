@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using Share7.Domain.Enums;
 
 namespace Share7.Application.Auth.Models;
 
@@ -17,9 +16,10 @@ public class CompleteProfileRequest
     [EmailAddress]
     public string? Email { get; set; }
 
+    /// <summary>
+    /// Must be a grade from the user's own language tree — see
+    /// <c>GET /api/grades</c>, which is already filtered by their preferred language.
+    /// </summary>
     [Required]
     public Guid? GradeId { get; set; }
-
-    [Required]
-    public LearningLanguage? LearningLanguage { get; set; }
 }
