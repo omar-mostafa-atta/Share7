@@ -1,4 +1,3 @@
-using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
 using Share7.Application.Curriculum.Interfaces;
 using Share7.Application.Curriculum.Models;
@@ -9,20 +8,14 @@ namespace Share7.Infrastructure.Curriculum;
 
 /// <summary>
 /// Parses the admin's question sheet and publishes it as the lesson's next question version.
+/// <para>
+/// Sheet parsing and row validation live in <see cref="QuestionSheetParser"/>, shared with
+/// <see cref="RecoveryQuestionImportService"/> — the two pools accept the same file format, so
+/// the rules are defined once.
+/// </para>
 /// </summary>
 public class QuestionImportService : IQuestionImportService
 {
-    /// <summary>Guard against a runaway sheet being imported by accident.</summary>
-    private const int MaxQuestionsPerSheet = 5000;
-
-    private const int MaxQuestionLength = 1000;
-    private const int MaxChoiceLength = 500;
-
-    private const int QuestionColumn = 1;
-    private const int CorrectAnswerColumn = 2;
-    private const int WrongAnswer1Column = 3;
-    private const int WrongAnswer2Column = 4;
-
     private readonly ApplicationDbContext _dbContext;
 
     public QuestionImportService(ApplicationDbContext dbContext)
@@ -32,31 +25,41 @@ public class QuestionImportService : IQuestionImportService
 
     public async Task<QuestionImportResult> ImportAsync(
         Guid lessonId,
+        Guid langId,
         Stream excelStream,
         string fileName,
         bool hasHeaderRow = true,
         Guid? uploadedByUserId = null,
         CancellationToken cancellationToken = default)
     {
-        var lesson = await _dbContext.Lessons.FirstOrDefaultAsync(l => l.Id == lessonId, cancellationToken);
-        if (lesson is null)
-            return QuestionImportResult.Failed(lessonId, "Lesson not found.");
+        if (!await _dbContext.Lessons.AnyAsync(l => l.Id == lessonId, cancellationToken))
+            return QuestionImportResult.Failed(lessonId, langId, "Lesson not found.");
 
-        var parsed = ParseSheet(excelStream, hasHeaderRow, out var errors);
+        // The lesson is language-independent now, so the sheet's language cannot be inferred
+        // from it — it has to be supplied, and it has to be a real one.
+        if (!await _dbContext.Languages.AnyAsync(l => l.Id == langId, cancellationToken))
+            return QuestionImportResult.Failed(lessonId, langId, "Unknown language.");
+
+        var parsed = QuestionSheetParser.Parse(excelStream, hasHeaderRow, out var errors);
         if (errors.Count > 0)
-            return new QuestionImportResult { Succeeded = false, LessonId = lessonId, Errors = errors };
+            return new QuestionImportResult { Succeeded = false, LessonId = lessonId, LangId = langId, Errors = errors };
 
         if (parsed.Count == 0)
-            return QuestionImportResult.Failed(lessonId, "The sheet contains no question rows.");
+            return QuestionImportResult.Failed(lessonId, langId, "The sheet contains no question rows.");
 
         var now = DateTime.UtcNow;
-        var newVersion = lesson.QuestionsVersion + 1;
+
+        var questionSet = await _dbContext.LessonQuestionSets
+            .FirstOrDefaultAsync(s => s.LessonId == lessonId && s.LangId == langId, cancellationToken);
+
+        var newVersion = (questionSet?.Version ?? 0) + 1;
 
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
         // Previous rows are kept, just retired — student progress may reference their ids.
+        // Scoped to this language: uploading English must not retire the Arabic set.
         var replacedCount = await _dbContext.Questions
-            .Where(q => q.LessonId == lessonId && q.IsActive)
+            .Where(q => q.LessonId == lessonId && q.LangId == langId && q.IsActive)
             .ExecuteUpdateAsync(
                 s => s.SetProperty(q => q.IsActive, false).SetProperty(q => q.DeactivatedAt, now),
                 cancellationToken);
@@ -67,7 +70,7 @@ public class QuestionImportService : IQuestionImportService
             {
                 Id = Guid.NewGuid(),
                 LessonId = lessonId,
-                LangId = lesson.LangId,
+                LangId = langId,
                 Text = row.QuestionText,
                 Version = newVersion,
                 IsActive = true,
@@ -93,14 +96,28 @@ public class QuestionImportService : IQuestionImportService
             _dbContext.Questions.Add(question);
         }
 
-        lesson.QuestionsVersion = newVersion;
+        if (questionSet is null)
+        {
+            // First sheet for this lesson in this language — the row appears with version 1.
+            _dbContext.LessonQuestionSets.Add(new LessonQuestionSet
+            {
+                LessonId = lessonId,
+                LangId = langId,
+                Version = newVersion
+            });
+        }
+        else
+        {
+            questionSet.Version = newVersion;
+        }
 
         _dbContext.LessonQuestionUploads.Add(new LessonQuestionUpload
         {
             Id = Guid.NewGuid(),
             LessonId = lessonId,
+            LangId = langId,
             Version = newVersion,
-            FileName = Truncate(fileName, 260),
+            FileName = QuestionSheetParser.Truncate(fileName, 260),
             QuestionCount = parsed.Count,
             UploadedByUserId = uploadedByUserId,
             UploadedAt = now
@@ -113,127 +130,10 @@ public class QuestionImportService : IQuestionImportService
         {
             Succeeded = true,
             LessonId = lessonId,
+            LangId = langId,
             Version = newVersion,
             ImportedCount = parsed.Count,
             ReplacedCount = replacedCount
         };
     }
-
-    private static List<ParsedRow> ParseSheet(Stream excelStream, bool hasHeaderRow, out List<QuestionImportError> errors)
-    {
-        errors = [];
-        var parsed = new List<ParsedRow>();
-
-        XLWorkbook workbook;
-        try
-        {
-            workbook = new XLWorkbook(excelStream);
-        }
-        catch (Exception ex)
-        {
-            errors.Add(new QuestionImportError { Message = $"The file could not be read as an .xlsx workbook: {ex.Message}" });
-            return parsed;
-        }
-
-        using (workbook)
-        {
-            var worksheet = workbook.Worksheets.FirstOrDefault();
-            if (worksheet is null)
-            {
-                errors.Add(new QuestionImportError { Message = "The workbook contains no worksheets." });
-                return parsed;
-            }
-
-            // RowsUsed() already skips entirely blank rows, so the first entry is the header.
-            var rows = worksheet.RowsUsed().ToList();
-            if (hasHeaderRow)
-                rows = rows.Skip(1).ToList();
-
-            if (rows.Count > MaxQuestionsPerSheet)
-            {
-                errors.Add(new QuestionImportError
-                {
-                    Message = $"The sheet has {rows.Count} rows, above the {MaxQuestionsPerSheet} limit for a single lesson."
-                });
-                return parsed;
-            }
-
-            foreach (var row in rows)
-            {
-                var rowNumber = row.RowNumber();
-                var questionText = row.Cell(QuestionColumn).GetString().Trim();
-                var correct = row.Cell(CorrectAnswerColumn).GetString().Trim();
-                var wrong1 = row.Cell(WrongAnswer1Column).GetString().Trim();
-                var wrong2 = row.Cell(WrongAnswer2Column).GetString().Trim();
-
-                // A spacer row the admin left in the middle of the sheet.
-                if (questionText.Length == 0 && correct.Length == 0 && wrong1.Length == 0 && wrong2.Length == 0)
-                    continue;
-
-                var rowErrors = ValidateRow(rowNumber, questionText, correct, wrong1, wrong2);
-                if (rowErrors.Count > 0)
-                {
-                    errors.AddRange(rowErrors);
-                    continue;
-                }
-
-                parsed.Add(new ParsedRow(rowNumber, questionText, correct, wrong1, wrong2));
-            }
-        }
-
-        return parsed;
-    }
-
-    private static List<QuestionImportError> ValidateRow(
-        int rowNumber, string questionText, string correct, string wrong1, string wrong2)
-    {
-        var rowErrors = new List<QuestionImportError>();
-
-        void Fail(string message) => rowErrors.Add(new QuestionImportError { Row = rowNumber, Message = message });
-
-        if (questionText.Length == 0)
-            Fail("Column 1 (question) is empty.");
-        else if (questionText.Length > MaxQuestionLength)
-            Fail($"Column 1 (question) is {questionText.Length} characters, above the {MaxQuestionLength} limit.");
-
-        var choiceLabels = new[]
-        {
-            ("Column 2 (correct answer)", correct),
-            ("Column 3 (wrong answer)", wrong1),
-            ("Column 4 (wrong answer)", wrong2)
-        };
-
-        foreach (var (label, value) in choiceLabels)
-        {
-            if (value.Length == 0)
-                Fail($"{label} is empty.");
-            else if (value.Length > MaxChoiceLength)
-                Fail($"{label} is {value.Length} characters, above the {MaxChoiceLength} limit.");
-        }
-
-        // Two identical doors where one counts as wrong would be unanswerable.
-        // Compared case-SENSITIVELY on purpose: capitalisation is often the thing being tested
-        // ("Fe" vs "FE" vs "fe" for iron's chemical symbol is a real question), so folding case
-        // here would reject valid content.
-        var distinct = choiceLabels
-            .Select(c => c.Item2)
-            .Where(v => v.Length > 0)
-            .Distinct(StringComparer.Ordinal)
-            .Count();
-
-        if (distinct != choiceLabels.Count(c => c.Item2.Length > 0))
-            Fail("The three answers must be different from each other.");
-
-        return rowErrors;
-    }
-
-    private static string Truncate(string value, int maxLength) =>
-        value.Length <= maxLength ? value : value[..maxLength];
-
-    private sealed record ParsedRow(
-        int RowNumber,
-        string QuestionText,
-        string CorrectAnswer,
-        string WrongAnswer1,
-        string WrongAnswer2);
 }

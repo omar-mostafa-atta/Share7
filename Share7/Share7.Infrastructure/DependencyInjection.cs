@@ -6,11 +6,26 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using Share7.Application.Auth.Interfaces;
+using Share7.Application.Commerce.Interfaces;
 using Share7.Application.Curriculum.Interfaces;
+using Share7.Application.Economy.Interfaces;
+using Share7.Application.Equipment.Interfaces;
+using Share7.Application.Equipment.Models;
+using Share7.Application.Games.Interfaces;
+using Share7.Application.Progress.Interfaces;
+using Share7.Application.Rewards.Interfaces;
+using Share7.Application.Users.Interfaces;
+using Share7.Infrastructure.Commerce;
 using Share7.Infrastructure.Curriculum;
+using Share7.Infrastructure.Economy;
+using Share7.Infrastructure.Equipment;
+using Share7.Infrastructure.Users;
+using Share7.Infrastructure.Games;
 using Share7.Infrastructure.Identity;
 using Share7.Infrastructure.Identity.ExternalAuth;
 using Share7.Infrastructure.Persistence;
+using Share7.Infrastructure.Progress;
+using Share7.Infrastructure.Rewards;
 
 namespace Share7.Infrastructure;
 
@@ -69,6 +84,27 @@ public static class DependencyInjection
         services.AddScoped<IUserAdminService, UserAdminService>();
         services.AddScoped<ILessonQuestionService, LessonQuestionService>();
         services.AddScoped<IQuestionImportService, QuestionImportService>();
+        services.AddScoped<ILessonRecoveryQuestionService, LessonRecoveryQuestionService>();
+        services.AddScoped<IRecoveryQuestionImportService, RecoveryQuestionImportService>();
+        services.AddScoped<IGameService, GameService>();
+        services.AddScoped<IGameAdminService, GameAdminService>();
+        services.AddScoped<IUnlockService, UnlockService>();
+        services.AddScoped<IProgressService, ProgressService>();
+        services.AddScoped<IWalletService, WalletService>();
+        services.AddScoped<ICurrencyAdminService, CurrencyAdminService>();
+        services.AddScoped<IRewardService, RewardService>();
+        services.AddScoped<IRewardAdminService, RewardAdminService>();
+        services.AddScoped<IEntitlementService, EntitlementService>();
+        services.AddScoped<IProductKindAdminService, ProductKindAdminService>();
+        services.AddScoped<IProductAdminService, ProductAdminService>();
+        services.AddScoped<IProductGrantAdminService, ProductGrantAdminService>();
+        services.AddScoped<IOfferService, OfferService>();
+        services.AddScoped<IOfferAdminService, OfferAdminService>();
+        services.AddScoped<IPurchaseService, PurchaseService>();
+        services.AddScoped<IAccountDeletionService, AccountDeletionService>();
+
+        services.Configure<EquipmentOptions>(configuration.GetSection(EquipmentOptions.SectionName));
+        services.AddScoped<IEquipmentService, EquipmentService>();
 
         return services;
     }

@@ -2,5 +2,6 @@
   <Project Path="Share7.Application/Share7.Application.csproj" />
   <Project Path="Share7.Domain/Share7.Domain.csproj" />
   <Project Path="Share7.Infrastructure/Share7.Infrastructure.csproj" />
+  <Project Path="Share7.Tests/Share7.Tests.csproj" />
   <Project Path="Share7/Share7.API.csproj" />
 </Solution>

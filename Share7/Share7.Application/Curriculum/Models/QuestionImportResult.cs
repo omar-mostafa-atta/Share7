@@ -10,6 +10,12 @@ public class QuestionImportResult
     public bool Succeeded { get; set; }
     public Guid LessonId { get; set; }
 
+    /// <summary>
+    /// Which of the lesson's question sets this upload targeted. Versions are per language,
+    /// so publishing English leaves the Arabic set and its version untouched.
+    /// </summary>
+    public Guid LangId { get; set; }
+
     /// <summary>The version produced by this upload (1 for the first, then 2, 3, ...).</summary>
     public int Version { get; set; }
 
@@ -20,10 +26,11 @@ public class QuestionImportResult
 
     public IReadOnlyList<QuestionImportError> Errors { get; set; } = [];
 
-    public static QuestionImportResult Failed(Guid lessonId, params string[] messages) => new()
+    public static QuestionImportResult Failed(Guid lessonId, Guid langId, params string[] messages) => new()
     {
         Succeeded = false,
         LessonId = lessonId,
+        LangId = langId,
         Errors = messages.Select(m => new QuestionImportError { Message = m }).ToList()
     };
 }

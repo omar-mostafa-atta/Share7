@@ -59,6 +59,15 @@ public class AuthController : ControllerBase
         return revoked ? NoContent() : NotFound();
     }
 
+    /// <summary>
+    /// Fills in the student's profile and content language.
+    /// <para>
+    /// Returns a fresh token pair on success. The language chosen here lives in an
+    /// access-token claim, so the caller's existing token would keep serving the old
+    /// language until it expired — the client must replace its stored tokens with these,
+    /// exactly as it does for POST /api/users/me/preferred-language.
+    /// </para>
+    /// </summary>
     [HttpPost("complete-profile")]
     [Authorize]
     public async Task<IActionResult> CompleteProfile(CompleteProfileRequest request, CancellationToken cancellationToken)
@@ -67,7 +76,13 @@ public class AuthController : ControllerBase
             return Unauthorized();
 
         var result = await _authService.CompleteProfileAsync(userId, request, cancellationToken);
-        return result.Succeeded ? Ok(result) : BadRequest(new { errors = result.Errors });
+        if (!result.Succeeded)
+            return BadRequest(new { errors = result.Errors });
+
+        var tokens = await _authService.ReissueTokensAsync(userId, GetIpAddress(), cancellationToken);
+        return tokens.Succeeded
+            ? Ok(tokens)
+            : BadRequest(new { errors = tokens.Errors });
     }
 
     [HttpGet("me")]

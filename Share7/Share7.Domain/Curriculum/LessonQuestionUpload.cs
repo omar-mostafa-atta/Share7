@@ -1,3 +1,5 @@
+using Share7.Domain.LookUps;
+
 namespace Share7.Domain.Curriculum;
 
 /// <summary>
@@ -10,6 +12,10 @@ public class LessonQuestionUpload
 
     public Guid LessonId { get; set; }
     public Lesson? Lesson { get; set; }
+
+    /// <summary>Which language's question set this upload published.</summary>
+    public Guid LangId { get; set; }
+    public Language? Language { get; set; }
 
     /// <summary>The version this upload produced (1 for the first upload, then 2, 3, ...).</summary>
     public int Version { get; set; }

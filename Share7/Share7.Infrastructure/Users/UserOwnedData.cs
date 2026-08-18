@@ -1,0 +1,73 @@
+using Microsoft.EntityFrameworkCore;
+using Share7.Domain.Entities;
+using Share7.Domain.Progress;
+using Share7.Infrastructure.Persistence;
+
+namespace Share7.Infrastructure.Users;
+
+/// <summary>
+/// The single definition of what "everything this account owns" means. Both the admin delete and
+/// the user's own delete go through here, so the two can never drift apart.
+/// </summary>
+public static class UserOwnedData
+{
+    /// <summary>
+    /// User-keyed tables with **no cascading foreign key** to <c>AspNetUsers</c>. Nothing removes
+    /// these automatically, so they have to be deleted explicitly or they outlive the account as
+    /// orphans.
+    /// <para>
+    /// Tables that <i>do</i> have a cascading FK are deliberately absent — the database already
+    /// handles them, and listing them here would imply the manual sweep is load-bearing when it
+    /// is not.
+    /// </para>
+    /// <para>
+    /// **Adding a user-keyed table means adding it here.** <c>AccountDeletionCoverageTests</c>
+    /// walks the EF model and fails when a table carrying a <c>UserId</c> is neither in this list
+    /// nor protected by a cascade, so forgetting is a failing test rather than a support ticket.
+    /// </para>
+    /// </summary>
+    public static readonly IReadOnlyList<Type> ManuallyPurged =
+    [
+        typeof(RefreshToken),
+        typeof(StudentProfile),
+        typeof(UserQuestionProgress),
+        typeof(UserLessonProgress),
+        typeof(UserNodeUnlock)
+    ];
+
+    /// <summary>
+    /// Deletes every row in <see cref="ManuallyPurged"/> belonging to the user, and reports how
+    /// many rows went.
+    /// <para>
+    /// Driven off the list rather than hand-written per table, so a type added to the list is
+    /// purged without a second edit — the failure mode where the list and the code disagree
+    /// cannot happen.
+    /// </para>
+    /// </summary>
+    public static async Task<int> PurgeAsync(
+        ApplicationDbContext context,
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        var deleted = 0;
+
+        foreach (var clrType in ManuallyPurged)
+        {
+            // Table and column names come from the EF model, never from input, so composing them
+            // into SQL is safe. The user id stays a parameter.
+            var entityType = context.Model.FindEntityType(clrType)
+                ?? throw new InvalidOperationException($"{clrType.Name} is not part of the EF model.");
+
+            var schema = entityType.GetSchema() ?? "dbo";
+            var table = entityType.GetTableName()
+                ?? throw new InvalidOperationException($"{clrType.Name} is not mapped to a table.");
+
+            deleted += await context.Database.ExecuteSqlRawAsync(
+                $"DELETE FROM [{schema}].[{table}] WHERE [UserId] = {{0}}",
+                [userId],
+                cancellationToken);
+        }
+
+        return deleted;
+    }
+}

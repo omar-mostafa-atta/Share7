@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using Share7.Application.Auth.Interfaces;
 using Share7.Application.Common.Models;
 using Share7.Domain.Constants;
 using Share7.Infrastructure.Persistence;
+using Share7.Infrastructure.Users;
 
 namespace Share7.Infrastructure.Identity;
 
@@ -41,16 +41,10 @@ public class UserAdminService : IUserAdminService
 
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
-        // RefreshTokens and StudentProfiles reference UserId without a foreign key, so nothing
-        // cascades — they have to be removed explicitly or they outlive the user as orphans.
-        // Identity's own tables (roles/claims/logins/tokens) do cascade from AspNetUsers.
-        await _dbContext.RefreshTokens
-            .Where(rt => rt.UserId == userId)
-            .ExecuteDeleteAsync(cancellationToken);
-
-        await _dbContext.StudentProfiles
-            .Where(p => p.UserId == userId)
-            .ExecuteDeleteAsync(cancellationToken);
+        // Same sweep the user's own delete runs. Kept in UserOwnedData rather than written out
+        // here so the admin path and the self-service path cannot drift — one of them gaining a
+        // table the other forgets is precisely the bug this guards against.
+        await UserOwnedData.PurgeAsync(_dbContext, userId, cancellationToken);
 
         var deleteResult = await _userManager.DeleteAsync(user);
         if (!deleteResult.Succeeded)

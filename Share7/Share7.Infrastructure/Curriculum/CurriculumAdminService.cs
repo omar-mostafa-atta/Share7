@@ -9,162 +9,212 @@ namespace Share7.Infrastructure.Curriculum;
 
 public class CurriculumAdminService : ICurriculumAdminService
 {
-    private readonly ApplicationDbContext _dbContext;
+    private const int TermNameMaxLength = 100;
+    private const int SubjectNameMaxLength = 200;
+    private const int ChapterNameMaxLength = 200;
+    private const int LessonNameMaxLength = 200;
 
-    public CurriculumAdminService(ApplicationDbContext dbContext)
+    private readonly ApplicationDbContext _dbContext;
+    private readonly ILanguageService _languageService;
+
+    public CurriculumAdminService(ApplicationDbContext dbContext, ILanguageService languageService)
     {
         _dbContext = dbContext;
+        _languageService = languageService;
     }
 
     // ---------------------------------------------------------------- adds
 
     public async Task<ServiceResult<TermDto>> AddTermToGradeAsync(
-        Guid gradeId, string name, CancellationToken cancellationToken = default)
+        Guid gradeId, CreateCurriculumNodeRequest request, CancellationToken cancellationToken = default)
     {
-        if (Normalize(ref name, out var comparable) is { } error)
-            return ServiceResult<TermDto>.Invalid(error);
+        var validated = await ValidateNamesAsync(request, TermNameMaxLength, cancellationToken);
+        if (!validated.Succeeded)
+            return Propagate<TermDto>(validated);
 
-        var grade = await _dbContext.Grades
-            .AsNoTracking()
-            .FirstOrDefaultAsync(g => g.Id == gradeId, cancellationToken);
+        var names = validated.Value!;
 
-        if (grade is null)
+        if (!await _dbContext.Grades.AnyAsync(g => g.Id == gradeId, cancellationToken))
             return ServiceResult<TermDto>.NotFound("Grade not found.");
 
-        if (await _dbContext.Terms.AnyAsync(
-                t => t.GradeId == gradeId && t.Name.ToLower() == comparable, cancellationToken))
-            return ServiceResult<TermDto>.Conflict($"This grade already has a term named '{name}'.");
+        foreach (var name in names)
+        {
+            if (await _dbContext.TermTranslations.AnyAsync(
+                    t => t.Term!.GradeId == gradeId && t.LangId == name.LangId && t.Name.ToLower() == name.Comparable,
+                    cancellationToken))
+                return ServiceResult<TermDto>.Conflict($"This grade already has a term named '{name.Name}'.");
+        }
+
+        var order = await ResolveOrderAsync(
+            _dbContext.Terms.Where(t => t.GradeId == gradeId).Select(t => t.Order), request.Order, cancellationToken);
+        if (!order.Succeeded)
+            return Propagate<TermDto>(order);
 
         var term = new Term
         {
             Id = Guid.NewGuid(),
-            Name = name,
             GradeId = gradeId,
-            LangId = grade.LangId
+            Order = order.Value,
+            Translations = names.Select(n => new TermTranslation { LangId = n.LangId, Name = n.Name }).ToList()
         };
 
         _dbContext.Terms.Add(term);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
+        var callerLangId = await _languageService.ResolveCurrentAsync(cancellationToken);
         return ServiceResult<TermDto>.Success(new TermDto
         {
             Id = term.Id,
-            Name = term.Name,
-            LangId = term.LangId,
-            GradeId = term.GradeId
+            Name = NameFor(names, callerLangId),
+            LangId = callerLangId,
+            GradeId = term.GradeId,
+            Order = term.Order
         });
     }
 
     public async Task<ServiceResult<SubjectDto>> AddSubjectToTermAsync(
-        Guid termId, string name, CancellationToken cancellationToken = default)
+        Guid termId, CreateCurriculumNodeRequest request, CancellationToken cancellationToken = default)
     {
-        if (Normalize(ref name, out var comparable) is { } error)
-            return ServiceResult<SubjectDto>.Invalid(error);
+        var validated = await ValidateNamesAsync(request, SubjectNameMaxLength, cancellationToken);
+        if (!validated.Succeeded)
+            return Propagate<SubjectDto>(validated);
 
-        var term = await _dbContext.Terms
-            .AsNoTracking()
-            .FirstOrDefaultAsync(t => t.Id == termId, cancellationToken);
+        var names = validated.Value!;
 
-        if (term is null)
+        if (!await _dbContext.Terms.AnyAsync(t => t.Id == termId, cancellationToken))
             return ServiceResult<SubjectDto>.NotFound("Term not found.");
 
-        if (await _dbContext.Subjects.AnyAsync(
-                s => s.TermId == termId && s.Name.ToLower() == comparable, cancellationToken))
-            return ServiceResult<SubjectDto>.Conflict($"This term already has a subject named '{name}'.");
+        foreach (var name in names)
+        {
+            if (await _dbContext.SubjectTranslations.AnyAsync(
+                    t => t.Subject!.TermId == termId && t.LangId == name.LangId && t.Name.ToLower() == name.Comparable,
+                    cancellationToken))
+                return ServiceResult<SubjectDto>.Conflict($"This term already has a subject named '{name.Name}'.");
+        }
+
+        var order = await ResolveOrderAsync(
+            _dbContext.Subjects.Where(s => s.TermId == termId).Select(s => s.Order), request.Order, cancellationToken);
+        if (!order.Succeeded)
+            return Propagate<SubjectDto>(order);
 
         var subject = new Subject
         {
             Id = Guid.NewGuid(),
-            Name = name,
             TermId = termId,
-            LangId = term.LangId
+            Order = order.Value,
+            Translations = names.Select(n => new SubjectTranslation { LangId = n.LangId, Name = n.Name }).ToList()
         };
 
         _dbContext.Subjects.Add(subject);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
+        var callerLangId = await _languageService.ResolveCurrentAsync(cancellationToken);
         return ServiceResult<SubjectDto>.Success(new SubjectDto
         {
             Id = subject.Id,
-            Name = subject.Name,
-            LangId = subject.LangId,
-            TermId = subject.TermId
+            Name = NameFor(names, callerLangId),
+            LangId = callerLangId,
+            TermId = subject.TermId,
+            Order = subject.Order
         });
     }
 
     public async Task<ServiceResult<ChapterDto>> AddChapterToSubjectAsync(
-        Guid subjectId, string name, CancellationToken cancellationToken = default)
+        Guid subjectId, CreateCurriculumNodeRequest request, CancellationToken cancellationToken = default)
     {
-        if (Normalize(ref name, out var comparable) is { } error)
-            return ServiceResult<ChapterDto>.Invalid(error);
+        var validated = await ValidateNamesAsync(request, ChapterNameMaxLength, cancellationToken);
+        if (!validated.Succeeded)
+            return Propagate<ChapterDto>(validated);
 
-        var subject = await _dbContext.Subjects
-            .AsNoTracking()
-            .FirstOrDefaultAsync(s => s.Id == subjectId, cancellationToken);
+        var names = validated.Value!;
 
-        if (subject is null)
+        if (!await _dbContext.Subjects.AnyAsync(s => s.Id == subjectId, cancellationToken))
             return ServiceResult<ChapterDto>.NotFound("Subject not found.");
 
-        if (await _dbContext.Chapters.AnyAsync(
-                c => c.SubjectId == subjectId && c.Name.ToLower() == comparable, cancellationToken))
-            return ServiceResult<ChapterDto>.Conflict($"This subject already has a chapter named '{name}'.");
+        foreach (var name in names)
+        {
+            if (await _dbContext.ChapterTranslations.AnyAsync(
+                    t => t.Chapter!.SubjectId == subjectId && t.LangId == name.LangId && t.Name.ToLower() == name.Comparable,
+                    cancellationToken))
+                return ServiceResult<ChapterDto>.Conflict($"This subject already has a chapter named '{name.Name}'.");
+        }
+
+        var order = await ResolveOrderAsync(
+            _dbContext.Chapters.Where(c => c.SubjectId == subjectId).Select(c => c.Order), request.Order, cancellationToken);
+        if (!order.Succeeded)
+            return Propagate<ChapterDto>(order);
 
         var chapter = new Chapter
         {
             Id = Guid.NewGuid(),
-            Name = name,
             SubjectId = subjectId,
-            LangId = subject.LangId
+            Order = order.Value,
+            Translations = names.Select(n => new ChapterTranslation { LangId = n.LangId, Name = n.Name }).ToList()
         };
 
         _dbContext.Chapters.Add(chapter);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
+        var callerLangId = await _languageService.ResolveCurrentAsync(cancellationToken);
         return ServiceResult<ChapterDto>.Success(new ChapterDto
         {
             Id = chapter.Id,
-            Name = chapter.Name,
-            LangId = chapter.LangId,
-            SubjectId = chapter.SubjectId
+            Name = NameFor(names, callerLangId),
+            LangId = callerLangId,
+            SubjectId = chapter.SubjectId,
+            Order = chapter.Order
         });
     }
 
     public async Task<ServiceResult<LessonDto>> AddLessonToChapterAsync(
-        Guid chapterId, string name, CancellationToken cancellationToken = default)
+        Guid chapterId, CreateCurriculumNodeRequest request, CancellationToken cancellationToken = default)
     {
-        if (Normalize(ref name, out var comparable) is { } error)
-            return ServiceResult<LessonDto>.Invalid(error);
+        var validated = await ValidateNamesAsync(request, LessonNameMaxLength, cancellationToken);
+        if (!validated.Succeeded)
+            return Propagate<LessonDto>(validated);
 
-        var chapter = await _dbContext.Chapters
-            .AsNoTracking()
-            .FirstOrDefaultAsync(c => c.Id == chapterId, cancellationToken);
+        var names = validated.Value!;
 
-        if (chapter is null)
+        if (!await _dbContext.Chapters.AnyAsync(c => c.Id == chapterId, cancellationToken))
             return ServiceResult<LessonDto>.NotFound("Chapter not found.");
 
-        if (await _dbContext.Lessons.AnyAsync(
-                l => l.ChapterId == chapterId && l.Name.ToLower() == comparable, cancellationToken))
-            return ServiceResult<LessonDto>.Conflict($"This chapter already has a lesson named '{name}'.");
+        foreach (var name in names)
+        {
+            if (await _dbContext.LessonTranslations.AnyAsync(
+                    t => t.Lesson!.ChapterId == chapterId && t.LangId == name.LangId && t.Name.ToLower() == name.Comparable,
+                    cancellationToken))
+                return ServiceResult<LessonDto>.Conflict($"This chapter already has a lesson named '{name.Name}'.");
+        }
+
+        var order = await ResolveOrderAsync(
+            _dbContext.Lessons.Where(l => l.ChapterId == chapterId).Select(l => l.Order), request.Order, cancellationToken);
+        if (!order.Succeeded)
+            return Propagate<LessonDto>(order);
 
         var lesson = new Lesson
         {
             Id = Guid.NewGuid(),
-            Name = name,
             ChapterId = chapterId,
-            LangId = chapter.LangId,
-            QuestionsVersion = 0
+            Order = order.Value,
+            Translations = names.Select(n => new LessonTranslation { LangId = n.LangId, Name = n.Name }).ToList()
         };
 
         _dbContext.Lessons.Add(lesson);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
+        var callerLangId = await _languageService.ResolveCurrentAsync(cancellationToken);
+
+        // No question set exists in any language until a sheet is uploaded, so the lesson is
+        // created named but not yet playable.
         return ServiceResult<LessonDto>.Success(new LessonDto
         {
             Id = lesson.Id,
-            Name = lesson.Name,
-            LangId = lesson.LangId,
+            Name = NameFor(names, callerLangId),
+            LangId = callerLangId,
             ChapterId = lesson.ChapterId,
-            QuestionsVersion = lesson.QuestionsVersion
+            Order = lesson.Order,
+            QuestionsVersion = 0,
+            HasQuestions = false
         });
     }
 
@@ -247,7 +297,8 @@ public class CurriculumAdminService : ICurriculumAdminService
         if (!force && counts.HasChildren)
             return Blocked(counts, "lesson");
 
-        // Choices and the upload audit rows cascade from the lesson along with the questions.
+        // Translations, question sets, choices and the upload audit rows all cascade from the
+        // lesson along with the questions.
         _dbContext.Lessons.Remove(lesson);
         await _dbContext.SaveChangesAsync(cancellationToken);
         return ServiceResult<CurriculumNodeChildCounts>.Success(counts);
@@ -289,15 +340,89 @@ public class CurriculumAdminService : ICurriculumAdminService
             : await _dbContext.Questions.CountAsync(q => lessonIds.Contains(q.LessonId), cancellationToken);
 
     /// <summary>
-    /// Trims the name, rejects blanks, and produces the lowercased form used for the
-    /// duplicate check. Comparing against <c>LOWER(name)</c> in SQL makes the check explicit
-    /// rather than depending on the database collation happening to be case-insensitive.
-    /// The original casing is what gets stored, so display names keep their capitals.
+    /// Trims each name, rejects blanks and over-long values, and requires one name per
+    /// configured language — a node missing a translation would be nameless for those
+    /// students, and nothing else in the system would notice.
+    /// <para>
+    /// The lowercased form is what the duplicate check compares against <c>LOWER(name)</c> in
+    /// SQL, so the rule is explicit rather than dependent on the database collation happening
+    /// to be case-insensitive. The original casing is what gets stored.
+    /// </para>
     /// </summary>
-    private static string? Normalize(ref string name, out string comparable)
+    private async Task<ServiceResult<List<NodeName>>> ValidateNamesAsync(
+        CreateCurriculumNodeRequest request, int maxLength, CancellationToken cancellationToken)
     {
-        name = (name ?? string.Empty).Trim();
-        comparable = name.ToLowerInvariant();
-        return name.Length == 0 ? "Name is required." : null;
+        var supplied = request.Translations ?? [];
+        if (supplied.Count == 0)
+            return ServiceResult<List<NodeName>>.Invalid("At least one translation is required.");
+
+        var errors = new List<string>();
+        var names = new List<NodeName>();
+
+        foreach (var translation in supplied)
+        {
+            var name = (translation.Name ?? string.Empty).Trim();
+
+            if (name.Length == 0)
+                errors.Add($"Name is required for language {translation.LangId}.");
+            else if (name.Length > maxLength)
+                errors.Add($"Name for language {translation.LangId} is {name.Length} characters, above the {maxLength} limit.");
+            else
+                names.Add(new NodeName(translation.LangId, name, name.ToLowerInvariant()));
+        }
+
+        if (supplied.Select(t => t.LangId).Distinct().Count() != supplied.Count)
+            errors.Add("The same language appears more than once.");
+
+        var languages = await _dbContext.Languages
+            .Select(l => new { l.Id, l.Code })
+            .ToListAsync(cancellationToken);
+
+        foreach (var name in names.Where(n => languages.All(l => l.Id != n.LangId)))
+            errors.Add($"Unknown language '{name.LangId}'.");
+
+        var missing = languages
+            .Where(l => names.All(n => n.LangId != l.Id))
+            .Select(l => l.Code)
+            .ToList();
+
+        if (missing.Count > 0)
+            errors.Add($"A name is required for every language. Missing: {string.Join(", ", missing)}.");
+
+        return errors.Count > 0
+            ? ServiceResult<List<NodeName>>.Invalid([.. errors])
+            : ServiceResult<List<NodeName>>.Success(names);
     }
+
+    /// <summary>
+    /// Places the new node among its siblings. Omitting the position appends after the last
+    /// one; supplying a taken position is refused rather than silently shuffling, because the
+    /// unlock chain steps through this order and two siblings sharing a slot is not resolvable.
+    /// </summary>
+    private static async Task<ServiceResult<int>> ResolveOrderAsync(
+        IQueryable<int> siblingOrders, int? requested, CancellationToken cancellationToken)
+    {
+        if (requested is { } explicitOrder)
+        {
+            if (explicitOrder < 1)
+                return ServiceResult<int>.Invalid("Order must be 1 or greater.");
+
+            if (await siblingOrders.AnyAsync(o => o == explicitOrder, cancellationToken))
+                return ServiceResult<int>.Conflict($"Another node is already at position {explicitOrder} under this parent.");
+
+            return ServiceResult<int>.Success(explicitOrder);
+        }
+
+        var highest = await siblingOrders.MaxAsync(o => (int?)o, cancellationToken) ?? 0;
+        return ServiceResult<int>.Success(highest + 1);
+    }
+
+    /// <summary>Echoes the new node back in the caller's own language, falling back to whatever was supplied first.</summary>
+    private static string NameFor(List<NodeName> names, Guid langId) =>
+        names.FirstOrDefault(n => n.LangId == langId)?.Name ?? names[0].Name;
+
+    private static ServiceResult<T> Propagate<T>(ServiceResult source) =>
+        new() { ErrorKind = source.ErrorKind, Errors = source.Errors };
+
+    private sealed record NodeName(Guid LangId, string Name, string Comparable);
 }

@@ -17,8 +17,8 @@ public class ChaptersController : ControllerBase
     }
 
     /// <summary>
-    /// Chapters under a subject, in the caller's content language. A subject id from the
-    /// other language tree yields an empty list.
+    /// Chapters under a subject, with names in the caller's content language. The tree itself
+    /// is language-independent, so a chapter has the same id whichever language asks for it.
     /// </summary>
     [HttpGet]
     public async Task<IActionResult> GetBySubject([FromQuery] Guid subjectId, CancellationToken cancellationToken)

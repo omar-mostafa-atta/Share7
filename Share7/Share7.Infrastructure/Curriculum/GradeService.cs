@@ -20,11 +20,21 @@ public class GradeService : IGradeService
     {
         var resolvedLangId = langId ?? await _languageService.ResolveCurrentAsync(cancellationToken);
 
+        // Sorted by the ladder position, not by name — sorting "Grade 10" and "Grade 2"
+        // alphabetically is what the Order column exists to fix.
         return await _dbContext.Grades
             .AsNoTracking()
-            .Where(g => g.LangId == resolvedLangId)
-            .OrderBy(g => g.Name)
-            .Select(g => new GradeDto { Id = g.Id, Name = g.Name, LangId = g.LangId })
+            .OrderBy(g => g.Order)
+            .Select(g => new GradeDto
+            {
+                Id = g.Id,
+                Name = g.Translations
+                    .Where(t => t.LangId == resolvedLangId)
+                    .Select(t => t.Name)
+                    .FirstOrDefault() ?? string.Empty,
+                LangId = resolvedLangId,
+                Order = g.Order
+            })
             .ToListAsync(cancellationToken);
     }
 }

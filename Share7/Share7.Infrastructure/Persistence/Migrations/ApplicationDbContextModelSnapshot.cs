@@ -125,10 +125,330 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("Share7.Domain.Commerce.Entitlement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("GrantedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("SourceId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("UserId", "ProductId")
+                        .IsUnique();
+
+                    b.ToTable("Entitlements", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Commerce.Offer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Availability")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("BadgeKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("CurrencyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("OriginalPrice")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("Price")
+                        .HasColumnType("bigint");
+
+                    b.Property<int?>("PurchaseLimit")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CurrencyId");
+
+                    b.HasIndex("SortOrder", "Id");
+
+                    b.ToTable("Offers", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Commerce.OfferProduct", b =>
+                {
+                    b.Property<Guid>("OfferId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("OfferId", "ProductId");
+
+                    b.HasIndex("ProductId");
+
+                    b.ToTable("OfferProducts", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Commerce.OfferTranslation", b =>
+                {
+                    b.Property<Guid>("OfferId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("LangId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("Lang_Id");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("OfferId", "LangId");
+
+                    b.HasIndex("LangId", "Name");
+
+                    b.ToTable("OfferTranslations", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Commerce.Product", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("Active")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("ImageUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("nvarchar(2048)");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<Guid>("ProductKindId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Key")
+                        .IsUnique();
+
+                    b.HasIndex("ProductKindId");
+
+                    b.ToTable("Products", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Commerce.ProductGrant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Quantity")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(1);
+
+                    b.Property<string>("Reference")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId", "Reference")
+                        .IsUnique();
+
+                    b.ToTable("ProductGrants", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Commerce.ProductKind", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("ProductKinds", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Commerce.ProductKindTranslation", b =>
+                {
+                    b.Property<Guid>("ProductKindId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("LangId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("Lang_Id");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.HasKey("ProductKindId", "LangId");
+
+                    b.HasIndex("LangId", "Name");
+
+                    b.ToTable("ProductKindTranslations", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Commerce.ProductTranslation", b =>
+                {
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("LangId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("Lang_Id");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("ProductId", "LangId");
+
+                    b.HasIndex("LangId", "Name");
+
+                    b.ToTable("ProductTranslations", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Commerce.PurchaseTransaction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("CurrencyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("FailureReasonKey")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<Guid>("OfferId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("Price")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("RequestId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CurrencyId");
+
+                    b.HasIndex("OfferId");
+
+                    b.HasIndex("UserId", "RequestId")
+                        .IsUnique()
+                        .HasFilter("[State] = 'COMPLETED'");
+
+                    b.HasIndex("UserId", "OfferId", "State");
+
+                    b.ToTable("PurchaseTransactions", (string)null);
+                });
+
             modelBuilder.Entity("Share7.Domain.Curriculum.Chapter", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("SubjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SubjectId", "Order")
+                        .IsUnique();
+
+                    b.ToTable("Chapters", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Curriculum.ChapterTranslation", b =>
+                {
+                    b.Property<Guid>("ChapterId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("LangId")
@@ -138,19 +458,13 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
-                        .HasColumnName("Chapter");
+                        .HasColumnType("nvarchar(200)");
 
-                    b.Property<Guid>("SubjectId")
-                        .HasColumnType("uniqueidentifier");
+                    b.HasKey("ChapterId", "LangId");
 
-                    b.HasKey("Id");
+                    b.HasIndex("LangId", "Name");
 
-                    b.HasIndex("LangId");
-
-                    b.HasIndex("SubjectId");
-
-                    b.ToTable("Chapters", (string)null);
+                    b.ToTable("ChapterTranslations", (string)null);
                 });
 
             modelBuilder.Entity("Share7.Domain.Curriculum.Lesson", b =>
@@ -162,28 +476,36 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("ChapterId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int>("Order")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChapterId", "Order")
+                        .IsUnique();
+
+                    b.ToTable("Lessons", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Curriculum.LessonQuestionSet", b =>
+                {
+                    b.Property<Guid>("LessonId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("LangId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("Lang_Id");
 
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
-                        .HasColumnName("Lesson");
-
-                    b.Property<int>("QuestionsVersion")
+                    b.Property<int>("Version")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int")
                         .HasDefaultValue(0);
 
-                    b.HasKey("Id");
-
-                    b.HasIndex("ChapterId");
+                    b.HasKey("LessonId", "LangId");
 
                     b.HasIndex("LangId");
 
-                    b.ToTable("Lessons", (string)null);
+                    b.ToTable("LessonQuestionSets", (string)null);
                 });
 
             modelBuilder.Entity("Share7.Domain.Curriculum.LessonQuestionUpload", b =>
@@ -196,6 +518,10 @@ namespace Share7.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(260)
                         .HasColumnType("nvarchar(260)");
+
+                    b.Property<Guid>("LangId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("Lang_Id");
 
                     b.Property<Guid>("LessonId")
                         .HasColumnType("uniqueidentifier");
@@ -214,10 +540,94 @@ namespace Share7.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("LessonId", "Version")
+                    b.HasIndex("LangId");
+
+                    b.HasIndex("LessonId", "LangId", "Version")
                         .IsUnique();
 
                     b.ToTable("LessonQuestionUploads", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Curriculum.LessonRecoveryQuestionSet", b =>
+                {
+                    b.Property<Guid>("LessonId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("LangId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("Lang_Id");
+
+                    b.Property<int>("Version")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.HasKey("LessonId", "LangId");
+
+                    b.HasIndex("LangId");
+
+                    b.ToTable("LessonRecoveryQuestionSets", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Curriculum.LessonRecoveryQuestionUpload", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<Guid>("LangId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("Lang_Id");
+
+                    b.Property<Guid>("LessonId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("QuestionCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UploadedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UploadedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LangId");
+
+                    b.HasIndex("LessonId", "LangId", "Version")
+                        .IsUnique();
+
+                    b.ToTable("LessonRecoveryQuestionUploads", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Curriculum.LessonTranslation", b =>
+                {
+                    b.Property<Guid>("LessonId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("LangId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("Lang_Id");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("LessonId", "LangId");
+
+                    b.HasIndex("LangId", "Name");
+
+                    b.ToTable("LessonTranslations", (string)null);
                 });
 
             modelBuilder.Entity("Share7.Domain.Curriculum.Question", b =>
@@ -263,7 +673,7 @@ namespace Share7.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("LangId");
 
-                    b.HasIndex("LessonId", "IsActive");
+                    b.HasIndex("LessonId", "LangId", "IsActive");
 
                     b.ToTable("Questions", (string)null);
                 });
@@ -293,10 +703,102 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.ToTable("QuestionChoices", (string)null);
                 });
 
+            modelBuilder.Entity("Share7.Domain.Curriculum.RecoveryQuestion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CorrectChoiceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DeactivatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<Guid>("LangId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("Lang_Id");
+
+                    b.Property<Guid>("LessonId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("RowNumber")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("Question");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LangId");
+
+                    b.HasIndex("LessonId", "LangId", "IsActive");
+
+                    b.ToTable("RecoveryQuestions", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Curriculum.RecoveryQuestionChoice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("OrderIndex")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("RecoveryQuestionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("Choice");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RecoveryQuestionId");
+
+                    b.ToTable("RecoveryQuestionChoices", (string)null);
+                });
+
             modelBuilder.Entity("Share7.Domain.Curriculum.Subject", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TermId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TermId", "Order")
+                        .IsUnique();
+
+                    b.ToTable("Subjects", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Curriculum.SubjectTranslation", b =>
+                {
+                    b.Property<Guid>("SubjectId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("LangId")
@@ -306,19 +808,13 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
-                        .HasColumnName("Subject");
+                        .HasColumnType("nvarchar(200)");
 
-                    b.Property<Guid>("TermId")
-                        .HasColumnType("uniqueidentifier");
+                    b.HasKey("SubjectId", "LangId");
 
-                    b.HasKey("Id");
+                    b.HasIndex("LangId", "Name");
 
-                    b.HasIndex("LangId");
-
-                    b.HasIndex("TermId");
-
-                    b.ToTable("Subjects", (string)null);
+                    b.ToTable("SubjectTranslations", (string)null);
                 });
 
             modelBuilder.Entity("Share7.Domain.Curriculum.Term", b =>
@@ -330,6 +826,22 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("GradeId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int>("Order")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GradeId", "Order")
+                        .IsUnique();
+
+                    b.ToTable("Terms", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Curriculum.TermTranslation", b =>
+                {
+                    b.Property<Guid>("TermId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("LangId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("Lang_Id");
@@ -337,16 +849,134 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)")
-                        .HasColumnName("Term");
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("TermId", "LangId");
+
+                    b.HasIndex("LangId", "Name");
+
+                    b.ToTable("TermTranslations", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Economy.Currency", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<bool>("Enabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("GradeId");
+                    b.HasIndex("Key")
+                        .IsUnique();
 
-                    b.HasIndex("LangId");
+                    b.ToTable("Currencies", (string)null);
+                });
 
-                    b.ToTable("Terms", (string)null);
+            modelBuilder.Entity("Share7.Domain.Economy.CurrencyLedgerEntry", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("Amount")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("BalanceAfter")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("CurrencyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("IdempotencyKey")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("Metadata")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SourceId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("SourceType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("TransactionType")
+                        .IsRequired()
+                        .HasMaxLength(48)
+                        .HasColumnType("nvarchar(48)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CurrencyId");
+
+                    b.HasIndex("IdempotencyKey");
+
+                    b.HasIndex("UserId", "CurrencyId", "Id");
+
+                    b.ToTable("CurrencyLedgerEntries", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Economy.UserCurrencyBalance", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("Amount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L);
+
+                    b.Property<Guid>("CurrencyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CurrencyId");
+
+                    b.HasIndex("UserId", "CurrencyId")
+                        .IsUnique();
+
+                    b.ToTable("UserCurrencyBalances", (string)null);
                 });
 
             modelBuilder.Entity("Share7.Domain.Entities.RefreshToken", b =>
@@ -441,10 +1071,226 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.ToTable("StudentProfiles", (string)null);
                 });
 
+            modelBuilder.Entity("Share7.Domain.Equipment.UserEquipment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("BodyType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("ColorKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("CosmeticKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("SlotKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "SlotKey")
+                        .IsUnique();
+
+                    b.ToTable("Equipments", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Games.Game", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("GameKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int>("GameplayScene")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<int>("LobbyScene")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MaxPlayers")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(2);
+
+                    b.Property<int>("MinPlayers")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(1);
+
+                    b.Property<float>("ReadyTimeoutSeconds")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("real")
+                        .HasDefaultValue(20f);
+
+                    b.Property<bool>("SupportsMultiplayer")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("SupportsSinglePlayer")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("UseLobby")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("UseMatchmaking")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GameKey")
+                        .IsUnique();
+
+                    b.ToTable("Games", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Games.GameTranslation", b =>
+                {
+                    b.Property<Guid>("GameId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("LangId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("Lang_Id");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("GameId", "LangId");
+
+                    b.HasIndex("LangId");
+
+                    b.ToTable("GameTranslations", (string)null);
+                });
+
             modelBuilder.Entity("Share7.Domain.LookUps.Grade", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Order")
+                        .IsUnique();
+
+                    b.ToTable("Grades", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("a0000000-0000-4000-8000-000000000001"),
+                            Order = 1
+                        },
+                        new
+                        {
+                            Id = new Guid("a0000000-0000-4000-8000-000000000002"),
+                            Order = 2
+                        },
+                        new
+                        {
+                            Id = new Guid("a0000000-0000-4000-8000-000000000003"),
+                            Order = 3
+                        },
+                        new
+                        {
+                            Id = new Guid("a0000000-0000-4000-8000-000000000004"),
+                            Order = 4
+                        },
+                        new
+                        {
+                            Id = new Guid("a0000000-0000-4000-8000-000000000005"),
+                            Order = 5
+                        },
+                        new
+                        {
+                            Id = new Guid("a0000000-0000-4000-8000-000000000006"),
+                            Order = 6
+                        },
+                        new
+                        {
+                            Id = new Guid("a0000000-0000-4000-8000-000000000007"),
+                            Order = 7
+                        },
+                        new
+                        {
+                            Id = new Guid("a0000000-0000-4000-8000-000000000008"),
+                            Order = 8
+                        },
+                        new
+                        {
+                            Id = new Guid("a0000000-0000-4000-8000-000000000009"),
+                            Order = 9
+                        },
+                        new
+                        {
+                            Id = new Guid("a0000000-0000-4000-8000-00000000000a"),
+                            Order = 10
+                        },
+                        new
+                        {
+                            Id = new Guid("a0000000-0000-4000-8000-00000000000b"),
+                            Order = 11
+                        },
+                        new
+                        {
+                            Id = new Guid("a0000000-0000-4000-8000-00000000000c"),
+                            Order = 12
+                        },
+                        new
+                        {
+                            Id = new Guid("a0000000-0000-4000-8000-00000000000d"),
+                            Order = 13
+                        },
+                        new
+                        {
+                            Id = new Guid("a0000000-0000-4000-8000-00000000000e"),
+                            Order = 14
+                        });
+                });
+
+            modelBuilder.Entity("Share7.Domain.LookUps.GradeTranslation", b =>
+                {
+                    b.Property<Guid>("GradeId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("LangId")
@@ -454,159 +1300,182 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)")
-                        .HasColumnName("Grade");
+                        .HasColumnType("nvarchar(100)");
 
-                    b.HasKey("Id");
+                    b.HasKey("GradeId", "LangId");
 
-                    b.HasIndex("LangId");
+                    b.HasIndex("LangId", "Name");
 
-                    b.ToTable("Grades", (string)null);
+                    b.ToTable("GradeTranslations", (string)null);
 
                     b.HasData(
                         new
                         {
-                            Id = new Guid("ee0bc8b5-de4a-4a25-afaa-cfdec9e9e27a"),
+                            GradeId = new Guid("a0000000-0000-4000-8000-000000000001"),
                             LangId = new Guid("9c4d7f2a-3e51-4b6c-8d0a-2f7b1e5c9a34"),
-                            Name = "Grade 1"
+                            Name = "KG1"
                         },
                         new
                         {
-                            Id = new Guid("cc203a51-cc8c-4814-ae5e-587c9903e17c"),
+                            GradeId = new Guid("a0000000-0000-4000-8000-000000000001"),
+                            LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
+                            Name = "الروضة الأولى"
+                        },
+                        new
+                        {
+                            GradeId = new Guid("a0000000-0000-4000-8000-000000000002"),
                             LangId = new Guid("9c4d7f2a-3e51-4b6c-8d0a-2f7b1e5c9a34"),
-                            Name = "Grade 2"
+                            Name = "KG2"
                         },
                         new
                         {
-                            Id = new Guid("52c97299-9356-46d5-87e9-fc1ac17d5c14"),
+                            GradeId = new Guid("a0000000-0000-4000-8000-000000000002"),
+                            LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
+                            Name = "الروضة الثانية"
+                        },
+                        new
+                        {
+                            GradeId = new Guid("a0000000-0000-4000-8000-000000000003"),
                             LangId = new Guid("9c4d7f2a-3e51-4b6c-8d0a-2f7b1e5c9a34"),
-                            Name = "Grade 3"
+                            Name = "Primary One"
                         },
                         new
                         {
-                            Id = new Guid("2b004d42-ca9c-4823-ac5b-1cb59cba0467"),
+                            GradeId = new Guid("a0000000-0000-4000-8000-000000000003"),
+                            LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
+                            Name = "الصف الأول الابتدائي"
+                        },
+                        new
+                        {
+                            GradeId = new Guid("a0000000-0000-4000-8000-000000000004"),
                             LangId = new Guid("9c4d7f2a-3e51-4b6c-8d0a-2f7b1e5c9a34"),
-                            Name = "Grade 4"
+                            Name = "Primary Two"
                         },
                         new
                         {
-                            Id = new Guid("b14d62e5-56ee-42a4-916a-5554d811f72f"),
+                            GradeId = new Guid("a0000000-0000-4000-8000-000000000004"),
+                            LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
+                            Name = "الصف الثاني الابتدائي"
+                        },
+                        new
+                        {
+                            GradeId = new Guid("a0000000-0000-4000-8000-000000000005"),
                             LangId = new Guid("9c4d7f2a-3e51-4b6c-8d0a-2f7b1e5c9a34"),
-                            Name = "Grade 5"
+                            Name = "Primary Three"
                         },
                         new
                         {
-                            Id = new Guid("76e10c16-da74-4731-8818-448262946b70"),
+                            GradeId = new Guid("a0000000-0000-4000-8000-000000000005"),
+                            LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
+                            Name = "الصف الثالث الابتدائي"
+                        },
+                        new
+                        {
+                            GradeId = new Guid("a0000000-0000-4000-8000-000000000006"),
                             LangId = new Guid("9c4d7f2a-3e51-4b6c-8d0a-2f7b1e5c9a34"),
-                            Name = "Grade 6"
+                            Name = "Primary Four"
                         },
                         new
                         {
-                            Id = new Guid("c3f4e414-cde4-4929-a235-d4f09b5f748d"),
+                            GradeId = new Guid("a0000000-0000-4000-8000-000000000006"),
+                            LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
+                            Name = "الصف الرابع الابتدائي"
+                        },
+                        new
+                        {
+                            GradeId = new Guid("a0000000-0000-4000-8000-000000000007"),
                             LangId = new Guid("9c4d7f2a-3e51-4b6c-8d0a-2f7b1e5c9a34"),
-                            Name = "Grade 7"
+                            Name = "Primary Five"
                         },
                         new
                         {
-                            Id = new Guid("de6e690a-9bbf-4e32-afea-7e36942f7957"),
+                            GradeId = new Guid("a0000000-0000-4000-8000-000000000007"),
+                            LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
+                            Name = "الصف الخامس الابتدائي"
+                        },
+                        new
+                        {
+                            GradeId = new Guid("a0000000-0000-4000-8000-000000000008"),
                             LangId = new Guid("9c4d7f2a-3e51-4b6c-8d0a-2f7b1e5c9a34"),
-                            Name = "Grade 8"
+                            Name = "Primary Six"
                         },
                         new
                         {
-                            Id = new Guid("895f300d-21b4-4167-afc7-6c06677abf0e"),
+                            GradeId = new Guid("a0000000-0000-4000-8000-000000000008"),
+                            LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
+                            Name = "الصف السادس الابتدائي"
+                        },
+                        new
+                        {
+                            GradeId = new Guid("a0000000-0000-4000-8000-000000000009"),
                             LangId = new Guid("9c4d7f2a-3e51-4b6c-8d0a-2f7b1e5c9a34"),
-                            Name = "Grade 9"
+                            Name = "Preparatory One"
                         },
                         new
                         {
-                            Id = new Guid("f4313c32-260c-4e55-8877-c68b9d5ae33d"),
+                            GradeId = new Guid("a0000000-0000-4000-8000-000000000009"),
+                            LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
+                            Name = "الصف الأول الإعدادي"
+                        },
+                        new
+                        {
+                            GradeId = new Guid("a0000000-0000-4000-8000-00000000000a"),
                             LangId = new Guid("9c4d7f2a-3e51-4b6c-8d0a-2f7b1e5c9a34"),
-                            Name = "Grade 10"
+                            Name = "Preparatory Two"
                         },
                         new
                         {
-                            Id = new Guid("c2287d7b-e111-45ef-ac10-a3669c8a5eeb"),
+                            GradeId = new Guid("a0000000-0000-4000-8000-00000000000a"),
+                            LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
+                            Name = "الصف الثاني الإعدادي"
+                        },
+                        new
+                        {
+                            GradeId = new Guid("a0000000-0000-4000-8000-00000000000b"),
                             LangId = new Guid("9c4d7f2a-3e51-4b6c-8d0a-2f7b1e5c9a34"),
-                            Name = "Grade 11"
+                            Name = "Preparatory Three"
                         },
                         new
                         {
-                            Id = new Guid("38111b66-de42-4adc-b20c-464b1dd2a9d1"),
+                            GradeId = new Guid("a0000000-0000-4000-8000-00000000000b"),
+                            LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
+                            Name = "الصف الثالث الإعدادي"
+                        },
+                        new
+                        {
+                            GradeId = new Guid("a0000000-0000-4000-8000-00000000000c"),
                             LangId = new Guid("9c4d7f2a-3e51-4b6c-8d0a-2f7b1e5c9a34"),
-                            Name = "Grade 12"
+                            Name = "Secondary One"
                         },
                         new
                         {
-                            Id = new Guid("a1e6c390-7d24-4f81-9b05-3c8e2a6f4d17"),
+                            GradeId = new Guid("a0000000-0000-4000-8000-00000000000c"),
                             LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
-                            Name = "الصف الأول"
+                            Name = "الصف الأول الثانوي"
                         },
                         new
                         {
-                            Id = new Guid("b2f7d4a1-8e35-4092-ac16-4d9f3b7e5a28"),
-                            LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
-                            Name = "الصف الثاني"
+                            GradeId = new Guid("a0000000-0000-4000-8000-00000000000d"),
+                            LangId = new Guid("9c4d7f2a-3e51-4b6c-8d0a-2f7b1e5c9a34"),
+                            Name = "Secondary Two"
                         },
                         new
                         {
-                            Id = new Guid("c3a8e5b2-9f46-41a3-bd27-5e0a4c8f6b39"),
+                            GradeId = new Guid("a0000000-0000-4000-8000-00000000000d"),
                             LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
-                            Name = "الصف الثالث"
+                            Name = "الصف الثاني الثانوي"
                         },
                         new
                         {
-                            Id = new Guid("d4b9f6c3-a057-42b4-ce38-6f1b5d907c4a"),
-                            LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
-                            Name = "الصف الرابع"
+                            GradeId = new Guid("a0000000-0000-4000-8000-00000000000e"),
+                            LangId = new Guid("9c4d7f2a-3e51-4b6c-8d0a-2f7b1e5c9a34"),
+                            Name = "Secondary Three"
                         },
                         new
                         {
-                            Id = new Guid("e5c0a7d4-b168-43c5-df49-701c6e018d5b"),
+                            GradeId = new Guid("a0000000-0000-4000-8000-00000000000e"),
                             LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
-                            Name = "الصف الخامس"
-                        },
-                        new
-                        {
-                            Id = new Guid("f6d1b8e5-c279-44d6-e05a-812d7f129e6c"),
-                            LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
-                            Name = "الصف السادس"
-                        },
-                        new
-                        {
-                            Id = new Guid("07e2c9f6-d38a-45e7-f16b-923e80230f7d"),
-                            LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
-                            Name = "الصف السابع"
-                        },
-                        new
-                        {
-                            Id = new Guid("18f3d007-e49b-46f8-021c-a34f9134108e"),
-                            LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
-                            Name = "الصف الثامن"
-                        },
-                        new
-                        {
-                            Id = new Guid("2904e118-f5ac-4709-132d-b450a245219f"),
-                            LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
-                            Name = "الصف التاسع"
-                        },
-                        new
-                        {
-                            Id = new Guid("3a15f229-06bd-481a-243e-c561b35632a0"),
-                            LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
-                            Name = "الصف العاشر"
-                        },
-                        new
-                        {
-                            Id = new Guid("4b260330-17ce-492b-354f-d672c46743b1"),
-                            LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
-                            Name = "الصف الحادي عشر"
-                        },
-                        new
-                        {
-                            Id = new Guid("5c371441-28df-4a3c-4650-e783d57854c2"),
-                            LangId = new Guid("4b8e1d6f-7a29-4c35-9e10-6d3f8b2a5c71"),
-                            Name = "الصف الثاني عشر"
+                            Name = "الصف الثالث الثانوي"
                         });
                 });
 
@@ -646,6 +1515,274 @@ namespace Share7.Infrastructure.Persistence.Migrations
                             Code = "ar",
                             Name = "العربية"
                         });
+                });
+
+            modelBuilder.Entity("Share7.Domain.Progress.UserLessonProgress", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("GameId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("LessonId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CompletionState")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CorrectCount")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("FirstAttemptWasPerfect")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("LastAttemptAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Percent")
+                        .HasColumnType("int");
+
+                    b.Property<int>("QuestionsVersion")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TotalCount")
+                        .HasColumnType("int");
+
+                    b.HasKey("UserId", "GameId", "LessonId");
+
+                    b.HasIndex("GameId");
+
+                    b.HasIndex("LessonId");
+
+                    b.HasIndex("UserId", "GameId");
+
+                    b.ToTable("UserLessonProgress", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Progress.UserNodeUnlock", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("GameId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("NodeType")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("NodeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("UnlockedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("UserId", "GameId", "NodeType", "NodeId");
+
+                    b.HasIndex("GameId");
+
+                    b.HasIndex("UserId", "GameId");
+
+                    b.ToTable("UserNodeUnlocks", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Progress.UserQuestionProgress", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("GameId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("QuestionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsCorrect")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("LastAttemptAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("LessonId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("UserId", "GameId", "QuestionId");
+
+                    b.HasIndex("GameId");
+
+                    b.HasIndex("QuestionId");
+
+                    b.HasIndex("UserId", "GameId", "LessonId");
+
+                    b.ToTable("UserQuestionProgress", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Rewards.RewardRule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("CooldownSeconds")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DailyLimit")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("Enabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(48)
+                        .HasColumnType("nvarchar(48)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("ReferenceKey")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("RepeatPolicy")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("TransactionType")
+                        .IsRequired()
+                        .HasMaxLength(48)
+                        .HasColumnType("nvarchar(48)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EventType", "Enabled", "ReferenceKey");
+
+                    b.ToTable("RewardRules", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Rewards.RewardRuleGrant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("Amount")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("CurrencyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("RewardRuleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CurrencyId");
+
+                    b.HasIndex("RewardRuleId", "CurrencyId")
+                        .IsUnique();
+
+                    b.ToTable("RewardRuleGrants", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Rewards.RewardTransaction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(48)
+                        .HasColumnType("nvarchar(48)");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<Guid>("RewardRuleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SourceId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("SourceType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("SubmissionKey")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RewardRuleId");
+
+                    b.HasIndex("UserId", "RewardRuleId", "CreatedAtUtc");
+
+                    b.HasIndex("UserId", "RewardRuleId", "IdempotencyKey")
+                        .IsUnique();
+
+                    b.ToTable("RewardTransactions", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Rewards.RewardTransactionLine", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("Amount")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("BalanceAfter")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("CurrencyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("LedgerEntryId")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("RewardTransactionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CurrencyId");
+
+                    b.HasIndex("RewardTransactionId");
+
+                    b.ToTable("RewardTransactionLines", (string)null);
                 });
 
             modelBuilder.Entity("Share7.Infrastructure.Identity.ApplicationRole", b =>
@@ -799,7 +1936,54 @@ namespace Share7.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Share7.Domain.Curriculum.Chapter", b =>
+            modelBuilder.Entity("Share7.Domain.Commerce.Entitlement", b =>
+                {
+                    b.HasOne("Share7.Domain.Commerce.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Commerce.Offer", b =>
+                {
+                    b.HasOne("Share7.Domain.Economy.Currency", "Currency")
+                        .WithMany()
+                        .HasForeignKey("CurrencyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Currency");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Commerce.OfferProduct", b =>
+                {
+                    b.HasOne("Share7.Domain.Commerce.Offer", "Offer")
+                        .WithMany("Products")
+                        .HasForeignKey("OfferId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Domain.Commerce.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Offer");
+
+                    b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Commerce.OfferTranslation", b =>
                 {
                     b.HasOne("Share7.Domain.LookUps.Language", "Language")
                         .WithMany()
@@ -807,21 +1991,117 @@ namespace Share7.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("Share7.Domain.Commerce.Offer", "Offer")
+                        .WithMany("Translations")
+                        .HasForeignKey("OfferId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Language");
+
+                    b.Navigation("Offer");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Commerce.Product", b =>
+                {
+                    b.HasOne("Share7.Domain.Commerce.ProductKind", "Kind")
+                        .WithMany("Products")
+                        .HasForeignKey("ProductKindId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Kind");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Commerce.ProductGrant", b =>
+                {
+                    b.HasOne("Share7.Domain.Commerce.Product", "Product")
+                        .WithMany("Grants")
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Commerce.ProductKindTranslation", b =>
+                {
+                    b.HasOne("Share7.Domain.LookUps.Language", "Language")
+                        .WithMany()
+                        .HasForeignKey("LangId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Domain.Commerce.ProductKind", "ProductKind")
+                        .WithMany("Translations")
+                        .HasForeignKey("ProductKindId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Language");
+
+                    b.Navigation("ProductKind");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Commerce.ProductTranslation", b =>
+                {
+                    b.HasOne("Share7.Domain.LookUps.Language", "Language")
+                        .WithMany()
+                        .HasForeignKey("LangId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Domain.Commerce.Product", "Product")
+                        .WithMany("Translations")
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Language");
+
+                    b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Commerce.PurchaseTransaction", b =>
+                {
+                    b.HasOne("Share7.Domain.Economy.Currency", "Currency")
+                        .WithMany()
+                        .HasForeignKey("CurrencyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Domain.Commerce.Offer", "Offer")
+                        .WithMany()
+                        .HasForeignKey("OfferId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Currency");
+
+                    b.Navigation("Offer");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Curriculum.Chapter", b =>
+                {
                     b.HasOne("Share7.Domain.Curriculum.Subject", "Subject")
                         .WithMany("Chapters")
                         .HasForeignKey("SubjectId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Language");
-
                     b.Navigation("Subject");
                 });
 
-            modelBuilder.Entity("Share7.Domain.Curriculum.Lesson", b =>
+            modelBuilder.Entity("Share7.Domain.Curriculum.ChapterTranslation", b =>
                 {
                     b.HasOne("Share7.Domain.Curriculum.Chapter", "Chapter")
-                        .WithMany("Lessons")
+                        .WithMany("Translations")
                         .HasForeignKey("ChapterId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -837,13 +2117,108 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.Navigation("Language");
                 });
 
+            modelBuilder.Entity("Share7.Domain.Curriculum.Lesson", b =>
+                {
+                    b.HasOne("Share7.Domain.Curriculum.Chapter", "Chapter")
+                        .WithMany("Lessons")
+                        .HasForeignKey("ChapterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Chapter");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Curriculum.LessonQuestionSet", b =>
+                {
+                    b.HasOne("Share7.Domain.LookUps.Language", "Language")
+                        .WithMany()
+                        .HasForeignKey("LangId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Domain.Curriculum.Lesson", "Lesson")
+                        .WithMany("QuestionSets")
+                        .HasForeignKey("LessonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Language");
+
+                    b.Navigation("Lesson");
+                });
+
             modelBuilder.Entity("Share7.Domain.Curriculum.LessonQuestionUpload", b =>
                 {
+                    b.HasOne("Share7.Domain.LookUps.Language", "Language")
+                        .WithMany()
+                        .HasForeignKey("LangId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("Share7.Domain.Curriculum.Lesson", "Lesson")
                         .WithMany()
                         .HasForeignKey("LessonId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Language");
+
+                    b.Navigation("Lesson");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Curriculum.LessonRecoveryQuestionSet", b =>
+                {
+                    b.HasOne("Share7.Domain.LookUps.Language", "Language")
+                        .WithMany()
+                        .HasForeignKey("LangId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Domain.Curriculum.Lesson", "Lesson")
+                        .WithMany("RecoveryQuestionSets")
+                        .HasForeignKey("LessonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Language");
+
+                    b.Navigation("Lesson");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Curriculum.LessonRecoveryQuestionUpload", b =>
+                {
+                    b.HasOne("Share7.Domain.LookUps.Language", "Language")
+                        .WithMany()
+                        .HasForeignKey("LangId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Domain.Curriculum.Lesson", "Lesson")
+                        .WithMany()
+                        .HasForeignKey("LessonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Language");
+
+                    b.Navigation("Lesson");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Curriculum.LessonTranslation", b =>
+                {
+                    b.HasOne("Share7.Domain.LookUps.Language", "Language")
+                        .WithMany()
+                        .HasForeignKey("LangId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Domain.Curriculum.Lesson", "Lesson")
+                        .WithMany("Translations")
+                        .HasForeignKey("LessonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Language");
 
                     b.Navigation("Lesson");
                 });
@@ -878,7 +2253,7 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.Navigation("Question");
                 });
 
-            modelBuilder.Entity("Share7.Domain.Curriculum.Subject", b =>
+            modelBuilder.Entity("Share7.Domain.Curriculum.RecoveryQuestion", b =>
                 {
                     b.HasOne("Share7.Domain.LookUps.Language", "Language")
                         .WithMany()
@@ -886,15 +2261,56 @@ namespace Share7.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("Share7.Domain.Curriculum.Lesson", "Lesson")
+                        .WithMany("RecoveryQuestions")
+                        .HasForeignKey("LessonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Language");
+
+                    b.Navigation("Lesson");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Curriculum.RecoveryQuestionChoice", b =>
+                {
+                    b.HasOne("Share7.Domain.Curriculum.RecoveryQuestion", "RecoveryQuestion")
+                        .WithMany("Choices")
+                        .HasForeignKey("RecoveryQuestionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("RecoveryQuestion");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Curriculum.Subject", b =>
+                {
                     b.HasOne("Share7.Domain.Curriculum.Term", "Term")
                         .WithMany("Subjects")
                         .HasForeignKey("TermId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("Term");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Curriculum.SubjectTranslation", b =>
+                {
+                    b.HasOne("Share7.Domain.LookUps.Language", "Language")
+                        .WithMany()
+                        .HasForeignKey("LangId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Domain.Curriculum.Subject", "Subject")
+                        .WithMany("Translations")
+                        .HasForeignKey("SubjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.Navigation("Language");
 
-                    b.Navigation("Term");
+                    b.Navigation("Subject");
                 });
 
             modelBuilder.Entity("Share7.Domain.Curriculum.Term", b =>
@@ -905,15 +2321,60 @@ namespace Share7.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("Grade");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Curriculum.TermTranslation", b =>
+                {
                     b.HasOne("Share7.Domain.LookUps.Language", "Language")
                         .WithMany()
                         .HasForeignKey("LangId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("Grade");
+                    b.HasOne("Share7.Domain.Curriculum.Term", "Term")
+                        .WithMany("Translations")
+                        .HasForeignKey("TermId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("Language");
+
+                    b.Navigation("Term");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Economy.CurrencyLedgerEntry", b =>
+                {
+                    b.HasOne("Share7.Domain.Economy.Currency", "Currency")
+                        .WithMany()
+                        .HasForeignKey("CurrencyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Currency");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Economy.UserCurrencyBalance", b =>
+                {
+                    b.HasOne("Share7.Domain.Economy.Currency", "Currency")
+                        .WithMany("Balances")
+                        .HasForeignKey("CurrencyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Currency");
                 });
 
             modelBuilder.Entity("Share7.Domain.Entities.StudentProfile", b =>
@@ -927,25 +2388,186 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.Navigation("Grade");
                 });
 
-            modelBuilder.Entity("Share7.Domain.LookUps.Grade", b =>
+            modelBuilder.Entity("Share7.Domain.Equipment.UserEquipment", b =>
                 {
+                    b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Share7.Domain.Games.GameTranslation", b =>
+                {
+                    b.HasOne("Share7.Domain.Games.Game", "Game")
+                        .WithMany("Translations")
+                        .HasForeignKey("GameId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("Share7.Domain.LookUps.Language", "Language")
                         .WithMany()
                         .HasForeignKey("LangId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("Game");
+
                     b.Navigation("Language");
+                });
+
+            modelBuilder.Entity("Share7.Domain.LookUps.GradeTranslation", b =>
+                {
+                    b.HasOne("Share7.Domain.LookUps.Grade", "Grade")
+                        .WithMany("Translations")
+                        .HasForeignKey("GradeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Domain.LookUps.Language", "Language")
+                        .WithMany()
+                        .HasForeignKey("LangId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Grade");
+
+                    b.Navigation("Language");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Progress.UserLessonProgress", b =>
+                {
+                    b.HasOne("Share7.Domain.Games.Game", null)
+                        .WithMany()
+                        .HasForeignKey("GameId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Domain.Curriculum.Lesson", null)
+                        .WithMany()
+                        .HasForeignKey("LessonId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Share7.Domain.Progress.UserNodeUnlock", b =>
+                {
+                    b.HasOne("Share7.Domain.Games.Game", null)
+                        .WithMany()
+                        .HasForeignKey("GameId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Share7.Domain.Progress.UserQuestionProgress", b =>
+                {
+                    b.HasOne("Share7.Domain.Games.Game", null)
+                        .WithMany()
+                        .HasForeignKey("GameId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Domain.Curriculum.Question", null)
+                        .WithMany()
+                        .HasForeignKey("QuestionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Share7.Domain.Rewards.RewardRuleGrant", b =>
+                {
+                    b.HasOne("Share7.Domain.Economy.Currency", "Currency")
+                        .WithMany()
+                        .HasForeignKey("CurrencyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Domain.Rewards.RewardRule", "RewardRule")
+                        .WithMany("Grants")
+                        .HasForeignKey("RewardRuleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Currency");
+
+                    b.Navigation("RewardRule");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Rewards.RewardTransaction", b =>
+                {
+                    b.HasOne("Share7.Domain.Rewards.RewardRule", "RewardRule")
+                        .WithMany()
+                        .HasForeignKey("RewardRuleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("RewardRule");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Rewards.RewardTransactionLine", b =>
+                {
+                    b.HasOne("Share7.Domain.Economy.Currency", "Currency")
+                        .WithMany()
+                        .HasForeignKey("CurrencyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Domain.Rewards.RewardTransaction", "RewardTransaction")
+                        .WithMany("Lines")
+                        .HasForeignKey("RewardTransactionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Currency");
+
+                    b.Navigation("RewardTransaction");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Commerce.Offer", b =>
+                {
+                    b.Navigation("Products");
+
+                    b.Navigation("Translations");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Commerce.Product", b =>
+                {
+                    b.Navigation("Grants");
+
+                    b.Navigation("Translations");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Commerce.ProductKind", b =>
+                {
+                    b.Navigation("Products");
+
+                    b.Navigation("Translations");
                 });
 
             modelBuilder.Entity("Share7.Domain.Curriculum.Chapter", b =>
                 {
                     b.Navigation("Lessons");
+
+                    b.Navigation("Translations");
                 });
 
             modelBuilder.Entity("Share7.Domain.Curriculum.Lesson", b =>
                 {
+                    b.Navigation("QuestionSets");
+
                     b.Navigation("Questions");
+
+                    b.Navigation("RecoveryQuestionSets");
+
+                    b.Navigation("RecoveryQuestions");
+
+                    b.Navigation("Translations");
                 });
 
             modelBuilder.Entity("Share7.Domain.Curriculum.Question", b =>
@@ -953,19 +2575,50 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.Navigation("Choices");
                 });
 
+            modelBuilder.Entity("Share7.Domain.Curriculum.RecoveryQuestion", b =>
+                {
+                    b.Navigation("Choices");
+                });
+
             modelBuilder.Entity("Share7.Domain.Curriculum.Subject", b =>
                 {
                     b.Navigation("Chapters");
+
+                    b.Navigation("Translations");
                 });
 
             modelBuilder.Entity("Share7.Domain.Curriculum.Term", b =>
                 {
                     b.Navigation("Subjects");
+
+                    b.Navigation("Translations");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Economy.Currency", b =>
+                {
+                    b.Navigation("Balances");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Games.Game", b =>
+                {
+                    b.Navigation("Translations");
                 });
 
             modelBuilder.Entity("Share7.Domain.LookUps.Grade", b =>
                 {
                     b.Navigation("Terms");
+
+                    b.Navigation("Translations");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Rewards.RewardRule", b =>
+                {
+                    b.Navigation("Grants");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Rewards.RewardTransaction", b =>
+                {
+                    b.Navigation("Lines");
                 });
 #pragma warning restore 612, 618
         }

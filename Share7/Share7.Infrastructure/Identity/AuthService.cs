@@ -38,15 +38,15 @@ public class AuthService : IAuthService
         if (existing is not null)
             return AuthResult.Failure("A user with this username already exists.");
 
-        var languageExists = await _dbContext.Languages
-            .AnyAsync(l => l.Id == request.LanguageId, cancellationToken);
-        if (!languageExists)
-            return AuthResult.Failure("Invalid language.");
+        //var languageExists = await _dbContext.Languages
+        //    .AnyAsync(l => l.Id == request.LanguageId, cancellationToken);
+        //if (!languageExists)
+        //    return AuthResult.Failure("Invalid language.");
 
         var user = new ApplicationUser
         {
-            UserName = request.Username,
-            PreferredLanguageId = request.LanguageId
+            UserName = request.Username
+            //PreferredLanguageId = request.LanguageId
         };
 
         var createResult = await _userManager.CreateAsync(user, request.Password);
@@ -165,16 +165,13 @@ public class AuthService : IAuthService
         if (user is null)
             return CompleteProfileResult.Failure("User not found.");
 
-        var grade = await _dbContext.Grades.FirstOrDefaultAsync(g => g.Id == request.GradeId, cancellationToken);
-        if (grade is null)
+        // Grades are shared across languages now — there is no "grade from the other tree" to
+        // guard against, and the cross-language check that used to live here is gone with it.
+        if (!await _dbContext.Grades.AnyAsync(g => g.Id == request.GradeId, cancellationToken))
             return CompleteProfileResult.Failure("Invalid grade.");
 
-        // Grades are language-scoped rows. Letting a user attach to a grade from the other
-        // tree would leave them with a grade whose terms/subjects they can never see.
-        if (user.PreferredLanguageId is not null && grade.LangId != user.PreferredLanguageId)
-            return CompleteProfileResult.Failure("The selected grade belongs to a different language than this account.");
-
         var profile = await _dbContext.StudentProfiles.SingleOrDefaultAsync(p => p.UserId == userId, cancellationToken);
+
         var isNew = profile is null;
         profile ??= new StudentProfile { Id = Guid.NewGuid(), UserId = userId, CreatedAt = DateTime.UtcNow };
 
@@ -189,10 +186,11 @@ public class AuthService : IAuthService
             _dbContext.StudentProfiles.Add(profile);
 
         if (!string.IsNullOrWhiteSpace(request.Email) && !string.Equals(user.Email, request.Email, StringComparison.OrdinalIgnoreCase))
-        {
             user.Email = request.Email;
-            await _userManager.UpdateAsync(user);
-        }
+
+        var updateResult = await _userManager.UpdateAsync(user);
+        if (!updateResult.Succeeded)
+            return CompleteProfileResult.Failure(updateResult.Errors.Select(e => e.Description).ToArray());
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 

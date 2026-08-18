@@ -8,9 +8,9 @@ using Share7.Domain.Constants;
 namespace Share7.API.Controllers;
 
 /// <summary>
-/// Builds out the curriculum tree. Every node inherits its parent's language, so there is
-/// no language field on any of these requests — pick an English grade and everything under
-/// it is English.
+/// Builds out the curriculum tree. A node is one language-independent row with a name per
+/// language, so every request carries a <c>translations</c> array — one entry for each
+/// configured language — plus an optional <c>order</c> that defaults to appending last.
 /// </summary>
 [ApiController]
 [Route("api/admin")]
@@ -29,7 +29,7 @@ public class AdminCurriculumController : ControllerBase
     public async Task<IActionResult> AddTerm(
         Guid gradeId, CreateCurriculumNodeRequest request, CancellationToken cancellationToken)
     {
-        var result = await _curriculumAdminService.AddTermToGradeAsync(gradeId, request.Name, cancellationToken);
+        var result = await _curriculumAdminService.AddTermToGradeAsync(gradeId, request, cancellationToken);
         return result.Succeeded ? Ok(result.Value) : result.ToErrorResult();
     }
 
@@ -38,7 +38,7 @@ public class AdminCurriculumController : ControllerBase
     public async Task<IActionResult> AddSubject(
         Guid termId, CreateCurriculumNodeRequest request, CancellationToken cancellationToken)
     {
-        var result = await _curriculumAdminService.AddSubjectToTermAsync(termId, request.Name, cancellationToken);
+        var result = await _curriculumAdminService.AddSubjectToTermAsync(termId, request, cancellationToken);
         return result.Succeeded ? Ok(result.Value) : result.ToErrorResult();
     }
 
@@ -47,19 +47,19 @@ public class AdminCurriculumController : ControllerBase
     public async Task<IActionResult> AddChapter(
         Guid subjectId, CreateCurriculumNodeRequest request, CancellationToken cancellationToken)
     {
-        var result = await _curriculumAdminService.AddChapterToSubjectAsync(subjectId, request.Name, cancellationToken);
+        var result = await _curriculumAdminService.AddChapterToSubjectAsync(subjectId, request, cancellationToken);
         return result.Succeeded ? Ok(result.Value) : result.ToErrorResult();
     }
 
     /// <summary>
-    /// Adds a lesson to a chapter. The new lesson starts at questionsVersion 0 — upload a
-    /// question sheet to it to publish version 1.
+    /// Adds a lesson to a chapter. The new lesson has no question set in any language —
+    /// upload a sheet per language to publish version 1 of each.
     /// </summary>
     [HttpPost("chapters/{chapterId:guid}/lessons")]
     public async Task<IActionResult> AddLesson(
         Guid chapterId, CreateCurriculumNodeRequest request, CancellationToken cancellationToken)
     {
-        var result = await _curriculumAdminService.AddLessonToChapterAsync(chapterId, request.Name, cancellationToken);
+        var result = await _curriculumAdminService.AddLessonToChapterAsync(chapterId, request, cancellationToken);
         return result.Succeeded ? Ok(result.Value) : result.ToErrorResult();
     }
 

@@ -10,19 +10,13 @@ public class TermConfiguration : IEntityTypeConfiguration<Term>
     {
         builder.ToTable("Terms");
         builder.HasKey(t => t.Id);
-        builder.Property(t => t.Name).HasColumnName("Term").IsRequired().HasMaxLength(100);
-        builder.Property(t => t.LangId).HasColumnName("Lang_Id");
 
         builder.HasOne(t => t.Grade)
             .WithMany(g => g.Terms)
             .HasForeignKey(t => t.GradeId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasOne(t => t.Language)
-            .WithMany()
-            .HasForeignKey(t => t.LangId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        builder.HasIndex(t => t.GradeId);
+        // Unique so sibling order is never ambiguous — the unlock chain walks it.
+        builder.HasIndex(t => new { t.GradeId, t.Order }).IsUnique();
     }
 }

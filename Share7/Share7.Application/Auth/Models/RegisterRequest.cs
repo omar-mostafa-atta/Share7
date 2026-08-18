@@ -10,10 +10,5 @@ public class RegisterRequest
     [Required, MinLength(8)]
     public string Password { get; set; } = string.Empty;
 
-    /// <summary>
-    /// Content language, from GET /api/languages. Stored on the user at creation and
-    /// carried in the access token, so every later content call is already language-scoped.
-    /// </summary>
-    [Required]
-    public Guid? LanguageId { get; set; }
+
 }

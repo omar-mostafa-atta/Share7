@@ -8,4 +8,7 @@ public class GradeDto
     public string Name { get; set; } = string.Empty;
 
     public Guid LangId { get; set; }
+
+    /// <summary>Position in the Egyptian ladder, 1 = KG1 through 14 = Secondary Three.</summary>
+    public int Order { get; set; }
 }

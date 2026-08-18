@@ -27,7 +27,8 @@ public class QuestionConfiguration : IEntityTypeConfiguration<Question>
         // CorrectChoiceId is intentionally an unconstrained column — see Question.CorrectChoiceId.
         builder.Property(q => q.CorrectChoiceId).IsRequired();
 
-        // The hot path: "give me the current question set for this lesson".
-        builder.HasIndex(q => new { q.LessonId, q.IsActive });
+        // The hot path: "give me the current question set for this lesson in this language".
+        // Questions stay language-partitioned even though the tree above them no longer is.
+        builder.HasIndex(q => new { q.LessonId, q.LangId, q.IsActive });
     }
 }

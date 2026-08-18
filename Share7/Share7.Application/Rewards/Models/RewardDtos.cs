@@ -1,0 +1,190 @@
+using System.ComponentModel.DataAnnotations;
+using Share7.Domain.Progress;
+
+namespace Share7.Application.Rewards.Models;
+
+// ---- evaluation input (internal) ------------------------------------------------------------
+
+/// <summary>
+/// Everything the reward engine is allowed to know about a finished attempt — all of it
+/// **recomputed server-side** by <c>ProgressService</c>. There is no field here the client can
+/// set that influences what a reward is worth.
+/// </summary>
+public class ProgressRewardContext
+{
+    public required Guid UserId { get; init; }
+    public required Guid GameId { get; init; }
+    public required Guid LessonId { get; init; }
+
+    /// <summary>
+    /// Which attempt this is, after the increment. Part of the idempotency key for rules that pay
+    /// every time, so replaying attempt 3 cannot be mistaken for attempt 4.
+    /// </summary>
+    public required int AttemptNumber { get; init; }
+
+    /// <summary>Server-recomputed score. Recorded as ledger metadata, not used to pick a payout.</summary>
+    public required int Percent { get; init; }
+
+    public required CompletionState CompletionState { get; init; }
+
+    /// <summary>
+    /// The client's optional idempotency key for this submission. When present it replaces the
+    /// attempt ordinal in the key, which is what makes a retried submission pay once instead of
+    /// twice. Absent on older clients — see <c>SubmitAttemptRequest.RequestId</c>.
+    /// </summary>
+    public string? RequestId { get; init; }
+}
+
+// ---- evaluation output (client-facing) ------------------------------------------------------
+
+/// <summary>
+/// One currency credited by one reward. A **delta**, unlike <c>BalanceDto</c>, which is absolute —
+/// this is "you just earned 10", not "you have 10".
+/// </summary>
+public class RewardGrantDto
+{
+    public string Currency { get; init; } = string.Empty;
+    public long Amount { get; init; }
+}
+
+/// <summary>
+/// One rule that fired, and everything it paid. Several can come back from a single attempt: a
+/// perfect run of a lesson matches the attempted, completed and aced rules at once.
+/// </summary>
+public class RewardDto
+{
+    public Guid RuleId { get; init; }
+
+    /// <summary>Admin-facing label. Handy in logs; Unity should not render it.</summary>
+    public string RuleName { get; init; } = string.Empty;
+
+    /// <summary>Stable machine token, e.g. <c>LESSON_COMPLETED</c>.</summary>
+    public string EventType { get; init; } = string.Empty;
+
+    /// <summary>
+    /// The reward transaction. Stable across retries — a resubmitted attempt that matches an
+    /// existing reward returns this same id rather than minting a new one.
+    /// </summary>
+    public Guid TransactionId { get; init; }
+
+    public IReadOnlyList<RewardGrantDto> Grants { get; init; } = [];
+}
+
+// ---- rule authoring (admin) -----------------------------------------------------------------
+
+public class RewardGrantRequest
+{
+    [Required]
+    public Guid CurrencyId { get; set; }
+
+    /// <summary>Whole units to credit. Must be positive — a rule cannot take currency away.</summary>
+    [Range(1, long.MaxValue, ErrorMessage = "A reward grant must be a positive amount.")]
+    public long Amount { get; set; }
+}
+
+public class CreateRewardRuleRequest
+{
+    [Required]
+    [MaxLength(128)]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary><c>LESSON_ATTEMPTED</c>, <c>LESSON_COMPLETED</c> or <c>LESSON_ACED</c>.</summary>
+    [Required]
+    [MaxLength(48)]
+    public string EventType { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Lesson id to restrict this rule to, or null (the normal case) to apply it to every lesson.
+    /// A global rule and a lesson-specific one both fire and both pay.
+    /// </summary>
+    [MaxLength(128)]
+    public string? ReferenceKey { get; set; }
+
+    /// <summary><c>ONCE</c> (default) or <c>EVERY_TIME</c>.</summary>
+    [MaxLength(32)]
+    public string RepeatPolicy { get; set; } = "ONCE";
+
+    /// <summary>Only meaningful with <c>EVERY_TIME</c>; rejected otherwise rather than ignored.</summary>
+    [Range(1, 86_400)]
+    public int? CooldownSeconds { get; set; }
+
+    /// <summary>Only meaningful with <c>EVERY_TIME</c>; rejected otherwise rather than ignored.</summary>
+    [Range(1, 1_000)]
+    public int? DailyLimit { get; set; }
+
+    /// <summary>
+    /// What the ledger entries are stamped with, e.g. <c>LESSON_REWARD</c>. Defaults to
+    /// <c>LESSON_REWARD</c>.
+    /// </summary>
+    [MaxLength(48)]
+    public string? TransactionType { get; set; }
+
+    /// <summary>At least one. Each currency may appear once.</summary>
+    [Required]
+    [MinLength(1, ErrorMessage = "A reward rule must grant at least one currency.")]
+    public List<RewardGrantRequest> Grants { get; set; } = [];
+
+    public bool Enabled { get; set; } = true;
+}
+
+/// <summary>
+/// Replaces a rule's policy and its full grant set.
+/// <para>
+/// <c>EventType</c> and <c>ReferenceKey</c> are deliberately absent: changing what a rule watches
+/// would strand the reward transactions already recorded against it, which claim payment for an
+/// event the rule no longer represents. Retire it and author a new one.
+/// </para>
+/// </summary>
+public class UpdateRewardRuleRequest
+{
+    [Required]
+    [MaxLength(128)]
+    public string Name { get; set; } = string.Empty;
+
+    [MaxLength(32)]
+    public string RepeatPolicy { get; set; } = "ONCE";
+
+    [Range(1, 86_400)]
+    public int? CooldownSeconds { get; set; }
+
+    [Range(1, 1_000)]
+    public int? DailyLimit { get; set; }
+
+    [MaxLength(48)]
+    public string? TransactionType { get; set; }
+
+    [Required]
+    [MinLength(1, ErrorMessage = "A reward rule must grant at least one currency.")]
+    public List<RewardGrantRequest> Grants { get; set; } = [];
+
+    public bool Enabled { get; set; } = true;
+}
+
+public class RewardRuleGrantDto
+{
+    public Guid CurrencyId { get; init; }
+    public string Currency { get; init; } = string.Empty;
+    public long Amount { get; init; }
+
+    /// <summary>
+    /// False when the currency has been retired. The whole rule is skipped at evaluation time
+    /// while this is false — surfaced here so the admin can see *why* a rule stopped paying.
+    /// </summary>
+    public bool CurrencyEnabled { get; init; }
+}
+
+public class RewardRuleDto
+{
+    public Guid RuleId { get; init; }
+    public string Name { get; init; } = string.Empty;
+    public string EventType { get; init; } = string.Empty;
+    public string? ReferenceKey { get; init; }
+    public string RepeatPolicy { get; init; } = string.Empty;
+    public int? CooldownSeconds { get; init; }
+    public int? DailyLimit { get; init; }
+    public string TransactionType { get; init; } = string.Empty;
+    public bool Enabled { get; init; }
+    public IReadOnlyList<RewardRuleGrantDto> Grants { get; init; } = [];
+    public DateTime CreatedAtUtc { get; init; }
+    public DateTime UpdatedAtUtc { get; init; }
+}

@@ -28,11 +28,16 @@ public class AdminLessonQuestionsController : ControllerBase
     }
 
     /// <summary>
-    /// Publishes an .xlsx question sheet as the lesson's next question version.
-    /// Columns: 1 = question, 2 = correct answer, 3 = wrong answer, 4 = wrong answer.
+    /// Publishes an .xlsx question sheet as the next question version for one lesson in one
+    /// language. Columns: 1 = question, 2 = correct answer, 3 = wrong answer, 4 = wrong answer.
+    /// <para>
+    /// <paramref name="langId"/> is required: a lesson is one shared row across languages, so
+    /// the sheet's language cannot be inferred from it. Each language has its own question set
+    /// and its own version — uploading English leaves the Arabic set untouched.
+    /// </para>
     /// <para>
     /// Validation is all-or-nothing — a sheet with any bad row is rejected in full with the
-    /// offending row numbers, and the lesson's current version is left untouched.
+    /// offending row numbers, and that language's current version is left untouched.
     /// </para>
     /// </summary>
     [HttpPost("{lessonId:guid}/questions/upload")]
@@ -40,9 +45,13 @@ public class AdminLessonQuestionsController : ControllerBase
     public async Task<IActionResult> UploadQuestions(
         Guid lessonId,
         IFormFile file,
+        [FromQuery] Guid langId,
         [FromQuery] bool hasHeaderRow = true,
         CancellationToken cancellationToken = default)
     {
+        if (langId == Guid.Empty)
+            return BadRequest(new { errors = new[] { "langId is required — it says which language's question set this sheet publishes." } });
+
         if (file is null || file.Length == 0)
             return BadRequest(new { errors = new[] { "No file was uploaded." } });
 
@@ -56,6 +65,7 @@ public class AdminLessonQuestionsController : ControllerBase
 
         var result = await _questionImportService.ImportAsync(
             lessonId,
+            langId,
             buffer,
             file.FileName,
             hasHeaderRow,

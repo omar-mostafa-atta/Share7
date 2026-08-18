@@ -8,7 +8,10 @@ public class LessonVersionDto
 {
     public Guid LessonId { get; set; }
 
-    /// <summary>0 means no question sheet has been uploaded for this lesson yet.</summary>
+    /// <summary>Which language this version belongs to — the caller's content language.</summary>
+    public Guid LangId { get; set; }
+
+    /// <summary>0 means no question sheet has been uploaded for this lesson in this language yet.</summary>
     public int Version { get; set; }
 
     public int QuestionCount { get; set; }

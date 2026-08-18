@@ -8,6 +8,11 @@ namespace Share7.API.Controllers;
 /// <summary>
 /// Read side of the question cache protocol used by the game client:
 /// check the version first, download the set only when it moved.
+/// <para>
+/// Every route here exists twice — once for the main question pool and once for the secondary
+/// <c>recovery-questions</c> pool, with identical shapes. The two pools are versioned separately,
+/// so a client caching both compares two versions and re-downloads only the one that moved.
+/// </para>
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
@@ -15,13 +20,16 @@ namespace Share7.API.Controllers;
 public class LessonsController : ControllerBase
 {
     private readonly ILessonQuestionService _lessonQuestionService;
+    private readonly ILessonRecoveryQuestionService _lessonRecoveryQuestionService;
     private readonly ICurriculumService _curriculumService;
 
     public LessonsController(
         ILessonQuestionService lessonQuestionService,
+        ILessonRecoveryQuestionService lessonRecoveryQuestionService,
         ICurriculumService curriculumService)
     {
         _lessonQuestionService = lessonQuestionService;
+        _lessonRecoveryQuestionService = lessonRecoveryQuestionService;
         _curriculumService = curriculumService;
     }
 
@@ -72,6 +80,42 @@ public class LessonsController : ControllerBase
     public async Task<IActionResult> GetQuestions(Guid lessonId, CancellationToken cancellationToken)
     {
         var questions = await _lessonQuestionService.GetQuestionsAsync(lessonId, cancellationToken);
+        return questions is null ? NotFound() : Ok(questions);
+    }
+
+    /// <summary>
+    /// Current <em>recovery</em> question version for one lesson. Same contract as
+    /// <c>questions/version</c>, over the secondary pool and its own counter.
+    /// </summary>
+    [HttpGet("{lessonId:guid}/recovery-questions/version")]
+    public async Task<IActionResult> GetRecoveryQuestionsVersion(Guid lessonId, CancellationToken cancellationToken)
+    {
+        var version = await _lessonRecoveryQuestionService.GetVersionAsync(lessonId, cancellationToken);
+        return version is null ? NotFound() : Ok(version);
+    }
+
+    /// <summary>
+    /// Recovery versions for many lessons in one round trip. Unknown ids are omitted from the
+    /// response, exactly as the main pool's batch call does.
+    /// </summary>
+    [HttpPost("recovery-questions/versions")]
+    public async Task<IActionResult> GetRecoveryQuestionsVersions(
+        LessonVersionsRequest request,
+        CancellationToken cancellationToken)
+    {
+        var versions = await _lessonRecoveryQuestionService.GetVersionsAsync(request.LessonIds, cancellationToken);
+        return Ok(versions);
+    }
+
+    /// <summary>
+    /// Full active recovery question set plus its version. Identical response shape to
+    /// <c>questions</c> — same fields, same <c>correctAnswerId</c> — so the client deserialises it
+    /// with the model it already has.
+    /// </summary>
+    [HttpGet("{lessonId:guid}/recovery-questions")]
+    public async Task<IActionResult> GetRecoveryQuestions(Guid lessonId, CancellationToken cancellationToken)
+    {
+        var questions = await _lessonRecoveryQuestionService.GetQuestionsAsync(lessonId, cancellationToken);
         return questions is null ? NotFound() : Ok(questions);
     }
 }

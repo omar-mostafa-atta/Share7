@@ -22,4 +22,6 @@ public class CompleteProfileRequest
     /// </summary>
     [Required]
     public Guid? GradeId { get; set; }
+
+  
 }

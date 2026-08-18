@@ -10,20 +10,14 @@ public class LessonConfiguration : IEntityTypeConfiguration<Lesson>
     {
         builder.ToTable("Lessons");
         builder.HasKey(l => l.Id);
-        builder.Property(l => l.Name).HasColumnName("Lesson").IsRequired().HasMaxLength(200);
-        builder.Property(l => l.LangId).HasColumnName("Lang_Id");
-        builder.Property(l => l.QuestionsVersion).HasDefaultValue(0);
 
         builder.HasOne(l => l.Chapter)
             .WithMany(c => c.Lessons)
             .HasForeignKey(l => l.ChapterId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasOne(l => l.Language)
-            .WithMany()
-            .HasForeignKey(l => l.LangId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        builder.HasIndex(l => l.ChapterId);
+        // Unique because this is the order the unlock chain steps through: lesson N+1 opens
+        // once lesson N is completed, so two lessons sharing a position is not resolvable.
+        builder.HasIndex(l => new { l.ChapterId, l.Order }).IsUnique();
     }
 }
