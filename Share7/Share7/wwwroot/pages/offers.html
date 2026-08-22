@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Offers — Share7 Admin Console</title>
+  <meta name="description" content="Create and manage offers — what products cost and how they are sold." />
+
+  <!-- Bootstrap -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+
+  <!-- App styles -->
+  <link rel="stylesheet" href="../css/variables.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/layout.css" />
+  <link rel="stylesheet" href="../css/pages.css" />
+</head>
+<body>
+
+  <div class="dashboard">
+    <main class="main-content">
+      <!-- Page header -->
+      <div class="page-header s7-fade-in">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+          <div>
+            <h1><i class="bi bi-tag text-brand me-2"></i>Offers</h1>
+            <p>
+              <strong>An offer is what a product costs; the product is what it hands over.</strong>
+              One offer can sell several products — buying it grants all of them.
+            </p>
+          </div>
+          <div class="server-time-badge">
+            <i class="bi bi-clock"></i>
+            <span class="lvl-label">Server</span>
+            <span id="serverTime" class="mono">—</span>
+            <button class="btn btn-sm btn-outline-secondary border-0 p-0 ms-1" onclick="loadServerTime()" title="Refresh">
+              <i class="bi bi-arrow-clockwise"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Offers card -->
+      <div class="card s7-fade-in">
+        <div class="card-header">
+          <span><i class="bi bi-tag me-2"></i>Offers</span>
+          <span>
+            <button class="btn btn-sm btn-outline-secondary" onclick="loadOffers()" title="Refresh">
+              <i class="bi bi-arrow-clockwise"></i>
+            </button>
+            <button class="btn btn-sm btn-primary" onclick="openOfferModal()">
+              <i class="bi bi-plus-lg me-1"></i>Add offer
+            </button>
+          </span>
+        </div>
+        <div class="card-body p-0">
+          <div id="offerList">
+            <div class="page-spinner"><div class="spinner-border" role="status"></div></div>
+          </div>
+        </div>
+        <div class="card-footer bg-white muted-sm">
+          <strong>Offers cannot be edited</strong> — there is no update endpoint, so an offer is authored once.
+          A purchase limit is <strong>per account</strong>; leave it blank for unlimited.
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ═══════ Offer modal ═══════ -->
+  <div class="modal fade" id="offerModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="offerTitle">Add offer</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label lvl-label">Currency</label>
+              <select id="offerCurrency" class="form-select"></select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label lvl-label">Price</label>
+              <input id="offerPrice" type="number" min="0" class="form-control" value="100" />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label lvl-label">Original price</label>
+              <input id="offerOriginal" type="number" min="0" class="form-control" placeholder="blank = no discount" />
+              <div class="form-text">Must be above the price.</div>
+            </div>
+
+            <div class="col-md-4">
+              <label class="form-label lvl-label">Availability</label>
+              <select id="offerAvailability" class="form-select">
+                <option value="AVAILABLE">AVAILABLE</option>
+                <option value="UNAVAILABLE">UNAVAILABLE</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label lvl-label">Purchase limit</label>
+              <input id="offerLimit" type="number" min="1" class="form-control" placeholder="blank = unlimited" />
+              <div class="form-text">Per account.</div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label lvl-label">Sort order</label>
+              <input id="offerSort" type="number" class="form-control" value="0" />
+            </div>
+
+            <div class="col-md-8">
+              <label class="form-label lvl-label">Expires at (UTC)</label>
+              <div class="input-group">
+                <input id="offerExpires" type="datetime-local" class="form-control" />
+                <button class="btn btn-outline-secondary" type="button" onclick="setExpiryFromServer(24)">+24h</button>
+                <button class="btn btn-outline-secondary" type="button" onclick="setExpiryFromServer(24 * 7)">+7d</button>
+                <button class="btn btn-outline-secondary" type="button" onclick="clearExpiry()">Never</button>
+              </div>
+              <div class="form-text">Offset from the <strong>server</strong> clock.</div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label lvl-label">Badge key</label>
+              <input id="offerBadge" class="form-control mono" placeholder="best_value" />
+              <div class="form-text">A token Unity maps to art.</div>
+            </div>
+
+            <div class="col-12"><hr class="mb-2" /></div>
+            <div class="col-12">
+              <div class="lvl-label mb-2">Products sold — buying grants all of them</div>
+              <div id="offerProducts" class="list-group list-group-scroll small"></div>
+            </div>
+
+            <div class="col-12"><hr class="mb-2" /></div>
+            <div class="col-12">
+              <div class="lvl-label mb-2">Shop text — a name is required in every language</div>
+              <div id="offerTranslations" class="row g-3"></div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-primary" onclick="submitOffer()">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toasts"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script type="module">
+    import { initOffers } from '../js/offers.js';
+    document.addEventListener('DOMContentLoaded', initOffers);
+  </script>
+</body>
+</html>

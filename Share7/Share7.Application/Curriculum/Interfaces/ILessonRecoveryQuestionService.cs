@@ -23,4 +23,10 @@ public interface ILessonRecoveryQuestionService
 
     /// <summary>Active recovery question set for a lesson. Returns null when the lesson does not exist.</summary>
     Task<LessonQuestionsDto?> GetQuestionsAsync(Guid lessonId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Active recovery question set for a lesson in a **named** language rather than the caller's
+    /// own — the mirror of <see cref="ILessonQuestionService.GetQuestionsAsync(Guid, Guid, CancellationToken)"/>.
+    /// </summary>
+    Task<LessonQuestionsDto?> GetQuestionsAsync(Guid lessonId, Guid langId, CancellationToken cancellationToken = default);
 }

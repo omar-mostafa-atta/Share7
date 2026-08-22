@@ -1,0 +1,229 @@
+/* ===================================================================
+   Share7 Admin Console — Dashboard Layout
+   Sidebar + main content area responsive layout.
+   =================================================================== */
+
+/* ── overall wrapper ── */
+.dashboard {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* ── sidebar ── */
+.sidebar {
+  width: var(--s7-sidebar-width);
+  min-height: 100vh;
+  background: var(--s7-sidebar-bg);
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1040;
+  transition: transform var(--s7-duration-slow) var(--s7-ease);
+  overflow-y: auto;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* brand header */
+.sidebar-brand {
+  padding: 1.25rem 1.25rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+.sidebar-brand-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--s7-radius-sm);
+  background: var(--s7-sidebar-active);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  color: #fff;
+  box-shadow: var(--s7-shadow-brand);
+  flex-shrink: 0;
+}
+.sidebar-brand-text {
+  color: #fff;
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+}
+.sidebar-brand-sub {
+  color: var(--s7-sidebar-ink);
+  font-size: 0.7rem;
+  display: block;
+  margin-top: 1px;
+}
+
+/* nav section */
+.sidebar-nav {
+  padding: 0.75rem 0;
+  flex: 1;
+}
+.sidebar-section-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(148, 163, 184, 0.5);
+  font-weight: 700;
+  padding: 0.75rem 1.25rem 0.35rem;
+}
+
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.55rem 1.25rem;
+  margin: 2px 0.65rem;
+  border-radius: var(--s7-radius-sm);
+  color: var(--s7-sidebar-ink);
+  font-size: 0.88rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all var(--s7-duration) var(--s7-ease);
+  position: relative;
+}
+.sidebar-link:hover {
+  background: var(--s7-sidebar-hover);
+  color: #fff;
+}
+.sidebar-link.active {
+  background: var(--s7-sidebar-active);
+  color: #fff;
+  box-shadow: 0 2px 10px -2px rgba(79, 70, 229, 0.5);
+}
+.sidebar-link .bi {
+  font-size: 1.05rem;
+  width: 1.25rem;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+/* sidebar footer (user info) */
+.sidebar-footer {
+  padding: 0.85rem 1.25rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+.sidebar-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--s7-radius-full);
+  background: linear-gradient(135deg, var(--s7-brand), var(--s7-brand-2));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.82rem;
+  flex-shrink: 0;
+}
+.sidebar-user-name {
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sidebar-user-role {
+  color: var(--s7-sidebar-ink);
+  font-size: 0.7rem;
+}
+.sidebar-logout {
+  background: none;
+  border: none;
+  color: var(--s7-sidebar-ink);
+  padding: 0.35rem;
+  border-radius: var(--s7-radius-sm);
+  cursor: pointer;
+  transition: all var(--s7-duration) var(--s7-ease);
+  margin-left: auto;
+  font-size: 1rem;
+}
+.sidebar-logout:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--s7-danger);
+}
+
+/* ── main content ── */
+.main-content {
+  flex: 1;
+  margin-left: var(--s7-sidebar-width);
+  padding: 1.5rem 2rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* ── mobile toggle ── */
+.sidebar-toggle {
+  display: none;
+  position: fixed;
+  bottom: 1.25rem;
+  right: 1.25rem;
+  z-index: 1050;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--s7-radius-full);
+  background: var(--s7-sidebar-active);
+  color: #fff;
+  border: none;
+  font-size: 1.15rem;
+  box-shadow: var(--s7-shadow-brand);
+  cursor: pointer;
+  transition: transform var(--s7-duration) var(--s7-ease);
+}
+.sidebar-toggle:hover {
+  transform: scale(1.08);
+}
+
+/* ── overlay for mobile ── */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 1035;
+}
+.sidebar-overlay.show {
+  display: block;
+}
+
+/* ── responsive ── */
+@media (max-width: 991.98px) {
+  .sidebar {
+    transform: translateX(-100%);
+  }
+  .sidebar.open {
+    transform: translateX(0);
+  }
+  .main-content {
+    margin-left: 0;
+    padding: 1rem;
+  }
+  .sidebar-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .main-content {
+    padding: 0.75rem;
+  }
+  .page-header h1 {
+    font-size: 1.25rem;
+  }
+}

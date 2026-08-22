@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Share7.Domain.Entities;
+using Share7.Domain.Multiplayer;
 using Share7.Domain.Progress;
 using Share7.Infrastructure.Persistence;
 
@@ -32,7 +33,14 @@ public static class UserOwnedData
         typeof(StudentProfile),
         typeof(UserQuestionProgress),
         typeof(UserLessonProgress),
-        typeof(UserNodeUnlock)
+        typeof(UserNodeUnlock),
+
+        // Listed rather than cascaded, and not by preference. A cascade from AspNetUsers already
+        // reaches this table the long way round — user → MultiplayerSessions (they hosted) →
+        // MultiplayerSessionPlayers — and SQL Server refuses a second cascade path into the same
+        // table. So memberships in *other people's* sessions are removed here instead. The purge
+        // runs before the user row goes, which is also what keeps the NoAction FK satisfied.
+        typeof(MultiplayerSessionPlayer)
     ];
 
     /// <summary>

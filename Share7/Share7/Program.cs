@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
+using Share7.API.RateLimiting;
 using Share7.API.Services;
 using Share7.Application;
 using Share7.Application.Common.Interfaces;
@@ -45,6 +46,7 @@ builder.Services.AddInfrastructure(builder.Configuration);
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+builder.Services.AddShare7RateLimiting(builder.Configuration);
 
 var app = builder.Build();
 
@@ -53,10 +55,16 @@ app.UseSwagger();
 app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
+// `/` resolves to wwwroot/index.html — the admin console. Must precede UseStaticFiles.
+app.UseDefaultFiles();
 app.UseStaticFiles();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// After authentication on purpose: the limiter partitions by user id where there is one, and a
+// caller whose token has not been read yet is indistinguishable from an anonymous one.
+app.UseShare7RateLimiting();
 
 app.MapControllers();
 

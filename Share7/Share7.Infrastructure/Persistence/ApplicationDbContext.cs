@@ -7,6 +7,7 @@ using Share7.Domain.Entities;
 using Share7.Domain.Equipment;
 using Share7.Domain.Games;
 using Share7.Domain.LookUps;
+using Share7.Domain.Multiplayer;
 using Share7.Domain.Progress;
 using Share7.Domain.Rewards;
 using Share7.Infrastructure.Identity;
@@ -101,6 +102,16 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, Applicati
     public DbSet<OfferTranslation> OfferTranslations => Set<OfferTranslation>();
     public DbSet<OfferProduct> OfferProducts => Set<OfferProduct>();
     public DbSet<PurchaseTransaction> PurchaseTransactions => Set<PurchaseTransaction>();
+
+    // Multiplayer lobbies. Photon Fusion owns the realtime connection; these tables own everything
+    // it cannot arbitrate — who is allowed in, how many fit, who is host, and whether the session
+    // still exists. Capacity and single-membership are enforced by filtered unique indexes rather
+    // than by service-layer checks, so they hold under genuine concurrency.
+    public DbSet<MultiplayerSession> MultiplayerSessions => Set<MultiplayerSession>();
+    public DbSet<MultiplayerSessionPlayer> MultiplayerSessionPlayers => Set<MultiplayerSessionPlayer>();
+
+    /// <summary>Idempotency keys for multiplayer operations. **Successes only** — see the entity.</summary>
+    public DbSet<MultiplayerRequestLog> MultiplayerRequestLogs => Set<MultiplayerRequestLog>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

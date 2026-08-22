@@ -186,6 +186,76 @@ public static class ApiErrors
     public static readonly ApiErrorCode EquipmentNotOwned =
         new("EQUIPMENT_NOT_OWNED", "equipment.not_owned");
 
+    // ---- multiplayer -----------------------------------------------------------------------
+
+    /// <summary>
+    /// No such session — or the caller is not a member of it. **The two are deliberately answered
+    /// identically.** A 403 for a session that exists would let anyone holding a guessed id learn
+    /// which ids are live, so a non-member is told exactly what a stranger is told.
+    /// </summary>
+    public static readonly ApiErrorCode SessionNotFound =
+        new("SESSION_NOT_FOUND", "multiplayer.session.not_found");
+
+    /// <summary>Every seat is taken. Retryable — a seat may free up, so the request id is not spent.</summary>
+    public static readonly ApiErrorCode SessionFull =
+        new("SESSION_FULL", "multiplayer.session.full");
+
+    /// <summary>The session has ended, or has moved past the point where joins are accepted.</summary>
+    public static readonly ApiErrorCode SessionClosed =
+        new("SESSION_CLOSED", "multiplayer.session.closed");
+
+    /// <summary>
+    /// The caller already holds a live membership somewhere. One account plays one match at a time —
+    /// enforced by a filtered unique index, so it holds even when two joins arrive together.
+    /// </summary>
+    public static readonly ApiErrorCode AlreadyInSession =
+        new("ALREADY_IN_SESSION", "multiplayer.session.already_in_session");
+
+    public static readonly ApiErrorCode NotSessionMember =
+        new("NOT_SESSION_MEMBER", "multiplayer.session.not_member");
+
+    /// <summary>
+    /// The caller is not the host. Also what a *former* host receives after migration, which is the
+    /// mechanism that stops a returning stale host from restarting or closing a session it lost.
+    /// </summary>
+    public static readonly ApiErrorCode NotSessionHost =
+        new("NOT_SESSION_HOST", "multiplayer.session.not_host");
+
+    /// <summary>The move is not legal from the state the session is actually in. Nothing was mutated.</summary>
+    public static readonly ApiErrorCode SessionInvalidTransition =
+        new("SESSION_INVALID_TRANSITION", "multiplayer.session.invalid_transition");
+
+    public static readonly ApiErrorCode SessionBelowMinPlayers =
+        new("SESSION_BELOW_MIN_PLAYERS", "multiplayer.session.below_min_players");
+
+    /// <summary>
+    /// Another live session already holds that transport room name. Raised from the unique-index
+    /// violation rather than from a lookup, so two simultaneous creates cannot both pass.
+    /// </summary>
+    public static readonly ApiErrorCode TransportNameTaken =
+        new("TRANSPORT_NAME_TAKEN", "multiplayer.session.transport_name_taken");
+
+    /// <summary>
+    /// A host claim refused because the current host is still within its grace period. The claimant
+    /// should wait rather than retry immediately.
+    /// </summary>
+    public static readonly ApiErrorCode HostStillActive =
+        new("HOST_STILL_ACTIVE", "multiplayer.session.host_still_active");
+
+    /// <summary>
+    /// The client's realtime contract version is not one this server currently seats. **Not the app
+    /// version** — see <c>MultiplayerOptions.AcceptedProtocolVersions</c>.
+    /// </summary>
+    public static readonly ApiErrorCode ProtocolVersionMismatch =
+        new("PROTOCOL_VERSION_MISMATCH", "multiplayer.protocol_version_mismatch");
+
+    /// <summary>The game exists but is not flagged <c>SupportsMultiplayer</c> in the catalog.</summary>
+    public static readonly ApiErrorCode GameNotMultiplayer =
+        new("GAME_NOT_MULTIPLAYER", "multiplayer.game.not_multiplayer");
+
+    public static readonly ApiErrorCode GameNotFound =
+        new("GAME_NOT_FOUND", "multiplayer.game.not_found");
+
     // ---- generic -------------------------------------------------------------------------
 
     public static readonly ApiErrorCode NotFound =
@@ -196,4 +266,17 @@ public static class ApiErrors
 
     public static readonly ApiErrorCode Forbidden =
         new("FORBIDDEN", "common.forbidden");
+
+    /// <summary>
+    /// The caller sent more requests than a rate limit allows. Carries <c>retryAfterSeconds</c> in
+    /// <c>details</c>, mirroring the <c>Retry-After</c> header, so a client that only parses the
+    /// body still knows how long to back off.
+    /// <para>
+    /// Returned by middleware rather than by a service, so it never travels inside a
+    /// <c>ServiceResult</c> — it is listed here because it shares the envelope and the Unity
+    /// client resolves every refusal through this table.
+    /// </para>
+    /// </summary>
+    public static readonly ApiErrorCode RateLimited =
+        new("RATE_LIMITED", "common.rate_limited");
 }

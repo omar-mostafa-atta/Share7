@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Share7.API.Extensions;
+using Share7.API.RateLimiting;
 using Share7.Application.Common.Interfaces;
 using Share7.Application.Economy.Interfaces;
 using Share7.Application.Economy.Models;
@@ -12,8 +14,9 @@ namespace Share7.API.Controllers;
 /// Everything to do with virtual currency: the catalogue, balances, and manual grants.
 /// **Nothing here is real money.**
 /// <para>
-/// Authenticated by default. Managing the catalogue — creating or retiring a currency — is
-/// restricted to Admin on the individual actions.
+/// Authenticated by default. Everything that changes state — defining a currency, retiring one,
+/// or moving a balance by hand — is Admin-only on the individual action. Reads are open to any
+/// signed-in account.
 /// </para>
 /// </summary>
 [ApiController]
@@ -55,6 +58,7 @@ public class CurrenciesController : ControllerBase
     /// </summary>
     [HttpPost]
     [Authorize(Roles = $"{Roles.Admin},{Roles.SuperAdmin}")]
+    [EnableRateLimiting(RateLimitPolicies.Writes)]
     public async Task<IActionResult> Create(CreateCurrencyRequest request, CancellationToken cancellationToken)
     {
         var result = await _currencyAdminService.CreateAsync(request, cancellationToken);
@@ -73,6 +77,7 @@ public class CurrenciesController : ControllerBase
     /// </summary>
     [HttpPut("{currencyId:guid}")]
     [Authorize(Roles = $"{Roles.Admin},{Roles.SuperAdmin}")]
+    [EnableRateLimiting(RateLimitPolicies.Writes)]
     public async Task<IActionResult> Update(
         Guid currencyId,
         UpdateCurrencyRequest request,
@@ -90,15 +95,22 @@ public class CurrenciesController : ControllerBase
     /// negative. A deduction that would overdraw is refused rather than clamped.
     /// </para>
     /// <para>
-    /// <b>Open to any authenticated account by explicit decision.</b> That means a signed-in
-    /// player can credit themselves any amount, so this is a development and integration
-    /// affordance, not a shippable earning path — currency has no shop to be spent in yet. When
-    /// reward rules land, gameplay currency comes from the server evaluating a validated progress
-    /// attempt, and this endpoint should either be removed or put back behind the role gate before
-    /// coins have value.
+    /// **Admin only** — closed 2026-08-22. This is the only route in the economy where an amount
+    /// travels client to server, so it is the only one where a caller could name their own balance.
+    /// It was left open deliberately while currency had nothing to buy; reward rules and purchases
+    /// have since landed, coins now have value, and the condition that comment set has been met.
+    /// Gameplay currency comes from the server evaluating a validated progress attempt
+    /// (<c>RewardService</c>), never from a figure the client supplied.
+    /// </para>
+    /// <para>
+    /// It stays a **self**-grant rather than growing a target-user field. Topping up one's own test
+    /// account is what the admin console uses it for, and a route that can credit an arbitrary user
+    /// is a much larger thing to leave standing than one that can only credit the caller.
     /// </para>
     /// </summary>
     [HttpPost("grant")]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.SuperAdmin}")]
+    [EnableRateLimiting(RateLimitPolicies.Writes)]
     public async Task<IActionResult> Grant(AdminGrantCurrencyRequest request, CancellationToken cancellationToken)
     {
         if (_currentUserService.UserId is not { } userId)

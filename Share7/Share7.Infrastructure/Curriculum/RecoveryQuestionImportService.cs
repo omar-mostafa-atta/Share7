@@ -7,9 +7,9 @@ using Share7.Infrastructure.Persistence;
 namespace Share7.Infrastructure.Curriculum;
 
 /// <summary>
-/// Parses the admin's recovery-question sheet and publishes it as the lesson's next recovery
-/// version. The mirror of <see cref="QuestionImportService"/> over the secondary pool: same sheet
-/// format, same all-or-nothing validation (both go through <see cref="QuestionSheetParser"/>),
+/// Publishes a lesson's next <em>recovery</em> question version, from a spreadsheet or from
+/// questions typed into the admin console. The mirror of <see cref="QuestionImportService"/> over
+/// the secondary pool: same file format, same content rules, same all-or-nothing contract, with
 /// separate tables and a separate version counter.
 /// </summary>
 public class RecoveryQuestionImportService : IRecoveryQuestionImportService
@@ -30,13 +30,9 @@ public class RecoveryQuestionImportService : IRecoveryQuestionImportService
         Guid? uploadedByUserId = null,
         CancellationToken cancellationToken = default)
     {
-        if (!await _dbContext.Lessons.AnyAsync(l => l.Id == lessonId, cancellationToken))
-            return QuestionImportResult.Failed(lessonId, langId, "Lesson not found.");
-
-        // The lesson is language-independent, so the sheet's language cannot be inferred from it —
-        // it has to be supplied, and it has to be a real one.
-        if (!await _dbContext.Languages.AnyAsync(l => l.Id == langId, cancellationToken))
-            return QuestionImportResult.Failed(lessonId, langId, "Unknown language.");
+        var target = await ResolveTargetAsync(lessonId, langId, cancellationToken);
+        if (target is not null)
+            return target;
 
         var parsed = QuestionSheetParser.Parse(excelStream, hasHeaderRow, out var errors);
         if (errors.Count > 0)
@@ -45,6 +41,92 @@ public class RecoveryQuestionImportService : IRecoveryQuestionImportService
         if (parsed.Count == 0)
             return QuestionImportResult.Failed(lessonId, langId, "The sheet contains no question rows.");
 
+        return await PublishAsync(
+            lessonId, langId, parsed, QuestionSetSource.ExcelUpload, fileName, uploadedByUserId, cancellationToken);
+    }
+
+    public async Task<QuestionImportResult> PublishManualAsync(
+        Guid lessonId,
+        Guid langId,
+        ManualQuestionSetRequest request,
+        Guid? publishedByUserId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var target = await ResolveTargetAsync(lessonId, langId, cancellationToken);
+        if (target is not null)
+            return target;
+
+        var prepared = await ManualQuestionPreparer.PrepareAsync(
+            request,
+            () => LoadActiveAsync(lessonId, langId, cancellationToken));
+
+        if (prepared.Errors.Count > 0)
+            return new QuestionImportResult
+            {
+                Succeeded = false,
+                LessonId = lessonId,
+                LangId = langId,
+                Errors = prepared.Errors
+            };
+
+        return await PublishAsync(
+            lessonId, langId, prepared.Rows, QuestionSetSource.ManualEntry, string.Empty, publishedByUserId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Refuses a publish that has nowhere to land, before any parsing or validation work is done.
+    /// Returns null when the target is real.
+    /// </summary>
+    private async Task<QuestionImportResult?> ResolveTargetAsync(
+        Guid lessonId, Guid langId, CancellationToken cancellationToken)
+    {
+        if (!await _dbContext.Lessons.AnyAsync(l => l.Id == lessonId, cancellationToken))
+            return QuestionImportResult.Failed(lessonId, langId, "Lesson not found.");
+
+        // The lesson is language-independent, so the language cannot be inferred from it — it has
+        // to be supplied, and it has to be a real one.
+        if (!await _dbContext.Languages.AnyAsync(l => l.Id == langId, cancellationToken))
+            return QuestionImportResult.Failed(lessonId, langId, "Unknown language.");
+
+        return null;
+    }
+
+    /// <summary>
+    /// The currently published recovery questions, flattened back into the shape a publish accepts.
+    /// Only needed for an append, which republishes them alongside the new ones.
+    /// </summary>
+    private async Task<IReadOnlyList<ExistingQuestion>> LoadActiveAsync(
+        Guid lessonId, Guid langId, CancellationToken cancellationToken)
+    {
+        var questions = await _dbContext.RecoveryQuestions
+            .AsNoTracking()
+            .Where(q => q.LessonId == lessonId && q.LangId == langId && q.IsActive)
+            .OrderBy(q => q.RowNumber)
+            .Select(q => new ExistingQuestion(
+                q.Text,
+                q.CorrectChoiceId,
+                q.Choices
+                    .OrderBy(c => c.OrderIndex)
+                    .Select(c => new ExistingChoice(c.Id, c.Text))
+                    .ToList()))
+            .ToListAsync(cancellationToken);
+
+        return questions;
+    }
+
+    /// <summary>
+    /// Writes one new recovery version: retires what is published, inserts the supplied questions,
+    /// moves the recovery version counter and records who did it — all in one transaction.
+    /// </summary>
+    private async Task<QuestionImportResult> PublishAsync(
+        Guid lessonId,
+        Guid langId,
+        IReadOnlyList<PublishableQuestion> rows,
+        QuestionSetSource source,
+        string fileName,
+        Guid? publishedByUserId,
+        CancellationToken cancellationToken)
+    {
         var now = DateTime.UtcNow;
 
         var questionSet = await _dbContext.LessonRecoveryQuestionSets
@@ -55,15 +137,15 @@ public class RecoveryQuestionImportService : IRecoveryQuestionImportService
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
         // Previous rows are kept, just retired — anything that recorded a recovery answer may
-        // reference their ids. Scoped to this language, and to the recovery pool: uploading a
-        // recovery sheet never touches the main question set.
+        // reference their ids. Scoped to this language, and to the recovery pool: publishing here
+        // never touches the main question set.
         var replacedCount = await _dbContext.RecoveryQuestions
             .Where(q => q.LessonId == lessonId && q.LangId == langId && q.IsActive)
             .ExecuteUpdateAsync(
                 s => s.SetProperty(q => q.IsActive, false).SetProperty(q => q.DeactivatedAt, now),
                 cancellationToken);
 
-        foreach (var row in parsed)
+        foreach (var row in rows)
         {
             var question = new RecoveryQuestion
             {
@@ -77,7 +159,7 @@ public class RecoveryQuestionImportService : IRecoveryQuestionImportService
                 CreatedAt = now
             };
 
-            // Column 2 is the correct answer by contract; the other two are distractors.
+            // The correct answer is stored first by contract; the other two are distractors.
             // Order is preserved as-is — the client shuffles before assigning doors to lanes.
             var choices = new[] { row.CorrectAnswer, row.WrongAnswer1, row.WrongAnswer2 }
                 .Select((text, index) => new RecoveryQuestionChoice
@@ -97,7 +179,7 @@ public class RecoveryQuestionImportService : IRecoveryQuestionImportService
 
         if (questionSet is null)
         {
-            // First recovery sheet for this lesson in this language — the row appears with version 1.
+            // First recovery publish for this lesson in this language — the row appears with version 1.
             _dbContext.LessonRecoveryQuestionSets.Add(new LessonRecoveryQuestionSet
             {
                 LessonId = lessonId,
@@ -110,6 +192,9 @@ public class RecoveryQuestionImportService : IRecoveryQuestionImportService
             questionSet.Version = newVersion;
         }
 
+        // The unique index on (LessonId, LangId, Version) is what stops two concurrent publishes
+        // both claiming this version number — the read above cannot, since both would read the
+        // same current one. The loser fails its insert rather than silently overwriting.
         _dbContext.LessonRecoveryQuestionUploads.Add(new LessonRecoveryQuestionUpload
         {
             Id = Guid.NewGuid(),
@@ -117,8 +202,9 @@ public class RecoveryQuestionImportService : IRecoveryQuestionImportService
             LangId = langId,
             Version = newVersion,
             FileName = QuestionSheetParser.Truncate(fileName, 260),
-            QuestionCount = parsed.Count,
-            UploadedByUserId = uploadedByUserId,
+            Source = source,
+            QuestionCount = rows.Count,
+            UploadedByUserId = publishedByUserId,
             UploadedAt = now
         });
 
@@ -131,7 +217,7 @@ public class RecoveryQuestionImportService : IRecoveryQuestionImportService
             LessonId = lessonId,
             LangId = langId,
             Version = newVersion,
-            ImportedCount = parsed.Count,
+            ImportedCount = rows.Count,
             ReplacedCount = replacedCount
         };
     }

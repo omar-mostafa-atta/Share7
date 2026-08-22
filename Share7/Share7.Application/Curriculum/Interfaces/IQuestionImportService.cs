@@ -23,4 +23,24 @@ public interface IQuestionImportService
         bool hasHeaderRow = true,
         Guid? uploadedByUserId = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Publishes questions typed by hand as the next version for one lesson in one language — the
+    /// same act as an upload, from a form instead of a file.
+    /// <para>
+    /// <c>Mode</c> decides whether they join the published set or replace it. Either way this
+    /// produces a **new version**: the set is immutable by design, so appending republishes the
+    /// existing questions alongside the new ones rather than inserting into what is there.
+    /// </para>
+    /// <para>
+    /// All-or-nothing, exactly as the sheet path is — one invalid question rejects the request and
+    /// leaves the current version untouched.
+    /// </para>
+    /// </summary>
+    Task<QuestionImportResult> PublishManualAsync(
+        Guid lessonId,
+        Guid langId,
+        ManualQuestionSetRequest request,
+        Guid? publishedByUserId = null,
+        CancellationToken cancellationToken = default);
 }

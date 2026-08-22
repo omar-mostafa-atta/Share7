@@ -61,10 +61,14 @@ public class LessonRecoveryQuestionService : ILessonRecoveryQuestionService
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<LessonQuestionsDto?> GetQuestionsAsync(Guid lessonId, CancellationToken cancellationToken = default)
-    {
-        var langId = await _languageService.ResolveCurrentAsync(cancellationToken);
+    public async Task<LessonQuestionsDto?> GetQuestionsAsync(Guid lessonId, CancellationToken cancellationToken = default) =>
+        await GetQuestionsAsync(lessonId, await _languageService.ResolveCurrentAsync(cancellationToken), cancellationToken);
 
+    public async Task<LessonQuestionsDto?> GetQuestionsAsync(
+        Guid lessonId,
+        Guid langId,
+        CancellationToken cancellationToken = default)
+    {
         var lesson = await _dbContext.Lessons
             .AsNoTracking()
             .Where(l => l.Id == lessonId)

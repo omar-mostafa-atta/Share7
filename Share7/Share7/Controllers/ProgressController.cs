@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Share7.API.Extensions;
+using Share7.API.RateLimiting;
 using Share7.Application.Common.Interfaces;
 using Share7.Application.Progress.Interfaces;
 using Share7.Application.Progress.Models;
@@ -68,6 +70,7 @@ public class ProgressController : ControllerBase
     /// <response code="403">The lesson is still locked in this game.</response>
     /// <response code="409">The game is disabled, or the lesson has no questions in the caller's language.</response>
     [HttpPost("attempts")]
+    [EnableRateLimiting(RateLimitPolicies.Writes)]
     public async Task<IActionResult> SubmitAttempt(SubmitAttemptRequest request, CancellationToken cancellationToken)
     {
         if (_currentUser.UserId is not { } userId)

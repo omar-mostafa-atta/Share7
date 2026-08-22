@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Shop — Share7 Admin Console</title>
+  <meta name="description" content="Manage product kinds, products, and grants in the Share7 shop entitlement system." />
+
+  <!-- Bootstrap -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+
+  <!-- App styles -->
+  <link rel="stylesheet" href="../css/variables.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/layout.css" />
+  <link rel="stylesheet" href="../css/pages.css" />
+</head>
+<body>
+
+  <div class="dashboard">
+    <main class="main-content">
+      <!-- Page header -->
+      <div class="page-header s7-fade-in">
+        <h1><i class="bi bi-bag text-brand me-2"></i>Shop</h1>
+        <p>
+          <strong>Entitlement → Product → ProductGrant.</strong> A product is <em>what is sold</em>;
+          its grants are <em>what it hands over</em>; its kind tells Unity which catalogue to resolve those references against.
+        </p>
+      </div>
+
+      <!-- Info -->
+      <div class="alert alert-secondary s7-fade-in mb-3">
+        <i class="bi bi-info-circle me-1"></i>
+        A product accounts already own has its <strong>grants frozen</strong> and <strong>cannot be deleted</strong>; retire it instead.
+      </div>
+
+      <div class="row g-3 s7-stagger">
+
+        <!-- Product kinds -->
+        <div class="col-lg-4">
+          <div class="card h-100">
+            <div class="card-header">
+              <span><i class="bi bi-tags me-2"></i>Product kinds</span>
+              <span>
+                <button class="btn btn-sm btn-outline-secondary" onclick="loadProductKinds()" title="Refresh">
+                  <i class="bi bi-arrow-clockwise"></i>
+                </button>
+                <button class="btn btn-sm btn-primary" onclick="openKindModal()">+ Kind</button>
+              </span>
+            </div>
+            <div class="card-body p-0">
+              <div id="kindList">
+                <div class="page-spinner"><div class="spinner-border" role="status"></div></div>
+              </div>
+            </div>
+            <div class="card-footer bg-white muted-sm">
+              The name reaches Unity normalised — <code>Content Pack</code> and <code>content-pack</code>
+              are both <code>CONTENT_PACK</code>.
+            </div>
+          </div>
+        </div>
+
+        <!-- Products -->
+        <div class="col-lg-8">
+          <div class="card h-100">
+            <div class="card-header">
+              <span><i class="bi bi-box-seam me-2"></i>Products</span>
+              <span>
+                <button class="btn btn-sm btn-outline-secondary" onclick="loadProducts()" title="Refresh">
+                  <i class="bi bi-arrow-clockwise"></i>
+                </button>
+                <button class="btn btn-sm btn-primary" onclick="openProductModal()">+ Product</button>
+              </span>
+            </div>
+            <div class="card-body p-0">
+              <div id="productList">
+                <div class="page-spinner"><div class="spinner-border" role="status"></div></div>
+              </div>
+            </div>
+            <div class="card-footer bg-white muted-sm">
+              Pick a row to manage what it hands over. <code>key</code> is permanent; <code>owners</code> is how many accounts hold it.
+            </div>
+          </div>
+        </div>
+
+        <!-- Grants -->
+        <div class="col-12">
+          <div class="card">
+            <div class="card-header">
+              <span><i class="bi bi-gift me-2"></i>Grants <span id="grantsFor" class="muted-sm fw-normal"></span></span>
+              <span>
+                <button class="btn btn-sm btn-outline-secondary" onclick="loadGrants()" title="Refresh">
+                  <i class="bi bi-arrow-clockwise"></i>
+                </button>
+                <button class="btn btn-sm btn-primary" onclick="openGrantModal()">+ Grant</button>
+              </span>
+            </div>
+            <div class="card-body p-0">
+              <div id="grantList">
+                <div class="empty"><i class="bi bi-hand-index"></i>Pick a product to see what it hands over.</div>
+              </div>
+            </div>
+            <div class="card-footer bg-white muted-sm">
+              <code>reference</code> is <strong>the client's own id</strong> — never resolved here.
+              One product may not grant the same reference twice.
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ═══════ Kind modal ═══════ -->
+  <div class="modal fade" id="kindModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="kindTitle">Add product kind</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <label class="form-label lvl-label">Machine name</label>
+          <input id="kindName" class="form-control mono" placeholder="Cosmetic" oninput="previewKind()" />
+          <div class="form-text">
+            Unity receives <span id="kindPreview" class="kind-token">—</span> as each grant's <code>kind</code>.
+          </div>
+          <hr />
+          <div class="lvl-label mb-2">Admin labels — required in every language</div>
+          <div id="kindTranslations"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-primary" onclick="submitKind()">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ Product modal ═══════ -->
+  <div class="modal fade" id="productModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="productTitle">Add product</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label lvl-label">Key</label>
+              <input id="prodKey" class="form-control mono" placeholder="skin_astronaut" oninput="normaliseKeyInput()" />
+              <div class="form-text"><strong>Permanent</strong> once created. Lowercase letters, digits and underscores.</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label lvl-label">Kind</label>
+              <select id="prodKind" class="form-select"></select>
+            </div>
+            <div class="col-12">
+              <label class="form-label lvl-label">Image URL</label>
+              <input id="prodImage" class="form-control" placeholder="https://cdn.example.com/shop/astronaut.png" />
+              <div class="form-text">Stored verbatim — one image for every language.</div>
+            </div>
+            <div class="col-12"><hr class="mb-2" /></div>
+            <div class="col-12">
+              <div class="lvl-label mb-2">Shop text — a name is required in every language</div>
+              <div id="prodTranslations" class="row g-3"></div>
+            </div>
+            <div class="col-12">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="prodActive" checked />
+                <label class="form-check-label" for="prodActive">
+                  Active <span class="muted-sm">— unticking retires it</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-primary" onclick="submitProduct()">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ Grant modal ═══════ -->
+  <div class="modal fade" id="grantModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="grantTitle">Add grant</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="muted-sm mb-3" id="grantProduct"></p>
+          <label class="form-label lvl-label">Reference</label>
+          <input id="grantRef" class="form-control mono" placeholder="cosmetic_astronaut" />
+          <div class="form-text">The client's own id. Never resolved here.</div>
+          <label class="form-label lvl-label mt-3">Quantity</label>
+          <input id="grantQty" type="number" class="form-control" value="1" min="1" />
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-primary" onclick="submitGrant()">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toasts"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script type="module">
+    import { initShop } from '../js/shop.js';
+    document.addEventListener('DOMContentLoaded', initShop);
+  </script>
+</body>
+</html>

@@ -72,9 +72,26 @@ Model-validation failures (a missing required field) return the framework's shap
 
 Handle both — check whether `errors` is an array or an object.
 
+**Rate limits.** Three throttles, all returning `429` with the error envelope from §13
+(`RATE_LIMITED`) plus a `Retry-After` header and a matching `retryAfterSeconds` in `details`:
+
+| Scope | Limit | Partitioned by |
+|---|---|---|
+| Everything | 240 / minute | user, or address when anonymous |
+| `POST /api/auth/{register,login,external-login,refresh,revoke}` | 20 / minute | address |
+| State-changing routes — attempts, purchase, grants, session create/join/matchmaking | 60 / minute | user |
+
+Multiplayer **heartbeat is deliberately exempt** from the write limit: it runs on a fixed 15-second
+cadence, so it is the one route a per-minute cap could bite during normal play.
+
+None of these should be reachable by ordinary use — a client that sees `429` has a retry loop, not
+a busy player. **Back off for `retryAfterSeconds` rather than retrying immediately**; a tight retry
+just spends the next window too. Limits are configuration (`RateLimiting` in `appsettings.json`),
+so treat the numbers here as current rather than contractual.
+
 **Status codes used throughout:** `400` bad input · `401` missing/expired token · `403` wrong
 role, or content locked · `404` unknown id · `409` a conflict that needs confirmation or a state
-fix.
+fix · `429` rate limited, back off and retry.
 
 ---
 
@@ -790,6 +807,70 @@ all-or-nothing validation (both go through the same parser), same response shape
 What differs is only which set it replaces: this bumps the lesson's **recovery** version and never
 touches its main question set, and vice versa. So a lesson can sit at questions v1 / recovery v4.
 
+### `POST /api/admin/lessons/{lessonId}/questions/manual?langId={guid}`
+
+Publishes questions **typed by hand** instead of uploaded — the admin console's "Type questions by
+hand" card. Same tables, same rules, same response shape as the sheet upload above; only the input
+differs.
+
+```json
+{
+  "mode": "APPEND",
+  "questions": [
+    { "text": "Capital of Egypt?", "correctChoice": "Cairo",
+      "wrongChoice1": "Alexandria", "wrongChoice2": "Giza" }
+  ]
+}
+```
+
+**`mode` is required and has no default.** Publishing is destructive in one of its two meanings, so
+an omitted mode is refused rather than guessed:
+
+| Mode | Does |
+|---|---|
+| `APPEND` | Keeps the questions already published and adds these after them. |
+| `REPLACE` | Publishes these *instead of* the current set. Also how a question is edited or removed — read the set, change it, publish it back. |
+
+**Both modes produce a new version.** A published set is immutable, so an append republishes the
+existing questions alongside the new ones rather than inserting into what is there. Client caches
+key on that version, so every publish costs those clients a re-download of the lesson.
+
+Correctness is **positional**: `correctChoice` is the right answer, matching the sheet where column
+2 is. There is no per-answer `isCorrect` flag, because "none of them" and "two of them" are both
+unanswerable in a three-door game.
+
+Validation is identical to the sheet's and equally all-or-nothing — same length limits, same
+case-sensitive distinctness, one bad question rejects the request and leaves the current version
+untouched. Every fault in every question is reported at once rather than stopping at the first.
+
+```json
+{
+  "succeeded": true, "lessonId": "…", "langId": "…",
+  "version": 3, "importedCount": 4, "replacedCount": 3, "errors": []
+}
+```
+
+`importedCount` is the size of the **whole new set**, so an append of one onto three reports 4.
+
+On failure, `400` with `errors[]` of `{ row, message }`, where `row` is the 1-based position in
+`questions` (`null` for a problem with the request as a whole, such as a missing `mode`).
+
+### `POST /api/admin/lessons/{lessonId}/recovery-questions/manual?langId={guid}`
+
+The same, over the **secondary** pool and its own version counter. Publishing here never touches
+the lesson's main question set.
+
+### `GET /api/admin/lessons/{lessonId}/questions?langId={guid}`
+### `GET /api/admin/lessons/{lessonId}/recovery-questions?langId={guid}`
+
+The active set in a **named** language, so the console can load what is published before editing it.
+Response is the same `LessonQuestionsDto` as the player-facing §5 reads.
+
+Separate from `GET /api/lessons/{lessonId}/questions` because that one serves the *caller's* content
+language: an admin editing Arabic while signed in with an English token would otherwise load the
+English set and republish it over the Arabic one. The upload endpoints have always taken an explicit
+`langId` for exactly this reason.
+
 ### Games
 
 | Endpoint | Does |
@@ -877,7 +958,7 @@ The ledger has **no public endpoint** (Unity does not consume one). It will be p
 | `GET /api/currencies` | authenticated |
 | `POST /api/currencies` | **Admin / SuperAdmin** |
 | `PUT /api/currencies/{currencyId}` | **Admin / SuperAdmin** |
-| `POST /api/currencies/grant` | authenticated |
+| `POST /api/currencies/grant` | **Admin / SuperAdmin** |
 | `GET /api/commerce/balances` | authenticated |
 | `GET /api/admin/reward-rules` | **Admin / SuperAdmin** |
 | `POST /api/admin/reward-rules` | **Admin / SuperAdmin** |
@@ -900,7 +981,7 @@ Retiring (`enabled: false`) keeps balances and ledger history intact and refuses
 and debits. There is no delete. Creating and retiring are Admin-gated because retiring the currency
 the whole economy runs on would otherwise be one request away for any signed-in account.
 
-### `POST /api/currencies/grant` — authenticated
+### `POST /api/currencies/grant` — Admin only
 
 ```json
 { "currencyId": "…", "amount": 500, "reason": "optional note for the ledger" }
@@ -914,15 +995,15 @@ Recorded on the ledger as `ADMIN_GRANT`, or `ADMIN_ADJUSTMENT` when `amount` is 
 negative amount that would overdraw is **refused, not clamped**, so a mistyped correction fails
 instead of quietly zeroing a wallet.
 
-> ⚠ **Open to any authenticated account by explicit decision.** A signed-in player can credit
-> themselves any amount, so this is a development and integration affordance — not a shippable
-> earning path. It is safe only while currency has nothing to buy.
+> **Admin-gated as of 2026-08-22.** This is the only route in the economy where an amount travels
+> from client to server, so it was the only one where a caller could name their own balance. It was
+> deliberately left open while currency had nothing to buy; reward rules and purchases have since
+> landed, so the condition attached to that decision has been met and the gate is on.
 >
-> **Reward rules have now landed** (below), so gameplay currency comes from the server evaluating a
-> validated progress attempt and this endpoint is no longer needed for earning. It has been left in
-> place because the admin console (`wwwroot/admin.html`) calls it to top up a wallet while testing.
-> **It must be removed or put back behind the role gate before the shop ships** — the moment coins
-> can buy something, this is a mint. Gating it means updating the admin page in the same change.
+> A `Student` token now gets `403` here. Gameplay currency comes from the server evaluating a
+> validated progress attempt — see reward rules below — never from a figure the client supplied.
+> The admin console (`wwwroot/admin.html`) still calls this to top up a wallet while testing, which
+> works unchanged because the console is already an admin surface.
 
 ### `GET /api/commerce/balances` — authenticated
 
@@ -1550,9 +1631,14 @@ Codes in use today: `INSUFFICIENT_BALANCE`, `CURRENCY_NOT_FOUND`, `CURRENCY_DISA
 `PRODUCT_GRANTS_LOCKED`, `PRODUCT_OWNED`, `PRODUCT_GRANT_NOT_FOUND`, `PRODUCT_GRANT_INVALID`,
 `PRODUCT_GRANT_REFERENCE_TAKEN`, `OFFER_INVALID`, `OFFER_NOT_FOUND`, `OFFER_UNAVAILABLE`,
 `OFFER_EXPIRED`, `OFFER_PURCHASED`, `PURCHASE_LIMIT_REACHED`, `ALREADY_OWNED`,
-`REQUEST_ID_REQUIRED`, `ACCOUNT_DELETION_REFUSED`. `OFFER_SOLD_OUT`, `NOT_ELIGIBLE` and
+`REQUEST_ID_REQUIRED`, `ACCOUNT_DELETION_REFUSED`, `RATE_LIMITED`. `OFFER_SOLD_OUT`, `NOT_ELIGIBLE` and
 `GRADE_RESTRICTED` are declared but have no producer — global stock and eligibility rules were
 deferred.
+
+`RATE_LIMITED` shares this envelope but is the one code that can come back from **any** endpoint,
+the older ones below included: it is written by middleware rather than by a controller, so it does
+not respect that split. Its `details` carry `retryAfterSeconds`, mirroring the `Retry-After`
+header — see §1.
 
 `code` is a stable backend constant; `messageKey` is a Unity localization key. **The backend never
 returns display prose** — Unity owns the localized text.

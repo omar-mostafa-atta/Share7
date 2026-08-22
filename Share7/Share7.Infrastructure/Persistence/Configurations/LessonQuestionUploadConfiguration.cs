@@ -11,6 +11,13 @@ public class LessonQuestionUploadConfiguration : IEntityTypeConfiguration<Lesson
         builder.ToTable("LessonQuestionUploads");
         builder.HasKey(u => u.Id);
         builder.Property(u => u.FileName).IsRequired().HasMaxLength(260);
+
+        // Text rather than an integer, like every other stored enum here: this table is read to
+        // explain a change, and MANUAL_ENTRY says what 1 does not.
+        builder.Property(u => u.Source)
+            .HasConversion(EnumWire.Converter<QuestionSetSource>())
+            .HasMaxLength(32)
+            .IsRequired();
         builder.Property(u => u.LangId).HasColumnName("Lang_Id");
 
         builder.HasOne(u => u.Lesson)

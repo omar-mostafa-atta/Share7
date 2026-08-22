@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using Share7.API.RateLimiting;
 using Share7.Application.Auth.Interfaces;
 using Share7.Application.Auth.Models;
 using Share7.Application.Common.Interfaces;
@@ -21,6 +23,7 @@ public class AuthController : ControllerBase
 
     [HttpPost("register")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.Auth)]
     public async Task<IActionResult> Register(RegisterRequest request, CancellationToken cancellationToken)
     {
         var result = await _authService.RegisterAsync(request, GetIpAddress(), cancellationToken);
@@ -29,6 +32,7 @@ public class AuthController : ControllerBase
 
     [HttpPost("login")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.Auth)]
     public async Task<IActionResult> Login(LoginRequest request, CancellationToken cancellationToken)
     {
         var result = await _authService.LoginAsync(request, GetIpAddress(), cancellationToken);
@@ -37,6 +41,7 @@ public class AuthController : ControllerBase
 
     [HttpPost("external-login")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.Auth)]
     public async Task<IActionResult> ExternalLogin(ExternalLoginRequest request, CancellationToken cancellationToken)
     {
         var result = await _authService.ExternalLoginAsync(request, GetIpAddress(), cancellationToken);
@@ -45,6 +50,7 @@ public class AuthController : ControllerBase
 
     [HttpPost("refresh")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.Auth)]
     public async Task<IActionResult> Refresh(RefreshTokenRequest request, CancellationToken cancellationToken)
     {
         var result = await _authService.RefreshTokenAsync(request.RefreshToken, GetIpAddress(), cancellationToken);
@@ -53,6 +59,7 @@ public class AuthController : ControllerBase
 
     [HttpPost("revoke")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.Auth)]
     public async Task<IActionResult> Revoke(RefreshTokenRequest request, CancellationToken cancellationToken)
     {
         var revoked = await _authService.RevokeTokenAsync(request.RefreshToken, GetIpAddress(), cancellationToken);

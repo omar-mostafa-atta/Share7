@@ -1,0 +1,303 @@
+/* ===================================================================
+   Share7 Admin Console — Reusable Components
+   Styled Bootstrap overrides + custom component classes.
+   =================================================================== */
+
+/* ── cards ── */
+.s7-card {
+  background: var(--s7-surface);
+  border: 1px solid var(--s7-line);
+  border-radius: var(--s7-radius);
+  box-shadow: var(--s7-shadow-sm);
+  transition: box-shadow var(--s7-duration) var(--s7-ease);
+  overflow: hidden;
+}
+.s7-card:hover {
+  box-shadow: var(--s7-shadow);
+}
+
+.s7-card-header {
+  background: var(--s7-surface);
+  border-bottom: 1px solid var(--s7-line);
+  padding: 0.85rem 1.15rem;
+  font-weight: 600;
+  font-size: 0.92rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.s7-card-header .bi {
+  color: var(--s7-brand);
+  font-size: 1rem;
+}
+
+.s7-card-body {
+  padding: 1.15rem;
+}
+
+.s7-card-footer {
+  background: var(--s7-bg-alt);
+  border-top: 1px solid var(--s7-line);
+  padding: 0.75rem 1.15rem;
+  font-size: 0.82rem;
+  color: var(--s7-muted);
+}
+
+/* ── Bootstrap card overrides ── */
+.card {
+  border: 1px solid var(--s7-line);
+  border-radius: var(--s7-radius);
+  box-shadow: var(--s7-shadow-sm);
+  overflow: hidden;
+}
+.card-header {
+  background: var(--s7-surface);
+  border-bottom: 1px solid var(--s7-line);
+  padding: 0.85rem 1.15rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.card-header .bi { color: var(--s7-brand); }
+.card-footer {
+  background: var(--s7-bg-alt);
+  border-top: 1px solid var(--s7-line);
+}
+
+/* ── buttons ── */
+.btn {
+  border-radius: var(--s7-radius-sm);
+  font-weight: 550;
+  font-size: 0.88rem;
+  transition: all var(--s7-duration) var(--s7-ease);
+  letter-spacing: 0.01em;
+}
+
+.btn-primary {
+  background: var(--s7-brand);
+  border-color: var(--s7-brand);
+  box-shadow: 0 1px 3px rgba(79, 70, 229, 0.3);
+}
+.btn-primary:hover,
+.btn-primary:focus {
+  background: var(--s7-brand-hover);
+  border-color: var(--s7-brand-hover);
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35);
+  transform: translateY(-1px);
+}
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-outline-primary {
+  color: var(--s7-brand);
+  border-color: var(--s7-brand);
+}
+.btn-outline-primary:hover {
+  background: var(--s7-brand);
+  border-color: var(--s7-brand);
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.25);
+}
+
+.btn-outline-secondary {
+  color: var(--s7-muted);
+  border-color: var(--s7-line);
+}
+.btn-outline-secondary:hover {
+  background: var(--s7-bg);
+  border-color: var(--s7-line);
+  color: var(--s7-ink);
+}
+
+.btn-outline-danger {
+  color: var(--s7-danger);
+  border-color: var(--s7-danger);
+}
+.btn-outline-danger:hover {
+  background: var(--s7-danger);
+  border-color: var(--s7-danger);
+  color: #fff;
+}
+
+/* ── forms ── */
+.form-control,
+.form-select {
+  border-color: var(--s7-line);
+  border-radius: var(--s7-radius-sm);
+  font-size: 0.88rem;
+  padding: 0.5rem 0.75rem;
+  transition: border-color var(--s7-duration) var(--s7-ease),
+              box-shadow var(--s7-duration) var(--s7-ease);
+}
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--s7-brand);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+}
+
+.form-label {
+  margin-bottom: 0.3rem;
+}
+
+.form-text {
+  font-size: 0.8rem;
+  color: var(--s7-muted);
+}
+
+.form-check-input:checked {
+  background-color: var(--s7-brand);
+  border-color: var(--s7-brand);
+}
+.form-check-input:focus {
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+  border-color: var(--s7-brand);
+}
+
+/* ── tables ── */
+.table > :not(caption) > * > * {
+  padding: 0.6rem 0.75rem;
+}
+.table thead th {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--s7-muted);
+  border-bottom-color: var(--s7-line);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.table tbody td {
+  border-bottom-color: var(--s7-line-light);
+  vertical-align: middle;
+}
+.table-hover tbody tr:hover > td {
+  background: var(--s7-bg-alt);
+}
+
+/* ── row picking (selectable rows) ── */
+.row-pick {
+  cursor: pointer;
+  transition: background var(--s7-duration) var(--s7-ease);
+}
+.row-pick:hover > td {
+  background: #f6f7fd;
+}
+.row-pick.picked > td {
+  background: var(--s7-brand-light);
+  box-shadow: inset 3px 0 0 var(--s7-brand);
+}
+
+/* ── list groups ── */
+.list-group-item {
+  border-color: var(--s7-line);
+  font-size: 0.88rem;
+  transition: background var(--s7-duration) var(--s7-ease);
+}
+.list-group-item.active {
+  background: var(--s7-brand);
+  border-color: var(--s7-brand);
+}
+.list-group-scroll {
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+/* ── badges ── */
+.badge {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* ── modals ── */
+.modal-content {
+  border: 0;
+  border-radius: var(--s7-radius-lg);
+  box-shadow: var(--s7-shadow-lg);
+}
+.modal-header {
+  border-bottom-color: var(--s7-line);
+  padding: 1rem 1.25rem;
+}
+.modal-title {
+  font-weight: 650;
+  font-size: 1.05rem;
+}
+.modal-body {
+  padding: 1.25rem;
+}
+.modal-footer {
+  border-top-color: var(--s7-line);
+  padding: 0.85rem 1.25rem;
+}
+.modal-backdrop {
+  backdrop-filter: blur(4px);
+}
+
+/* ── alerts ── */
+.alert {
+  border-radius: var(--s7-radius-sm);
+  font-size: 0.85rem;
+  border: none;
+}
+.alert-secondary {
+  background: var(--s7-bg-alt);
+  color: var(--s7-ink-soft);
+  border: 1px solid var(--s7-line);
+}
+.alert-warning {
+  background: var(--s7-warning-bg);
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+/* ── thumbnail images ── */
+.thumb {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: var(--s7-radius-sm);
+  border: 1px solid var(--s7-line);
+  background: var(--s7-bg-alt);
+}
+.thumb-empty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #c3c9d9;
+  font-size: 0.9rem;
+}
+
+/* ── toasts ── */
+.toast {
+  border-radius: var(--s7-radius) !important;
+  box-shadow: var(--s7-shadow-md) !important;
+}
+
+/* ── page header ── */
+.page-header {
+  margin-bottom: 1.5rem;
+}
+.page-header h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+.page-header p {
+  color: var(--s7-muted);
+  font-size: 0.88rem;
+  margin: 0;
+  max-width: 60ch;
+}
+
+/* ── status dot ── */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.status-dot--active   { background: var(--s7-success); box-shadow: 0 0 6px var(--s7-success); }
+.status-dot--inactive { background: var(--s7-muted); }

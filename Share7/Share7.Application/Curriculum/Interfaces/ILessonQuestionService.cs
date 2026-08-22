@@ -15,4 +15,14 @@ public interface ILessonQuestionService
 
     /// <summary>Active question set for a lesson. Returns null when the lesson does not exist.</summary>
     Task<LessonQuestionsDto?> GetQuestionsAsync(Guid lessonId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Active question set for a lesson in a **named** language rather than the caller's own.
+    /// <para>
+    /// For the admin console, which edits one language while the admin's own token says another —
+    /// the sheet upload has always taken an explicit <c>langId</c> for the same reason, and an
+    /// editor that loaded the wrong language would republish it over the one being edited.
+    /// </para>
+    /// </summary>
+    Task<LessonQuestionsDto?> GetQuestionsAsync(Guid lessonId, Guid langId, CancellationToken cancellationToken = default);
 }

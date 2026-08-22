@@ -3,8 +3,9 @@ using Share7.Domain.LookUps;
 namespace Share7.Domain.Curriculum;
 
 /// <summary>
-/// Audit trail: one row per successful Excel upload for a lesson. Lets an admin see who
-/// published which version and when, and answers "why did the question set change".
+/// Audit trail: one row per successful publish for a lesson — an Excel upload or a set typed by
+/// hand in the admin console. Lets an admin see who published which version and when, and answers
+/// "why did the question set change".
 /// </summary>
 public class LessonQuestionUpload
 {
@@ -20,7 +21,15 @@ public class LessonQuestionUpload
     /// <summary>The version this upload produced (1 for the first upload, then 2, 3, ...).</summary>
     public int Version { get; set; }
 
+    /// <summary>
+    /// The uploaded file's name, or empty when <see cref="Source"/> is
+    /// <see cref="QuestionSetSource.ManualEntry"/> — a hand-typed set has no file behind it.
+    /// </summary>
     public string FileName { get; set; } = string.Empty;
+
+    /// <summary>How this version was authored: a sheet, or typed into the admin console.</summary>
+    public QuestionSetSource Source { get; set; } = QuestionSetSource.ExcelUpload;
+
     public int QuestionCount { get; set; }
 
     public Guid? UploadedByUserId { get; set; }

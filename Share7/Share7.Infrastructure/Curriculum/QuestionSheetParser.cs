@@ -16,27 +16,17 @@ namespace Share7.Infrastructure.Curriculum;
 internal static class QuestionSheetParser
 {
     /// <summary>Guard against a runaway sheet being imported by accident.</summary>
-    private const int MaxQuestionsPerSheet = 5000;
-
-    private const int MaxQuestionLength = 1000;
-    private const int MaxChoiceLength = 500;
+    private const int MaxQuestionsPerSheet = QuestionContentRules.MaxQuestionsPerSet;
 
     private const int QuestionColumn = 1;
     private const int CorrectAnswerColumn = 2;
     private const int WrongAnswer1Column = 3;
     private const int WrongAnswer2Column = 4;
 
-    internal sealed record ParsedRow(
-        int RowNumber,
-        string QuestionText,
-        string CorrectAnswer,
-        string WrongAnswer1,
-        string WrongAnswer2);
-
-    public static List<ParsedRow> Parse(Stream excelStream, bool hasHeaderRow, out List<QuestionImportError> errors)
+    public static List<PublishableQuestion> Parse(Stream excelStream, bool hasHeaderRow, out List<QuestionImportError> errors)
     {
         errors = [];
-        var parsed = new List<ParsedRow>();
+        var parsed = new List<PublishableQuestion>();
 
         XLWorkbook workbook;
         try
@@ -91,55 +81,28 @@ internal static class QuestionSheetParser
                     continue;
                 }
 
-                parsed.Add(new ParsedRow(rowNumber, questionText, correct, wrong1, wrong2));
+                parsed.Add(new PublishableQuestion(rowNumber, questionText, correct, wrong1, wrong2));
             }
         }
 
         return parsed;
     }
 
+    /// <summary>
+    /// Applies <see cref="QuestionContentRules"/> with spreadsheet-shaped labels, and tags each
+    /// message with the row it came from so the admin can find it in the file.
+    /// </summary>
     private static List<QuestionImportError> ValidateRow(
-        int rowNumber, string questionText, string correct, string wrong1, string wrong2)
-    {
-        var rowErrors = new List<QuestionImportError>();
-
-        void Fail(string message) => rowErrors.Add(new QuestionImportError { Row = rowNumber, Message = message });
-
-        if (questionText.Length == 0)
-            Fail("Column 1 (question) is empty.");
-        else if (questionText.Length > MaxQuestionLength)
-            Fail($"Column 1 (question) is {questionText.Length} characters, above the {MaxQuestionLength} limit.");
-
-        var choiceLabels = new[]
-        {
-            ("Column 2 (correct answer)", correct),
-            ("Column 3 (wrong answer)", wrong1),
-            ("Column 4 (wrong answer)", wrong2)
-        };
-
-        foreach (var (label, value) in choiceLabels)
-        {
-            if (value.Length == 0)
-                Fail($"{label} is empty.");
-            else if (value.Length > MaxChoiceLength)
-                Fail($"{label} is {value.Length} characters, above the {MaxChoiceLength} limit.");
-        }
-
-        // Two identical doors where one counts as wrong would be unanswerable.
-        // Compared case-SENSITIVELY on purpose: capitalisation is often the thing being tested
-        // ("Fe" vs "FE" vs "fe" for iron's chemical symbol is a real question), so folding case
-        // here would reject valid content.
-        var distinct = choiceLabels
-            .Select(c => c.Item2)
-            .Where(v => v.Length > 0)
-            .Distinct(StringComparer.Ordinal)
-            .Count();
-
-        if (distinct != choiceLabels.Count(c => c.Item2.Length > 0))
-            Fail("The three answers must be different from each other.");
-
-        return rowErrors;
-    }
+        int rowNumber, string questionText, string correct, string wrong1, string wrong2) =>
+        QuestionContentRules
+            .Validate(
+                questionText, correct, wrong1, wrong2,
+                "Column 1 (question)",
+                "Column 2 (correct answer)",
+                "Column 3 (wrong answer)",
+                "Column 4 (wrong answer)")
+            .Select(message => new QuestionImportError { Row = rowNumber, Message = message })
+            .ToList();
 
     public static string Truncate(string value, int maxLength) =>
         value.Length <= maxLength ? value : value[..maxLength];

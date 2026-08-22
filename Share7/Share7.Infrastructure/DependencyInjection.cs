@@ -12,6 +12,8 @@ using Share7.Application.Economy.Interfaces;
 using Share7.Application.Equipment.Interfaces;
 using Share7.Application.Equipment.Models;
 using Share7.Application.Games.Interfaces;
+using Share7.Application.Multiplayer.Interfaces;
+using Share7.Application.Multiplayer.Models;
 using Share7.Application.Progress.Interfaces;
 using Share7.Application.Rewards.Interfaces;
 using Share7.Application.Users.Interfaces;
@@ -22,6 +24,7 @@ using Share7.Infrastructure.Equipment;
 using Share7.Infrastructure.Users;
 using Share7.Infrastructure.Games;
 using Share7.Infrastructure.Identity;
+using Share7.Infrastructure.Multiplayer;
 using Share7.Infrastructure.Identity.ExternalAuth;
 using Share7.Infrastructure.Persistence;
 using Share7.Infrastructure.Progress;
@@ -102,9 +105,25 @@ public static class DependencyInjection
         services.AddScoped<IOfferAdminService, OfferAdminService>();
         services.AddScoped<IPurchaseService, PurchaseService>();
         services.AddScoped<IAccountDeletionService, AccountDeletionService>();
+        services.AddScoped<IUserProfileService, UserProfileService>();
 
         services.Configure<EquipmentOptions>(configuration.GetSection(EquipmentOptions.SectionName));
         services.AddScoped<IEquipmentService, EquipmentService>();
+
+        services.Configure<MultiplayerOptions>(configuration.GetSection(MultiplayerOptions.SectionName));
+        services.AddScoped<MultiplayerRequestLogStore>();
+
+        // Registered concretely and then forwarded, so matchmaking and the interface resolve to the
+        // *same* scoped instance. Matchmaking reuses the session service's seating path rather than
+        // owning a second copy of the capacity rules — two implementations is how the direct join
+        // and the matchmade join would come to disagree about what "full" means.
+        services.AddScoped<MultiplayerSessionService>();
+        services.AddScoped<IMultiplayerSessionService>(sp => sp.GetRequiredService<MultiplayerSessionService>());
+        services.AddScoped<IMatchmakingService, MatchmakingService>();
+        services.AddScoped<IMultiplayerAdminService, MultiplayerAdminService>();
+
+        services.AddScoped<IMultiplayerSweepService, MultiplayerSweepService>();
+        services.AddHostedService<MultiplayerSessionSweeper>();
 
         return services;
     }

@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Share7.API.Extensions;
+using Share7.API.RateLimiting;
 using Share7.Application.Commerce.Interfaces;
 using Share7.Application.Commerce.Models;
 using Share7.Application.Common.Interfaces;
@@ -125,6 +127,7 @@ public class CommerceController : ControllerBase
     /// <response code="404">No such offer.</response>
     /// <response code="409">`INSUFFICIENT_BALANCE`, `OFFER_UNAVAILABLE`, `OFFER_EXPIRED`, `PURCHASE_LIMIT_REACHED`, `ALREADY_OWNED`.</response>
     [HttpPost("purchase")]
+    [EnableRateLimiting(RateLimitPolicies.Writes)]
     public async Task<IActionResult> Purchase(PurchaseRequest request, CancellationToken cancellationToken)
     {
         if (_currentUser.UserId is not { } userId)

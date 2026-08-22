@@ -29,4 +29,16 @@ public interface IRecoveryQuestionImportService
         bool hasHeaderRow = true,
         Guid? uploadedByUserId = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Publishes recovery questions typed by hand as the next recovery version for one lesson in
+    /// one language. The mirror of <see cref="IQuestionImportService.PublishManualAsync"/>: same
+    /// request shape, same rules, the recovery pool and its own counter.
+    /// </summary>
+    Task<QuestionImportResult> PublishManualAsync(
+        Guid lessonId,
+        Guid langId,
+        ManualQuestionSetRequest request,
+        Guid? publishedByUserId = null,
+        CancellationToken cancellationToken = default);
 }

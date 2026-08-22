@@ -82,8 +82,9 @@ QuestionChoices
 LessonQuestionSets                           -- the per-language cache key
   LessonId, Lang_Id, Version                 -- PK (LessonId, Lang_Id)
 
-LessonQuestionUploads                        -- audit trail, one row per successful upload
-  Id, LessonId, Lang_Id, Version, FileName, QuestionCount, UploadedByUserId, UploadedAt
+LessonQuestionUploads                        -- audit trail, one row per successful publish
+                                             -- (Source says whether it was a sheet or hand entry)
+  Id, LessonId, Lang_Id, Version, FileName, Source, QuestionCount, UploadedByUserId, UploadedAt
 ```
 
 **Questions keep `Lang_Id`.** This follows from the upload workflow: the admin uploads a
@@ -120,8 +121,8 @@ RecoveryQuestionChoices
 LessonRecoveryQuestionSets                     -- the per-language cache key
   LessonId, Lang_Id, Version                   -- PK (LessonId, Lang_Id)
 
-LessonRecoveryQuestionUploads                  -- audit trail, one row per successful upload
-  Id, LessonId, Lang_Id, Version, FileName, QuestionCount, UploadedByUserId, UploadedAt
+LessonRecoveryQuestionUploads                  -- audit trail, one row per successful publish
+  Id, LessonId, Lang_Id, Version, FileName, Source, QuestionCount, UploadedByUserId, UploadedAt
 ```
 
 Everything said above about the main pool applies unchanged: `Lang_Id` partitioning, the
@@ -169,9 +170,12 @@ is left untouched, and the response lists every offending row number. Rules:
 - ≤ 5000 question rows per sheet
 - `.xlsx` only (ClosedXML cannot read legacy `.xls`), ≤ 10 MB
 
-The recovery sheet uses this **identical** format and these identical rules — the two importers
-share one parser (`QuestionSheetParser`) rather than keeping two copies of the validation, so the
-two can't drift apart.
+The recovery sheet uses this **identical** format and these identical rules, and so does the
+hand-entry endpoint below — the rules live in `QuestionContentRules`, which the sheet parser and
+the manual publisher both call with their own field labels ("Column 2 (correct answer)" against a
+spreadsheet, "The correct choice" against a form). Same rules, two vocabularies. The two importers
+also share one parser (`QuestionSheetParser`) rather than keeping two copies of the sheet handling,
+so none of the three can drift apart.
 
 ## Versioning & the client cache protocol
 
@@ -355,6 +359,64 @@ touches the Arabic set or its version.
 On failure, `400` with the same shape, `succeeded: false`, and `errors[]` of
 `{ row, message }` — including a missing or unknown `langId`.
 
+### `POST /api/admin/lessons/{lessonId}/questions/manual?langId={guid}` — Admin / SuperAdmin
+
+Publishes questions **typed by hand**, for content that arrives as a handful of questions rather
+than a spreadsheet. Same tables, same versioning, same validation; only the input differs.
+
+```json
+{
+  "mode": "APPEND",
+  "questions": [
+    { "text": "…", "correctChoice": "…", "wrongChoice1": "…", "wrongChoice2": "…" }
+  ]
+}
+```
+
+`mode` is **required** — `APPEND` keeps the published questions and adds these after them,
+`REPLACE` publishes these instead of them. There is no default because the two differ in whether
+anything is destroyed, and that is not a thing to guess at.
+
+**Both produce a new version.** Question sets are immutable — nothing is ever edited in place — so
+an append republishes the existing questions alongside the new ones and retires the old rows,
+exactly as an upload does. That also means **editing or deleting a single question is a `REPLACE`**:
+read the set, change it, publish it back. The admin console's "Load current set" button does
+precisely that.
+
+Appending resolves each carried-forward question's correct answer by its stored `CorrectChoiceId`,
+never by assuming it is the first choice. A question that does not resolve to one correct and two
+wrong answers is **refused rather than repaired** — guessing would silently re-key a question that
+students are already being graded on.
+
+`importedCount` is the size of the whole resulting set, so appending one onto three reports 4.
+Errors are `{ row, message }` where `row` is the 1-based position in `questions`, or `null` for a
+problem with the request as a whole.
+
+The recovery mirror is `POST /api/admin/lessons/{lessonId}/recovery-questions/manual?langId={guid}`,
+identical in every respect and on its own version counter.
+
+### `GET /api/admin/lessons/{lessonId}/questions?langId={guid}` — Admin / SuperAdmin
+
+The active set in a **named** language, for loading into an editor before republishing it. Same
+response body as the player-facing read below.
+
+It exists separately because that read serves the *caller's* content language: an admin editing
+Arabic while holding an English token would load the English set and then publish it over the
+Arabic one. Upload has always taken an explicit `langId` for the same reason. The recovery mirror is
+`GET /api/admin/lessons/{lessonId}/recovery-questions?langId={guid}`.
+
+### Which authoring path to use
+
+|  | Excel upload | Hand entry |
+|---|---|---|
+| Good for | a delivered sheet, bulk content | a few questions, a correction, a typo |
+| Can add to the current set | no — always replaces | yes, with `APPEND` |
+| Can edit or delete one question | only by re-uploading the whole sheet | yes, with `REPLACE` |
+| Recorded as | `Source = EXCEL_UPLOAD`, with the file name | `Source = MANUAL_ENTRY`, no file name |
+
+Both write to the same tables and both bump the same counter — a lesson's history can freely mix
+the two, and `LessonQuestionUploads.Source` is what says which produced any given version.
+
 ### `GET /api/lessons/{lessonId}/questions/version` — authenticated
 
 ```json
@@ -399,20 +461,23 @@ single round trip. Unknown ids are omitted from the response rather than errorin
 Questions come back in source-sheet order; answers in source-column order. Cache the whole
 object keyed by `lessonId` along with its `version`.
 
-### Recovery questions — the same four endpoints
+### Recovery questions — the same six endpoints
 
-Each of the four routes above exists again with `recovery-questions` substituted for `questions`,
+Each of the six routes above exists again with `recovery-questions` substituted for `questions`,
 with identical request and response shapes:
 
 | Main pool | Recovery pool |
 | --- | --- |
 | `POST /api/admin/lessons/{lessonId}/questions/upload` | `POST /api/admin/lessons/{lessonId}/recovery-questions/upload` |
+| `POST /api/admin/lessons/{lessonId}/questions/manual` | `POST /api/admin/lessons/{lessonId}/recovery-questions/manual` |
+| `GET /api/admin/lessons/{lessonId}/questions` | `GET /api/admin/lessons/{lessonId}/recovery-questions` |
 | `GET /api/lessons/{lessonId}/questions/version` | `GET /api/lessons/{lessonId}/recovery-questions/version` |
 | `POST /api/lessons/questions/versions` | `POST /api/lessons/recovery-questions/versions` |
 | `GET /api/lessons/{lessonId}/questions` | `GET /api/lessons/{lessonId}/recovery-questions` |
 
-Same auth (upload is Admin/SuperAdmin, reads are `[Authorize]`), same `langId` rules, same
-all-or-nothing validation, same `version: 0` semantics, same caching advice.
+Same auth (everything under `/api/admin/` is Admin/SuperAdmin, the player-facing reads are
+`[Authorize]`), same `langId` rules, same all-or-nothing validation, same `version: 0` semantics,
+same caching advice.
 
 The one thing to hold onto: **the two versions move independently.** A recovery upload bumps only
 the recovery version and leaves the main set alone, so a client caching both keeps two version
