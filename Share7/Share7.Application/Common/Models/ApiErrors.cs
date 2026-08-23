@@ -38,6 +38,14 @@ public static class ApiErrors
     public static readonly ApiErrorCode ProfileNotFound =
         new("PROFILE_NOT_FOUND", "account.profile.not_found");
 
+    /// <summary>
+    /// The authenticated account no longer exists. Distinct from <see cref="ProfileNotFound"/>: the
+    /// profile row is optional and its absence is ordinary, whereas this means the account itself is
+    /// gone and the token outliving it is the only reason the request arrived at all.
+    /// </summary>
+    public static readonly ApiErrorCode AccountNotFound =
+        new("ACCOUNT_NOT_FOUND", "account.not_found");
+
     // ---- currency ------------------------------------------------------------------------
 
     public static readonly ApiErrorCode CurrencyNotFound =

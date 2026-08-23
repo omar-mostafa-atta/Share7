@@ -140,6 +140,20 @@ public class RunService : IRunService
         {
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
+        // The run points at a user that is no longer there. An access token outlives the account it
+        // names — deleting an account cannot reach into a device and expire one — so a child who
+        // deletes their account and whose device starts one more run lands exactly here. Refused as
+        // a missing account rather than thrown, because a 500 on the way out of a deletion flow is
+        // the worst possible moment to look broken.
+        catch (DbUpdateException exception) when (IsForeignKeyViolation(exception))
+        {
+            Detach(run);
+
+            return ServiceResult<StartRunResponse>.Failure(
+                ApiErrors.AccountNotFound,
+                ServiceErrorKind.NotFound,
+                "The account this token was issued for no longer exists.");
+        }
         catch (DbUpdateException exception) when (IsUniqueViolation(exception))
         {
             // Two starts with one key raced past the read above. The index picked a winner; this is
@@ -1108,6 +1122,13 @@ public class RunService : IRunService
 
     private static bool IsUniqueViolation(DbUpdateException exception) =>
         exception.InnerException is SqlException { Number: 2601 or 2627 };
+
+    /// <summary>
+    /// A row pointing at something that is not there — in practice the user, whose token can outlive
+    /// the account. Disjoint from <see cref="IsUniqueViolation"/>, which is a retryable collision.
+    /// </summary>
+    private static bool IsForeignKeyViolation(DbUpdateException exception) =>
+        exception.InnerException is SqlException { Number: 547 };
 
     /// <summary>
     /// What a settled run is worth to a leaderboard or an objective.
