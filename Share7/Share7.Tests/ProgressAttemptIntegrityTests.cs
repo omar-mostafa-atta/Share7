@@ -218,6 +218,63 @@ public class ProgressAttemptIntegrityTests
         Assert.Equal(10, await context.BalanceOfAsync(userId, coins.Id));
     }
 
+    // ------------------------------------------------------------- rollups
+
+    /// <summary>
+    /// The rollup and the lesson beside it must measure the same thing.
+    /// <para>
+    /// They did not: a lesson's <c>CompletionState</c> comes from <c>BestPercent</c>, while every
+    /// subject, chapter and term summed <c>CorrectCount</c> — the *latest* attempt. Acing a lesson
+    /// and then replaying it for fun dropped the subject to 95% with the lesson still showing Aced,
+    /// which is the app disagreeing with itself in front of the child who earned it.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task A_replayed_lesson_does_not_lower_the_subject_it_belongs_to()
+    {
+        await using var context = _fixture.CreateContext();
+        var (userId, path) = await ReadyLessonAsync(context);
+
+        var perfect = await PerfectRunAsync(context, path.LessonId);
+        var failed = await WrongRunAsync(context, path.LessonId);
+
+        await SubmitAsync(context, userId, path, perfect, "run-1");
+
+        var aced = await SnapshotSubjectPercentAsync(context, userId, path);
+        Assert.Equal(100, aced);
+
+        // Played again, badly. The record still says Aced, so the subject must still say 100.
+        await SubmitAsync(context, userId, path, failed, "run-2");
+
+        Assert.Equal(100, await SnapshotSubjectPercentAsync(context, userId, path));
+    }
+
+    [Fact]
+    public async Task An_unattempted_lesson_leaves_its_subject_at_zero()
+    {
+        // The other end of the same rule: best-of must not invent progress for a lesson nobody has
+        // opened.
+        await using var context = _fixture.CreateContext();
+        var (userId, path) = await ReadyLessonAsync(context);
+
+        Assert.Equal(0, await SnapshotSubjectPercentAsync(context, userId, path));
+    }
+
+    private static async Task<int> SnapshotSubjectPercentAsync(
+        ApplicationDbContext context, Guid userId, CurriculumPathFixture path)
+    {
+        var snapshot = await RewardTestExtensions.CreateProgressService(context, userId)
+            .GetSnapshotAsync(userId, path.GameId, null);
+
+        Assert.True(snapshot.Succeeded, string.Join("; ", snapshot.Errors));
+
+        var subject = snapshot.Value!.Terms
+            .SelectMany(term => term.Subjects)
+            .Single(s => s.Id == path.SubjectId);
+
+        return subject.Percent;
+    }
+
     // ------------------------------------------------------------- helpers
 
     private static async Task<(Guid UserId, CurriculumPathFixture Path)> ReadyLessonAsync(

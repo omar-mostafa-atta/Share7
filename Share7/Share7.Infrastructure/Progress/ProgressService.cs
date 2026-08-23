@@ -765,7 +765,17 @@ public class ProgressService : IProgressService
                         if (lesson.LiveTotal == 0)
                             continue;
 
-                        chapterCorrect += row?.CorrectCount ?? 0;
+                        // **The child's best, not their latest.** This summed CorrectCount — the
+                        // most recent attempt — while the lesson beside it reports CompletionState
+                        // derived from BestPercent. Acing every lesson in a subject and then
+                        // replaying one for fun dropped the subject to 95%, with every lesson still
+                        // showing Aced: the two figures were measuring different things and
+                        // disagreeing in public.
+                        //
+                        // Derived from BestPercent rather than a stored best count so this needs no
+                        // migration, and it is the same number the lesson's own state is decided
+                        // from — which is the property that makes the rollup and the tiles agree.
+                        chapterCorrect += BestCorrectFor(row, lesson.LiveTotal);
                         chapterTotal += lesson.LiveTotal;
                     }
 
@@ -867,4 +877,27 @@ public class ProgressService : IProgressService
 
     private static int ToPercent(int correct, int total) =>
         total == 0 ? 0 : (int)Math.Round(correct * 100.0 / total, MidpointRounding.AwayFromZero);
+
+    /// <summary>
+    /// A lesson's contribution to every rollup above it: its <b>best</b> score, expressed against
+    /// the question count that is live today.
+    /// <para>
+    /// Rounded away from zero so a lesson recorded at 100% contributes its whole total and a
+    /// subject of aced lessons reads exactly 100 — the figure a child is owed for finishing
+    /// everything, and the one they will check.
+    /// </para>
+    /// <para>
+    /// A lesson with no row has never been attempted and contributes nothing.
+    /// </para>
+    /// </summary>
+    private static int BestCorrectFor(UserLessonProgress? row, int liveTotal)
+    {
+        if (row is null || liveTotal <= 0) return 0;
+
+        // Clamped because BestPercent is a stored figure from an earlier attempt and the live
+        // question count can have moved under it since.
+        var best = Math.Clamp(row.BestPercent, 0, 100);
+
+        return (int)Math.Round(best / 100.0 * liveTotal, MidpointRounding.AwayFromZero);
+    }
 }
