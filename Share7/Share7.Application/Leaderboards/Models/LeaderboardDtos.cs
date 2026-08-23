@@ -154,3 +154,31 @@ public class LeaderboardVisibilityDto
     /// </summary>
     public bool IsLockedByGuardian { get; set; }
 }
+
+/// <summary>
+/// Where the caller finished a settled cycle, and what it paid.
+/// <para>
+/// The currency itself arrives through the ordinary balance path — this route only explains it, so
+/// a results screen can say "3rd place, 50 coins" without inventing a second way for money to
+/// reach a player.
+/// </para>
+/// </summary>
+public class LeaderboardSettlementDto
+{
+    public Guid CycleId { get; set; }
+
+    public string Cohort { get; set; } = string.Empty;
+
+    public int FinalRank { get; set; }
+
+    public long Value { get; set; }
+
+    /// <summary>The prize band that paid, e.g. <c>top10</c>. Null when the rank was outside every band.</summary>
+    public string? RewardBand { get; set; }
+
+    public bool RewardIssued { get; set; }
+
+    public DateTime? RewardIssuedAtUtc { get; set; }
+
+    public DateTime SettledAtUtc { get; set; }
+}

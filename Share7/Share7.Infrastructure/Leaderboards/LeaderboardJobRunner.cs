@@ -22,6 +22,7 @@ public class LeaderboardJobRunner : ILeaderboardJobRunner
     private readonly ApplicationDbContext _dbContext;
     private readonly ILeaderboardProjector _projector;
     private readonly ILeaderboardRolloverService _rollover;
+    private readonly ILeaderboardSettlementService _settlement;
     private readonly LeaderboardOptions _options;
     private readonly ILogger<LeaderboardJobRunner> _logger;
 
@@ -32,12 +33,14 @@ public class LeaderboardJobRunner : ILeaderboardJobRunner
         ApplicationDbContext dbContext,
         ILeaderboardProjector projector,
         ILeaderboardRolloverService rollover,
+        ILeaderboardSettlementService settlement,
         IOptions<LeaderboardOptions> options,
         ILogger<LeaderboardJobRunner> logger)
     {
         _dbContext = dbContext;
         _projector = projector;
         _rollover = rollover;
+        _settlement = settlement;
         _options = options.Value;
         _logger = logger;
     }
@@ -157,11 +160,15 @@ public class LeaderboardJobRunner : ILeaderboardJobRunner
                 await PruneAsync(cancellationToken);
                 break;
 
-            case LeaderboardJobKind.Settle:
-                // Phase 4. Declared here so the kind is stable in the enum and in the database
-                // before the handler exists — renumbering a job kind later would silently
-                // re-point rows already written.
-                _logger.LogWarning("Leaderboard settlement is not implemented yet.");
+            case LeaderboardJobKind.Settle when job.CycleId is { } settleCycle:
+                var settled = await _settlement.SettleAsync(settleCycle, cancellationToken);
+
+                // Surfaced as a job failure so the retry and backoff machinery applies. A cycle
+                // that cannot be settled is a prize nobody received, which is worth retrying and
+                // worth an operator eventually seeing in the failed queue.
+                if (!settled.Succeeded)
+                    throw new InvalidOperationException(string.Join("; ", settled.Errors));
+
                 break;
 
             default:

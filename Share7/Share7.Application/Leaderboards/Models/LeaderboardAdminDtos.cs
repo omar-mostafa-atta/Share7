@@ -114,3 +114,65 @@ public class LeaderboardBoardAdminDto
     public int CycleCount { get; set; }
     public IReadOnlyList<LeaderboardBoardTranslationRequest> Translations { get; set; } = [];
 }
+
+/// <summary>Authors what a believable result looks like for one game and metric.</summary>
+public class SaveMetricBoundRequest
+{
+    /// <summary>Null applies to every game raising this metric.</summary>
+    public Guid? GameId { get; set; }
+
+    [Required]
+    [MaxLength(48)]
+    public string Metric { get; set; } = string.Empty;
+
+    /// <summary>Largest single believable value. Null for no ceiling.</summary>
+    public long? MaxValue { get; set; }
+
+    /// <summary>Most results per player per UTC day. Catches what a value ceiling cannot.</summary>
+    public int? MaxResultsPerDay { get; set; }
+
+    /// <summary>Most total value per player per UTC day. The bound that matters for Sum boards.</summary>
+    public long? MaxValuePerDay { get; set; }
+
+    public bool Enabled { get; set; } = true;
+}
+
+public class MetricBoundDto
+{
+    public Guid Id { get; set; }
+    public Guid? GameId { get; set; }
+    public string Metric { get; set; } = string.Empty;
+    public long? MaxValue { get; set; }
+    public int? MaxResultsPerDay { get; set; }
+    public long? MaxValuePerDay { get; set; }
+    public bool Enabled { get; set; }
+}
+
+/// <summary>A result held out of ranking, waiting for somebody to decide.</summary>
+public class FlaggedResultDto
+{
+    public Guid ResultId { get; set; }
+    public Guid UserId { get; set; }
+
+    /// <summary>The player's public handle, so a reviewer never needs to see their real name.</summary>
+    public string DisplayName { get; set; } = string.Empty;
+
+    public Guid GameId { get; set; }
+    public string Metric { get; set; } = string.Empty;
+    public long Value { get; set; }
+    public DateTime OccurredAtUtc { get; set; }
+    public string? FlagReason { get; set; }
+}
+
+/// <summary>What a reviewer decided about a flagged result.</summary>
+public class ResolveFlagRequest
+{
+    /// <summary>
+    /// True to clear the flag and let the result rank. False to leave it excluded permanently.
+    /// <para>
+    /// Either way the row survives. A reviewer's decision is a judgement, and judgements get
+    /// revisited — deleting the evidence would make that impossible.
+    /// </para>
+    /// </summary>
+    public bool Legitimate { get; set; }
+}

@@ -19,11 +19,16 @@ namespace Share7.Infrastructure.Leaderboards;
 public class GameResultRecorder : IGameResultRecorder
 {
     private readonly ApplicationDbContext _dbContext;
+    private readonly IPlausibilityGuard _plausibility;
     private readonly ILogger<GameResultRecorder> _logger;
 
-    public GameResultRecorder(ApplicationDbContext dbContext, ILogger<GameResultRecorder> logger)
+    public GameResultRecorder(
+        ApplicationDbContext dbContext,
+        IPlausibilityGuard plausibility,
+        ILogger<GameResultRecorder> logger)
     {
         _dbContext = dbContext;
+        _plausibility = plausibility;
         _logger = logger;
     }
 
@@ -54,6 +59,21 @@ public class GameResultRecorder : IGameResultRecorder
             if (draft.Value == 0)
                 continue;
 
+            // Flag, never reject. The result is written either way — the row is evidence, and a
+            // bound tight enough to catch a modified client also catches a child with a wrong
+            // clock or a dropped connection. Flagged rows are excluded from projection and left
+            // for a person, which is reversible; deleting a genuine run is not.
+            var flagReason = await _plausibility.ReasonToFlagAsync(
+                context.UserId, context.GameId, draft.Metric, draft.Value,
+                context.OccurredAtUtc, cancellationToken);
+
+            if (flagReason is not null)
+            {
+                _logger.LogWarning(
+                    "Flagging {Metric} result for user {UserId}: {Reason}",
+                    draft.Metric, context.UserId, flagReason);
+            }
+
             _dbContext.GameResults.Add(new GameResult
             {
                 Id = Guid.NewGuid(),
@@ -67,6 +87,8 @@ public class GameResultRecorder : IGameResultRecorder
                 RequestId = context.RequestId,
                 GradeId = context.GradeId,
                 LangId = context.LangId,
+                IsFlagged = flagReason is not null,
+                FlagReason = flagReason,
                 CreatedAtUtc = now
             });
 

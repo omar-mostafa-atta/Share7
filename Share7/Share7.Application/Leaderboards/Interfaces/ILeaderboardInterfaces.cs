@@ -99,3 +99,25 @@ public interface ILeaderboardProjector
     /// </summary>
     Task RebuildCycleAsync(Guid cycleId, CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// Decides whether a recorded result is believable enough to rank.
+/// <para>
+/// **Its only output is a reason to flag, never a decision to reject.** Every rule it applies also
+/// fires on honest players — a wrong device clock, a dropped connection, a whole classroom
+/// finishing at once — so a suspicious result is kept, left out of the ranking, and shown to a
+/// person. A leaderboard that silently deletes a child's genuine run has done more harm than the
+/// cheat it was guarding against.
+/// </para>
+/// </summary>
+public interface IPlausibilityGuard
+{
+    /// <summary>Why this result should be flagged, or null when nothing about it looks wrong.</summary>
+    Task<string?> ReasonToFlagAsync(
+        Guid userId,
+        Guid gameId,
+        string metric,
+        long value,
+        DateTime occurredAtUtc,
+        CancellationToken cancellationToken = default);
+}

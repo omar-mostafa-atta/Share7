@@ -85,4 +85,68 @@ public class AdminLeaderboardsController : ControllerBase
         var result = await _admin.RebuildCycleAsync(cycleId, cancellationToken);
         return result.Succeeded ? NoContent() : result.ToApiErrorResult();
     }
+
+    /// <summary>
+    /// Settles a closed cycle now instead of waiting for its scheduled job. Idempotent — a cycle
+    /// already settled succeeds without paying anything a second time.
+    /// </summary>
+    [HttpPost("cycles/{cycleId:guid}/settle")]
+    public async Task<IActionResult> SettleCycle(Guid cycleId, CancellationToken cancellationToken)
+    {
+        var result = await _admin.SettleCycleAsync(cycleId, cancellationToken);
+        return result.Succeeded ? NoContent() : result.ToApiErrorResult();
+    }
+
+    // ---- anti-cheat ------------------------------------------------------------------------
+
+    /// <summary>What currently counts as a believable result, per game and metric.</summary>
+    [HttpGet("bounds")]
+    public async Task<IActionResult> GetBounds(CancellationToken cancellationToken)
+    {
+        var result = await _admin.GetBoundsAsync(cancellationToken);
+        return result.Succeeded ? Ok(result.Value) : result.ToApiErrorResult();
+    }
+
+    /// <summary>
+    /// Authors or replaces a bound.
+    /// <para>
+    /// Bounds are data so that tightening one after a live exploit is a row edit rather than a
+    /// release — which matters, because the answer key is client-visible by necessity (the quiz
+    /// grades locally to show right or wrong the instant a child taps) and this is the compensating
+    /// control.
+    /// </para>
+    /// </summary>
+    [HttpPut("bounds")]
+    public async Task<IActionResult> SaveBound(
+        [FromBody] SaveMetricBoundRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _admin.SaveBoundAsync(request, cancellationToken);
+        return result.Succeeded ? Ok(result.Value) : result.ToApiErrorResult();
+    }
+
+    /// <summary>
+    /// The review queue: results held out of ranking. Players are identified by public handle only
+    /// — nothing about judging whether a score is real requires knowing which child earned it.
+    /// </summary>
+    [HttpGet("flagged")]
+    public async Task<IActionResult> GetFlagged(
+        [FromQuery] int limit = 50, CancellationToken cancellationToken = default)
+    {
+        var result = await _admin.GetFlaggedAsync(limit, cancellationToken);
+        return result.Succeeded ? Ok(result.Value) : result.ToApiErrorResult();
+    }
+
+    /// <summary>
+    /// Records a decision. Clearing a flag re-queues the result so the player takes the rank they
+    /// should have had; upholding one leaves it excluded. The row survives either way.
+    /// </summary>
+    [HttpPost("flagged/{resultId:guid}/resolve")]
+    public async Task<IActionResult> ResolveFlag(
+        Guid resultId,
+        [FromBody] ResolveFlagRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _admin.ResolveFlagAsync(resultId, request.Legitimate, cancellationToken);
+        return result.Succeeded ? NoContent() : result.ToApiErrorResult();
+    }
 }

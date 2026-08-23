@@ -30,15 +30,21 @@ public class LeaderboardAdminService : ILeaderboardAdminService
     private readonly ApplicationDbContext _dbContext;
     private readonly ILeaderboardProjector _projector;
     private readonly ILeaderboardRolloverService _rollover;
+    private readonly ILeaderboardSettlementService _settlement;
+    private readonly IDisplayNameService _displayNames;
 
     public LeaderboardAdminService(
         ApplicationDbContext dbContext,
         ILeaderboardProjector projector,
-        ILeaderboardRolloverService rollover)
+        ILeaderboardRolloverService rollover,
+        ILeaderboardSettlementService settlement,
+        IDisplayNameService displayNames)
     {
         _dbContext = dbContext;
         _projector = projector;
         _rollover = rollover;
+        _settlement = settlement;
+        _displayNames = displayNames;
     }
 
     public async Task<ServiceResult<IReadOnlyList<LeaderboardBoardAdminDto>>> GetBoardsAsync(
@@ -224,6 +230,171 @@ public class LeaderboardAdminService : ILeaderboardAdminService
         await _projector.RebuildCycleAsync(cycleId, cancellationToken);
         await _projector.ProjectPendingAsync(int.MaxValue, cancellationToken);
         await _projector.ReindexCycleAsync(cycleId, cancellationToken);
+
+        return ServiceResult.Success();
+    }
+
+    public Task<ServiceResult> SettleCycleAsync(
+        Guid cycleId, CancellationToken cancellationToken = default) =>
+        _settlement.SettleAsync(cycleId, cancellationToken);
+
+    // ------------------------------------------------------------- anti-cheat
+
+    public async Task<ServiceResult<IReadOnlyList<MetricBoundDto>>> GetBoundsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var bounds = await _dbContext.LeaderboardMetricBounds
+            .AsNoTracking()
+            .OrderBy(b => b.Metric)
+            .ThenBy(b => b.GameId)
+            .Select(b => new MetricBoundDto
+            {
+                Id = b.Id,
+                GameId = b.GameId,
+                Metric = b.Metric,
+                MaxValue = b.MaxValue,
+                MaxResultsPerDay = b.MaxResultsPerDay,
+                MaxValuePerDay = b.MaxValuePerDay,
+                Enabled = b.Enabled
+            })
+            .ToListAsync(cancellationToken);
+
+        return ServiceResult<IReadOnlyList<MetricBoundDto>>.Success(bounds);
+    }
+
+    public async Task<ServiceResult<MetricBoundDto>> SaveBoundAsync(
+        SaveMetricBoundRequest request, CancellationToken cancellationToken = default)
+    {
+        var metric = request.Metric?.Trim().ToUpperInvariant();
+
+        if (!LeaderboardMetrics.IsKnown(metric))
+        {
+            return ServiceResult<MetricBoundDto>.Failure(
+                ApiErrors.LeaderboardBoardInvalid, ServiceErrorKind.Validation,
+                $"Nothing raises the metric '{request.Metric}', so a bound on it would never fire.");
+        }
+
+        // A bound with nothing set flags nothing, which is a row that looks like protection and is
+        // not. Refused rather than stored, for the same reason an unfillable board is.
+        if (request.MaxValue is null && request.MaxResultsPerDay is null && request.MaxValuePerDay is null)
+        {
+            return ServiceResult<MetricBoundDto>.Failure(
+                ApiErrors.LeaderboardBoardInvalid, ServiceErrorKind.Validation,
+                "A bound has to limit at least one of value, results per day, or value per day.");
+        }
+
+        var existing = await _dbContext.LeaderboardMetricBounds.FirstOrDefaultAsync(
+            b => b.GameId == request.GameId && b.Metric == metric, cancellationToken);
+
+        if (existing is null)
+        {
+            existing = new LeaderboardMetricBound
+            {
+                Id = Guid.NewGuid(),
+                GameId = request.GameId,
+                Metric = metric!,
+                CreatedAtUtc = DateTime.UtcNow
+            };
+
+            _dbContext.LeaderboardMetricBounds.Add(existing);
+        }
+        else
+        {
+            existing.UpdatedAtUtc = DateTime.UtcNow;
+        }
+
+        existing.MaxValue = request.MaxValue;
+        existing.MaxResultsPerDay = request.MaxResultsPerDay;
+        existing.MaxValuePerDay = request.MaxValuePerDay;
+        existing.Enabled = request.Enabled;
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return ServiceResult<MetricBoundDto>.Success(new MetricBoundDto
+        {
+            Id = existing.Id,
+            GameId = existing.GameId,
+            Metric = existing.Metric,
+            MaxValue = existing.MaxValue,
+            MaxResultsPerDay = existing.MaxResultsPerDay,
+            MaxValuePerDay = existing.MaxValuePerDay,
+            Enabled = existing.Enabled
+        });
+    }
+
+    public async Task<ServiceResult<IReadOnlyList<FlaggedResultDto>>> GetFlaggedAsync(
+        int limit, CancellationToken cancellationToken = default)
+    {
+        var flagged = await _dbContext.GameResults
+            .AsNoTracking()
+            .Where(r => r.IsFlagged)
+            .OrderBy(r => r.OccurredAtUtc)
+            .Take(Math.Clamp(limit, 1, 200))
+            .ToListAsync(cancellationToken);
+
+        // Reviewers see the public handle, never the child's real name. Knowing who a player is
+        // contributes nothing to judging whether a score of 4,000% is real, and a review queue is
+        // exactly the kind of screen left open on a shared desk.
+        var handles = await _displayNames.EnsureHandlesAsync(
+            flagged.Select(r => r.UserId).Distinct().ToList(), cancellationToken);
+
+        var dtos = flagged
+            .Select(r => new FlaggedResultDto
+            {
+                ResultId = r.Id,
+                UserId = r.UserId,
+                DisplayName = handles.TryGetValue(r.UserId, out var handle) ? handle : string.Empty,
+                GameId = r.GameId,
+                Metric = r.Metric,
+                Value = r.Value,
+                OccurredAtUtc = r.OccurredAtUtc,
+                FlagReason = r.FlagReason
+            })
+            .ToList();
+
+        return ServiceResult<IReadOnlyList<FlaggedResultDto>>.Success(dtos);
+    }
+
+    public async Task<ServiceResult> ResolveFlagAsync(
+        Guid resultId, bool legitimate, CancellationToken cancellationToken = default)
+    {
+        var result = await _dbContext.GameResults
+            .FirstOrDefaultAsync(r => r.Id == resultId, cancellationToken);
+
+        if (result is null)
+        {
+            return ServiceResult.Failure(
+                ApiErrors.NotFound, ServiceErrorKind.NotFound, "No such result.");
+        }
+
+        if (legitimate)
+        {
+            result.IsFlagged = false;
+            result.FlagReason = null;
+
+            // Unclaimed so the ordinary projection path picks it up and the player takes the rank
+            // they should have had all along. Reusing that path rather than writing an entry here
+            // is what keeps one implementation of what a rank means.
+            result.ProjectedAtUtc = null;
+
+            _dbContext.LeaderboardJobs.Add(new LeaderboardJob
+            {
+                Id = Guid.NewGuid(),
+                Kind = LeaderboardJobKind.Project,
+                State = LeaderboardJobState.Pending,
+                RunAfterUtc = DateTime.UtcNow,
+                CreatedAtUtc = DateTime.UtcNow
+            });
+        }
+        else
+        {
+            // Upheld. The flag stays and so does the row — a judgement can be revisited, and
+            // deleting the evidence would make that impossible. Stamped as claimed so the
+            // projector stops re-reading it on every pass.
+            result.ProjectedAtUtc ??= DateTime.UtcNow;
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
 
         return ServiceResult.Success();
     }

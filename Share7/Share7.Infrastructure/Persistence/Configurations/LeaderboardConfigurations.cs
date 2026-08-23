@@ -262,3 +262,29 @@ public class PlayerDisplayNameConfiguration : IEntityTypeConfiguration<PlayerDis
             .OnDelete(DeleteBehavior.Cascade);
     }
 }
+
+public class LeaderboardMetricBoundConfiguration : IEntityTypeConfiguration<LeaderboardMetricBound>
+{
+    public void Configure(EntityTypeBuilder<LeaderboardMetricBound> builder)
+    {
+        builder.ToTable("LeaderboardMetricBounds");
+        builder.HasKey(b => b.Id);
+
+        builder.Property(b => b.Metric).IsRequired().HasMaxLength(48);
+
+        // One bound per game and metric. A second row for the same pair would make which limit
+        // applies depend on row order, which is not a thing an operator can reason about.
+        builder.HasIndex(b => new { b.GameId, b.Metric })
+            .IsUnique()
+            .HasDatabaseName("UX_LeaderboardMetricBound_Scope");
+
+        // The ingestion lookup, which runs on the gameplay request.
+        builder.HasIndex(b => new { b.Metric, b.Enabled })
+            .HasDatabaseName("IX_LeaderboardMetricBound_Lookup");
+
+        builder.HasOne<Game>()
+            .WithMany()
+            .HasForeignKey(b => b.GameId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+}

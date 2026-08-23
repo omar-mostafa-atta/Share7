@@ -297,6 +297,60 @@ public class LeaderboardService : ILeaderboardService
             await StandingDtoAsync(userId, cycle, cohortKind, row, cancellationToken));
     }
 
+    public async Task<ServiceResult<LeaderboardSettlementDto>> GetSettlementAsync(
+        Guid userId, Guid cycleId, string? cohort, CancellationToken cancellationToken = default)
+    {
+        if (!_options.Enabled)
+            return Disabled<LeaderboardSettlementDto>();
+
+        var resolved = await ResolveAsync(userId, cycleId, cohort, cancellationToken);
+
+        if (!resolved.Succeeded)
+            return ServiceResult<LeaderboardSettlementDto>.Failure(
+                resolved.Error!, resolved.ErrorKind, resolved.Errors.FirstOrDefault() ?? "Refused.");
+
+        var (cycle, cohortKind, cohortKey) = resolved.Value!;
+
+        // A rank that can still move is not a result. Answering with a provisional placing would
+        // let a results screen congratulate a child on a third place they are about to lose.
+        if (cycle.State != LeaderboardCycleState.Settled)
+        {
+            return ServiceResult<LeaderboardSettlementDto>.Failure(
+                ApiErrors.LeaderboardCycleNotFound, ServiceErrorKind.NotFound,
+                "This cycle has not been settled yet.");
+        }
+
+        var settlement = await _dbContext.LeaderboardSettlements
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                s => s.CycleId == cycleId
+                     && s.Cohort == cohortKind
+                     && s.CohortKey == cohortKey
+                     && s.UserId == userId,
+                cancellationToken);
+
+        if (settlement is null)
+        {
+            return ServiceResult<LeaderboardSettlementDto>.Failure(
+                ApiErrors.LeaderboardCycleNotFound, ServiceErrorKind.NotFound,
+                "You did not place in this cycle.");
+        }
+
+        return ServiceResult<LeaderboardSettlementDto>.Success(new LeaderboardSettlementDto
+        {
+            CycleId = cycleId,
+            Cohort = cohortKind.ToString(),
+            FinalRank = settlement.FinalRank,
+            Value = settlement.Value,
+            // The band alone, not the full "{boardKey}:{band}" scope. The client is rendering a
+            // rosette, not resolving a reward rule.
+            RewardBand = settlement.RewardReferenceKey?.Split(':').LastOrDefault(),
+            RewardIssued = settlement.RewardIssued,
+            RewardIssuedAtUtc = settlement.RewardIssuedAtUtc,
+            SettledAtUtc = cycle.SettledAtUtc ?? settlement.CreatedAtUtc
+        });
+    }
+
     // ------------------------------------------------------------- visibility
 
     public async Task<ServiceResult<LeaderboardVisibilityDto>> GetVisibilityAsync(

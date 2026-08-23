@@ -60,12 +60,83 @@ public class RewardService : IRewardService
             .OrderBy(r => r.Id)
             .ToListAsync(cancellationToken);
 
-        var submissionKey = SubmissionKeyFor(context);
+        var target = new PayoutTarget(
+            UserId: context.UserId,
+            SourceType: LedgerSourceType.ProgressAttempt,
+            SourceId: context.LessonId.ToString(),
+            // A `Once` rule is scoped to the lesson in this game, so every later attempt collides
+            // with the first and is refused.
+            OnceKey: $"{context.GameId}:{context.LessonId}",
+            SubmissionKey: SubmissionKeyFor(context),
+            Metadata: JsonSerializer.Serialize(new
+            {
+                gameId = context.GameId,
+                lessonId = context.LessonId,
+                percent = context.Percent,
+                attempt = context.AttemptNumber
+            }));
+
+        return await PayMatchingAsync(rules, target, transaction, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<RewardDto>> EvaluateSettlementAsync(
+        SettlementRewardContext context,
+        CancellationToken cancellationToken = default)
+    {
+        var transaction = _dbContext.Database.CurrentTransaction
+            ?? throw new InvalidOperationException(
+                "Settlement rewards must be evaluated inside an open transaction so the payout and the settlement row commit together.");
+
+        // Unlike the attempt path, an unscoped rule is *not* matched. A global "pay for any
+        // LEADERBOARD_SETTLED" rule would pay every ranked child on every board the same prize,
+        // which is never what an operator means — the band is the whole point of the event.
+        var rules = await _dbContext.RewardRules
+            .AsNoTracking()
+            .Include(r => r.Grants)
+            .ThenInclude(g => g.Currency)
+            .Where(r => r.Enabled
+                        && r.EventType == RewardEventType.LeaderboardSettled
+                        && r.ReferenceKey == context.ReferenceKey)
+            .OrderBy(r => r.Id)
+            .ToListAsync(cancellationToken);
+
+        // One placing is one payout, whatever the rule's repeat policy says. The key is the
+        // placing itself, so a retried settlement job finds the key already spent.
+        var placing = $"{context.CycleId}:{context.Cohort}:{context.CohortKey}:{context.UserId}";
+
+        var target = new PayoutTarget(
+            UserId: context.UserId,
+            SourceType: LedgerSourceType.System,
+            SourceId: context.CycleId.ToString(),
+            OnceKey: placing,
+            SubmissionKey: placing,
+            Metadata: JsonSerializer.Serialize(new
+            {
+                cycleId = context.CycleId,
+                cohort = context.Cohort,
+                rank = context.FinalRank,
+                value = context.Value,
+                band = context.ReferenceKey
+            }));
+
+        return await PayMatchingAsync(rules, target, transaction, cancellationToken);
+    }
+
+    /// <summary>
+    /// Runs every matching rule against one target. Shared by both entry points so there is
+    /// exactly one place that can create currency.
+    /// </summary>
+    private async Task<IReadOnlyList<RewardDto>> PayMatchingAsync(
+        List<RewardRule> rules,
+        PayoutTarget target,
+        IDbContextTransaction transaction,
+        CancellationToken cancellationToken)
+    {
         var paid = new List<RewardDto>();
 
         for (var i = 0; i < rules.Count; i++)
         {
-            var reward = await TryPayAsync(rules[i], context, submissionKey, transaction, i, cancellationToken);
+            var reward = await TryPayAsync(rules[i], target, transaction, i, cancellationToken);
 
             if (reward is not null)
                 paid.Add(reward);
@@ -74,10 +145,22 @@ public class RewardService : IRewardService
         return paid;
     }
 
+    /// <summary>
+    /// Everything a payout needs that differs between an attempt and a settlement. Introduced so
+    /// the two share one engine — a second payout path would mean two places that can mint
+    /// currency and two answers to "why does this child have these coins".
+    /// </summary>
+    private sealed record PayoutTarget(
+        Guid UserId,
+        LedgerSourceType SourceType,
+        string SourceId,
+        string OnceKey,
+        string SubmissionKey,
+        string Metadata);
+
     private async Task<RewardDto?> TryPayAsync(
         RewardRule rule,
-        ProgressRewardContext context,
-        string submissionKey,
+        PayoutTarget context,
         IDbContextTransaction transaction,
         int index,
         CancellationToken cancellationToken)
@@ -91,7 +174,7 @@ public class RewardService : IRewardService
         if (rule.Grants.Any(g => g.Currency is null || !g.Currency.Enabled))
             return null;
 
-        var idempotencyKey = IdempotencyKeyFor(rule, context, submissionKey);
+        var idempotencyKey = IdempotencyKeyFor(rule, context);
 
         var existing = await _dbContext.RewardTransactions
             .AsNoTracking()
@@ -107,12 +190,12 @@ public class RewardService : IRewardService
             // Replay only when this very submission is what paid. A `Once` rule matched by a later
             // attempt has already been paid and must report nothing, or the client shows a reward
             // animation for currency it is not receiving.
-            return existing.SubmissionKey == submissionKey ? Replay(rule, existing) : null;
+            return existing.SubmissionKey == context.SubmissionKey ? Replay(rule, existing) : null;
 
         if (!await PassesRepeatConstraintsAsync(rule, context.UserId, cancellationToken))
             return null;
 
-        return await PayAsync(rule, context, submissionKey, idempotencyKey, transaction, index, cancellationToken);
+        return await PayAsync(rule, context, idempotencyKey, transaction, index, cancellationToken);
     }
 
     /// <summary>
@@ -160,8 +243,7 @@ public class RewardService : IRewardService
 
     private async Task<RewardDto?> PayAsync(
         RewardRule rule,
-        ProgressRewardContext context,
-        string submissionKey,
+        PayoutTarget context,
         string idempotencyKey,
         IDbContextTransaction transaction,
         int index,
@@ -178,10 +260,10 @@ public class RewardService : IRewardService
             UserId = context.UserId,
             RewardRuleId = rule.Id,
             EventType = rule.EventType,
-            SourceType = LedgerSourceType.ProgressAttempt,
-            SourceId = context.LessonId.ToString(),
+            SourceType = context.SourceType,
+            SourceId = context.SourceId,
             IdempotencyKey = idempotencyKey,
-            SubmissionKey = submissionKey,
+            SubmissionKey = context.SubmissionKey,
             CreatedAtUtc = DateTime.UtcNow
         };
 
@@ -199,15 +281,6 @@ public class RewardService : IRewardService
             return null;
         }
 
-        var metadata = JsonSerializer.Serialize(new
-        {
-            ruleId = rule.Id,
-            gameId = context.GameId,
-            lessonId = context.LessonId,
-            percent = context.Percent,
-            attempt = context.AttemptNumber
-        });
-
         var grants = new List<RewardGrantDto>();
 
         // Ordered by currency key so the ledger, the lines and the response all agree, and two
@@ -221,10 +294,10 @@ public class RewardService : IRewardService
                     CurrencyId = grant.CurrencyId,
                     Delta = grant.Amount,
                     TransactionType = rule.TransactionType,
-                    SourceType = LedgerSourceType.ProgressAttempt,
-                    SourceId = context.LessonId.ToString(),
+                    SourceType = context.SourceType,
+                    SourceId = context.SourceId,
                     IdempotencyKey = idempotencyKey,
-                    Metadata = metadata
+                    Metadata = context.Metadata
                 },
                 cancellationToken);
 
@@ -328,10 +401,10 @@ public class RewardService : IRewardService
     /// spent.
     /// </para>
     /// </summary>
-    private static string IdempotencyKeyFor(RewardRule rule, ProgressRewardContext context, string submissionKey) =>
+    private static string IdempotencyKeyFor(RewardRule rule, PayoutTarget context) =>
         rule.RepeatPolicy == RewardRepeatPolicy.Once
-            ? $"{WireEnum.ToWire(rule.EventType)}:{context.GameId}:{context.LessonId}"
-            : $"{WireEnum.ToWire(rule.EventType)}:{submissionKey}";
+            ? $"{WireEnum.ToWire(rule.EventType)}:{context.OnceKey}"
+            : $"{WireEnum.ToWire(rule.EventType)}:{context.SubmissionKey}";
 
     private static RewardDto Replay(RewardRule rule, RewardTransaction existing) => new()
     {

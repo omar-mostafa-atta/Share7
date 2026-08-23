@@ -3,7 +3,9 @@ using Microsoft.Extensions.Options;
 using Share7.Application.Leaderboards.Models;
 using Share7.Domain.Leaderboards;
 using Share7.Infrastructure.Leaderboards;
+using Share7.Infrastructure.Economy;
 using Share7.Infrastructure.Persistence;
+using Share7.Infrastructure.Rewards;
 
 namespace Share7.Tests.Infrastructure;
 
@@ -45,12 +47,25 @@ public static class LeaderboardTestExtensions
             context,
             CreateProjector(context, resolved),
             CreateRollover(context),
+            CreateSettlement(context, resolved),
             Options.Create(resolved),
             NullLogger<LeaderboardJobRunner>.Instance);
     }
 
     public static LeaderboardRolloverService CreateRollover(ApplicationDbContext context) =>
         new(context, NullLogger<LeaderboardRolloverService>.Instance);
+
+    /// <summary>
+    /// The real reward service behind settlement, not a stub. Whether a retried payout pays twice
+    /// is the single most important thing about this code, and only the real engine — with its
+    /// unique idempotency index — can answer it.
+    /// </summary>
+    public static LeaderboardSettlementService CreateSettlement(
+        ApplicationDbContext context, LeaderboardOptions? options = null) =>
+        new(context,
+            CreateProjector(context, options),
+            new RewardService(context, new WalletService(context)),
+            NullLogger<LeaderboardSettlementService>.Instance);
 
     /// <summary>A board with one open cycle covering all of time unless bounded.</summary>
     public static async Task<(LeaderboardBoard Board, LeaderboardCycle Cycle)> CreateBoardAsync(

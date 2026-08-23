@@ -46,3 +46,22 @@ public interface ILeaderboardRolloverService
     /// </summary>
     Task<int> RolloverAsync(CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// Freezes a closed cycle's final ranks and pays them.
+/// <para>
+/// **Everything here has to survive being run twice.** The job table delivers at-least-once and a
+/// shared host can kill a worker between the grant and the record of it, so the settlement row's
+/// unique index claims each placing and the paid flag flips inside the same transaction as the
+/// payout.
+/// </para>
+/// </summary>
+public interface ILeaderboardSettlementService
+{
+    /// <summary>
+    /// Settles one closed cycle. Idempotent: a cycle already settled succeeds without doing
+    /// anything, because a retry finding the work done is the system behaving correctly.
+    /// </summary>
+    Task<Common.Models.ServiceResult> SettleAsync(
+        Guid cycleId, CancellationToken cancellationToken = default);
+}

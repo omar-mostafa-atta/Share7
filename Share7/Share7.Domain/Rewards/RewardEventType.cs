@@ -32,5 +32,21 @@ public enum RewardEventType
     /// instead of it: an aced lesson fires both, so "10 coins to pass, 5 gems to ace" is two
     /// independent rules rather than one rule with branching.
     /// </summary>
-    LessonAced
+    LessonAced,
+
+    /// <summary>
+    /// A leaderboard cycle closed and this player's final rank landed in a prize band. Raised by
+    /// the settlement job, once per <c>(cycle, cohort, player)</c>.
+    /// <para>
+    /// Scoped by <c>ReferenceKey</c> as <c>{boardKey}:{band}</c> — <c>…:1</c>, <c>…:2</c>,
+    /// <c>…:top10</c> — so the entire prize structure is authored in the existing admin UI as
+    /// data, and changing what third place pays needs no deploy.
+    /// </para>
+    /// <para>
+    /// Unlike the lesson events, this one is **not** derived from a client submission at all: it
+    /// comes from a rank the server computed from results the server graded. There is no point in
+    /// the chain at which a player asserted anything.
+    /// </para>
+    /// </summary>
+    LeaderboardSettled
 }

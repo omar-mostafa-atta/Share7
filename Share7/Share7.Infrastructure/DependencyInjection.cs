@@ -133,9 +133,11 @@ public static class DependencyInjection
         // IGameResultRecorder, which no controller can reach.
         services.Configure<LeaderboardOptions>(configuration.GetSection(LeaderboardOptions.SectionName));
         services.AddScoped<IDisplayNameService, DisplayNameService>();
+        services.AddScoped<IPlausibilityGuard, PlausibilityGuard>();
         services.AddScoped<IGameResultRecorder, GameResultRecorder>();
         services.AddScoped<ILeaderboardProjector, LeaderboardProjector>();
         services.AddScoped<ILeaderboardRolloverService, LeaderboardRolloverService>();
+        services.AddScoped<ILeaderboardSettlementService, LeaderboardSettlementService>();
         services.AddScoped<ILeaderboardJobRunner, LeaderboardJobRunner>();
         services.AddScoped<ILeaderboardService, LeaderboardService>();
         services.AddScoped<ILeaderboardAdminService, LeaderboardAdminService>();

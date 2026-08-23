@@ -115,7 +115,10 @@ public static class RewardTestExtensions
             new UnlockService(context),
             new RewardService(context, wallet),
             wallet,
-            new GameResultRecorder(context, NullLogger<GameResultRecorder>.Instance));
+            new GameResultRecorder(
+                context,
+                new PlausibilityGuard(context),
+                NullLogger<GameResultRecorder>.Instance));
     }
 
     /// <summary>

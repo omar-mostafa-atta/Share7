@@ -98,6 +98,20 @@ public class LeaderboardsController : ControllerBase
         Run(userId => _leaderboards.GetStandingAsync(userId, cycleId, cohort, cancellationToken));
 
     /// <summary>
+    /// Where the caller finished a settled cycle, and what it paid.
+    /// <para>
+    /// Explains a payout rather than delivering one — the currency itself arrives through the
+    /// ordinary balance path, so there is never a second way for money to reach a player. Refused
+    /// with a 404 while the cycle is still running: a rank that can still move is not a result,
+    /// and congratulating a child on a third place they are about to lose is worse than waiting.
+    /// </para>
+    /// </summary>
+    [HttpGet("cycles/{cycleId:guid}/settlement/me")]
+    public Task<IActionResult> GetSettlement(
+        Guid cycleId, [FromQuery] string? cohort, CancellationToken cancellationToken) =>
+        Run(userId => _leaderboards.GetSettlementAsync(userId, cycleId, cohort, cancellationToken));
+
+    /// <summary>
     /// How the caller appears on public boards: their generated handle, and whether they are
     /// listed at all.
     /// </summary>

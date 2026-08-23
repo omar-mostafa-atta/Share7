@@ -127,6 +127,12 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, Applicati
     public DbSet<LeaderboardEntry> LeaderboardEntries => Set<LeaderboardEntry>();
     public DbSet<LeaderboardSettlement> LeaderboardSettlements => Set<LeaderboardSettlement>();
 
+    /// <summary>
+    /// What a believable result looks like, per game and metric. Authored as data so tightening a
+    /// limit after a live exploit is a row edit rather than a release.
+    /// </summary>
+    public DbSet<LeaderboardMetricBound> LeaderboardMetricBounds => Set<LeaderboardMetricBound>();
+
     /// <summary>Deferred work, as rows rather than a process. See the entity for why.</summary>
     public DbSet<LeaderboardJob> LeaderboardJobs => Set<LeaderboardJob>();
 

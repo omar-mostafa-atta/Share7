@@ -41,6 +41,13 @@ public interface ILeaderboardService
     Task<ServiceResult<LeaderboardStandingDto>> GetStandingAsync(
         Guid userId, Guid cycleId, string? cohort, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// The caller's final placing in a settled cycle. Refused with a 404 while the cycle is still
+    /// running — a rank that can still change is not a result.
+    /// </summary>
+    Task<ServiceResult<LeaderboardSettlementDto>> GetSettlementAsync(
+        Guid userId, Guid cycleId, string? cohort, CancellationToken cancellationToken = default);
+
     /// <summary>How the caller currently appears, including whether a guardian has locked it.</summary>
     Task<ServiceResult<LeaderboardVisibilityDto>> GetVisibilityAsync(
         Guid userId, CancellationToken cancellationToken = default);
@@ -81,4 +88,34 @@ public interface ILeaderboardAdminService
     /// and the proof that a rank is nothing more than a function of the results behind it.
     /// </summary>
     Task<ServiceResult> RebuildCycleAsync(Guid cycleId, CancellationToken cancellationToken = default);
+
+    /// <summary>Settles a closed cycle by hand, rather than waiting for its scheduled job.</summary>
+    Task<ServiceResult> SettleCycleAsync(Guid cycleId, CancellationToken cancellationToken = default);
+
+    // ---- anti-cheat ---------------------------------------------------------------------
+
+    Task<ServiceResult<IReadOnlyList<MetricBoundDto>>> GetBoundsAsync(
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Authors or replaces the bound for one game and metric. Bounds are data so that tightening
+    /// one after a live exploit is a row edit, not a release.
+    /// </summary>
+    Task<ServiceResult<MetricBoundDto>> SaveBoundAsync(
+        SaveMetricBoundRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The review queue: results held out of ranking, oldest first, identified only by public
+    /// handle so a reviewer never has to see a child's real name.
+    /// </summary>
+    Task<ServiceResult<IReadOnlyList<FlaggedResultDto>>> GetFlaggedAsync(
+        int limit, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Records a reviewer's decision. Clearing a flag re-queues the result for projection so it
+    /// takes its rightful place; upholding one leaves it excluded. **The row survives either way** —
+    /// judgements get revisited, and deleting the evidence would make that impossible.
+    /// </summary>
+    Task<ServiceResult> ResolveFlagAsync(
+        Guid resultId, bool legitimate, CancellationToken cancellationToken = default);
 }

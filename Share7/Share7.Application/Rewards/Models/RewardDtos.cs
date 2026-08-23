@@ -35,6 +35,36 @@ public class ProgressRewardContext
     public string? RequestId { get; init; }
 }
 
+/// <summary>
+/// What the settlement job knows about one player's finished placing.
+/// <para>
+/// Carries no amount. The rank decides which rule matches; the rule decides what it pays. A
+/// context that carried a prize would put the payout back in the caller's hands, which is the one
+/// thing this whole subsystem is arranged to prevent.
+/// </para>
+/// </summary>
+public class SettlementRewardContext
+{
+    public required Guid UserId { get; init; }
+
+    public required Guid CycleId { get; init; }
+
+    /// <summary>Which cohort's ladder this placing is on, as its enum name.</summary>
+    public required string Cohort { get; init; }
+
+    public required Guid CohortKey { get; init; }
+
+    /// <summary>
+    /// The rule scope, <c>{boardKey}:{band}</c>. The band is the coarsest one the rank falls in,
+    /// so a single rule can pay everyone in the top ten without ten rules.
+    /// </summary>
+    public required string ReferenceKey { get; init; }
+
+    public required int FinalRank { get; init; }
+
+    public required long Value { get; init; }
+}
+
 // ---- evaluation output (client-facing) ------------------------------------------------------
 
 /// <summary>
