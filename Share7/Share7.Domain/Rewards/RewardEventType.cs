@@ -103,5 +103,15 @@ public enum RewardEventType
     /// next week's cycle of the same quest is a genuinely different key.
     /// </para>
     /// </summary>
-    ObjectiveCompleted
+    ObjectiveCompleted,
+
+    /// <summary>
+    /// A player claimed a completed objective **group** — a mission's capstone, a season's finish.
+    /// Raised by the group claim path, on the same terms as a single objective.
+    /// <para>
+    /// Scoped by <c>ReferenceKey</c> = the group's key. A group's reward is separate from its
+    /// members' — finishing each step pays its own rule, and completing the set pays this one.
+    /// </para>
+    /// </summary>
+    ObjectiveGroupCompleted
 }

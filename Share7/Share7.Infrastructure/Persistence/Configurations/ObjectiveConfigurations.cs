@@ -38,6 +38,14 @@ public class ObjectiveConfiguration : IEntityTypeConfiguration<Objective>
         builder.HasIndex(o => new { o.IsActive, o.Metric })
             .HasDatabaseName("IX_Objective_Active");
 
+        // NoAction: a group and its members are authored together, and SQL Server would otherwise
+        // have two cascade paths into UserObjectiveProgress — one via the objective, one via the
+        // group — which it refuses outright.
+        builder.HasOne(o => o.Group)
+            .WithMany()
+            .HasForeignKey(o => o.GroupId)
+            .OnDelete(DeleteBehavior.NoAction);
+
         builder.HasMany(o => o.Translations)
             .WithOne(t => t.Objective!)
             .HasForeignKey(t => t.ObjectiveId)
@@ -102,6 +110,100 @@ public class ProjectionCheckpointConfiguration : IEntityTypeConfiguration<Projec
         builder.HasKey(c => c.Consumer);
 
         builder.Property(c => c.Consumer).HasMaxLength(64);
+    }
+}
+
+public class ObjectiveGroupConfiguration : IEntityTypeConfiguration<ObjectiveGroup>
+{
+    public void Configure(EntityTypeBuilder<ObjectiveGroup> builder)
+    {
+        builder.ToTable("ObjectiveGroups");
+        builder.HasKey(g => g.Id);
+
+        builder.Property(g => g.Key).IsRequired().HasMaxLength(128);
+        builder.Property(g => g.SeasonKey).HasMaxLength(64);
+        builder.Property(g => g.IconKey).HasMaxLength(64);
+
+        builder.Property(g => g.Kind)
+            .HasConversion(ObjectiveEnumWire.Converter<ObjectiveKind>())
+            .HasMaxLength(32)
+            .IsRequired();
+
+        builder.Property(g => g.CompletionMode)
+            .HasConversion(ObjectiveEnumWire.Converter<GroupCompletionMode>())
+            .HasMaxLength(16)
+            .IsRequired();
+
+        builder.HasIndex(g => g.Key).IsUnique();
+
+        builder.HasMany(g => g.Translations)
+            .WithOne(t => t.Group!)
+            .HasForeignKey(t => t.GroupId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+public class ObjectiveGroupTranslationConfiguration
+    : IEntityTypeConfiguration<ObjectiveGroupTranslation>
+{
+    public void Configure(EntityTypeBuilder<ObjectiveGroupTranslation> builder)
+    {
+        builder.ToTable("ObjectiveGroupTranslations");
+        builder.HasKey(t => t.Id);
+
+        builder.Property(t => t.Name).IsRequired().HasMaxLength(128);
+        builder.Property(t => t.Description).HasMaxLength(512);
+
+        builder.HasIndex(t => new { t.GroupId, t.LangId }).IsUnique();
+    }
+}
+
+public class UserObjectiveGroupProgressConfiguration
+    : IEntityTypeConfiguration<UserObjectiveGroupProgress>
+{
+    public void Configure(EntityTypeBuilder<UserObjectiveGroupProgress> builder)
+    {
+        builder.ToTable("UserObjectiveGroupProgress");
+        builder.HasKey(p => new { p.UserId, p.GroupId, p.CycleKey });
+
+        builder.Property(p => p.CycleKey).IsRequired().HasMaxLength(32);
+
+        builder.Property(p => p.State)
+            .HasConversion(ObjectiveEnumWire.Converter<ObjectiveState>())
+            .HasMaxLength(16)
+            .IsRequired();
+
+        builder.HasIndex(p => new { p.UserId, p.State })
+            .HasDatabaseName("IX_UserObjectiveGroupProgress_User");
+
+        builder.HasOne(p => p.Group)
+            .WithMany()
+            .HasForeignKey(p => p.GroupId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Cascade from the account, like every other user-keyed table that can have one — which is
+        // what keeps it out of UserOwnedData.ManuallyPurged.
+        builder.HasOne<ApplicationUser>()
+            .WithMany()
+            .HasForeignKey(p => p.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+public class UserStreakConfiguration : IEntityTypeConfiguration<UserStreak>
+{
+    public void Configure(EntityTypeBuilder<UserStreak> builder)
+    {
+        builder.ToTable("UserStreaks");
+        builder.HasKey(s => new { s.UserId, s.StreakKey });
+
+        builder.Property(s => s.StreakKey).IsRequired().HasMaxLength(32);
+        builder.Property(s => s.LastCycleKey).IsRequired().HasMaxLength(32);
+
+        builder.HasOne<ApplicationUser>()
+            .WithMany()
+            .HasForeignKey(s => s.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }
 

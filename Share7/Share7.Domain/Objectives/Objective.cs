@@ -91,6 +91,26 @@ public class Objective
     /// </summary>
     public string? IconKey { get; set; }
 
+    /// <summary>
+    /// The mission, challenge set or season this belongs to, or null for a standalone objective.
+    /// <para>
+    /// Membership changes nothing about how this objective counts — it counts exactly as it would
+    /// alone. The group is a rule *over* members, not a different kind of member.
+    /// </para>
+    /// </summary>
+    public Guid? GroupId { get; set; }
+    public ObjectiveGroup? Group { get; set; }
+
+    /// <summary>
+    /// Position in an <c>Ordered</c> group, 1-based. Ignored by every other completion mode.
+    /// <para>
+    /// A step above 1 does not accrue until the step before it is finished: a chain whose later
+    /// links could fill in early is not a chain, and a child could otherwise complete step three
+    /// before ever being shown step one.
+    /// </para>
+    /// </summary>
+    public int StepOrder { get; set; }
+
     /// <summary>Display order within its kind. Presentation only.</summary>
     public int SortOrder { get; set; }
 

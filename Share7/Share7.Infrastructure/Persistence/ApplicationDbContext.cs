@@ -137,6 +137,18 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, Applicati
     public DbSet<ObjectiveTranslation> ObjectiveTranslations => Set<ObjectiveTranslation>();
     public DbSet<UserObjectiveProgress> UserObjectiveProgress => Set<UserObjectiveProgress>();
 
+    // Missions, weekly challenge sets and season passes: one grouping table with a completion mode,
+    // because all three are the same structure with a different rule over the same members.
+    public DbSet<ObjectiveGroup> ObjectiveGroups => Set<ObjectiveGroup>();
+    public DbSet<ObjectiveGroupTranslation> ObjectiveGroupTranslations => Set<ObjectiveGroupTranslation>();
+    public DbSet<UserObjectiveGroupProgress> UserObjectiveGroupProgress => Set<UserObjectiveGroupProgress>();
+
+    /// <summary>
+    /// Consecutive-day streaks. The one thing here an objective counter cannot express — no
+    /// aggregation distinguishes "seven days running" from "seven days spread over a month".
+    /// </summary>
+    public DbSet<UserStreak> UserStreaks => Set<UserStreak>();
+
     /// <summary>
     /// How far each non-leaderboard consumer has read the GameResult stream. Separate from
     /// <c>GameResult.ProjectedAtUtc</c>, which is the leaderboard projector's own single mark.
