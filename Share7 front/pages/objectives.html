@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Objectives — Share7 Admin Console</title>
+  <meta name="description" content="Author daily and weekly quests and achievements — what a player is asked to do, and how far they have to get." />
+
+  <!-- Bootstrap -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+
+  <!-- App styles -->
+  <link rel="stylesheet" href="../css/variables.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/layout.css" />
+  <link rel="stylesheet" href="../css/pages.css" />
+</head>
+<body>
+
+  <div class="dashboard">
+    <!-- Sidebar injected by JS -->
+
+    <main class="main-content">
+      <!-- Page header -->
+      <div class="page-header s7-fade-in">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+          <div>
+            <h1><i class="bi bi-trophy text-brand me-2"></i>Objectives</h1>
+            <p>
+              <strong>Every daily quest, weekly quest and achievement is one row here.</strong>
+              They differ by <em>kind</em>, which is a statement about how often the counter resets
+              and nothing else. What an objective <strong>pays</strong> is not on this page — that is
+              a reward rule on <code>OBJECTIVE_COMPLETED</code> with the objective key as its
+              reference, so currency has one place it can come from.
+            </p>
+          </div>
+          <div class="server-time-badge">
+            <i class="bi bi-clock"></i>
+            <span class="lvl-label">Server</span>
+            <span id="serverTime" class="mono">—</span>
+            <button class="btn btn-sm btn-outline-secondary border-0 p-0 ms-1" onclick="loadServerTime()" title="Refresh">
+              <i class="bi bi-arrow-clockwise"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Kind filter -->
+      <div class="sub-tabs s7-fade-in" id="kindTabs"></div>
+
+      <!-- Objectives card -->
+      <div class="card s7-fade-in">
+        <div class="card-header">
+          <span><i class="bi bi-trophy me-2"></i>Objectives</span>
+          <span class="d-flex align-items-center gap-2 flex-wrap">
+            <div class="form-check form-switch m-0">
+              <input class="form-check-input" type="checkbox" id="showRetired" checked onchange="applyFilters()" />
+              <label class="form-check-label muted-sm" for="showRetired">Show retired</label>
+            </div>
+            <input id="objectiveSearch" class="form-control form-control-sm" style="max-width: 14rem;"
+                   placeholder="Search key, name or metric" oninput="applyFilters()" />
+            <button class="btn btn-sm btn-outline-secondary" onclick="loadObjectives()" title="Refresh">
+              <i class="bi bi-arrow-clockwise"></i>
+            </button>
+            <button class="btn btn-sm btn-primary" onclick="openObjectiveModal()">
+              <i class="bi bi-plus-lg me-1"></i>Add objective
+            </button>
+          </span>
+        </div>
+        <div class="card-body p-0">
+          <div id="objectiveList">
+            <div class="page-spinner"><div class="spinner-border" role="status"></div></div>
+          </div>
+        </div>
+        <div class="card-footer bg-white muted-sm">
+          <strong>There is no delete.</strong> A completed objective is somebody&rsquo;s record and the
+          ledger has to stay explicable, so retire it by clearing <em>Active</em> — that stops it being
+          offered and stops it counting, and deletes nothing.
+          <strong>Key, kind, metric, scope, aggregation and the game/grade/language filters are frozen
+          once saved</strong>: every progress row already counting is counting under the old meaning.
+          Retune the target, window, art and ordering instead, or author a new objective.
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ═══════ Objective modal ═══════ -->
+  <div class="modal fade" id="objectiveModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="objectiveTitle">Add objective</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+
+          <div class="alert alert-warning d-none" id="frozenNote">
+            <i class="bi bi-lock me-1"></i>
+            The greyed-out fields cannot be changed. Moving the key would strand the reward
+            transactions already paid against it; moving the kind, metric or scope would strand every
+            progress row already counting under the old meaning. Retire this one and author a new one.
+          </div>
+
+          <div class="row g-3">
+            <!-- Identity -->
+            <div class="col-md-6">
+              <label class="form-label lvl-label">Key</label>
+              <input id="objKey" class="form-control mono" placeholder="daily.lessons.complete.3"
+                     oninput="previewKey()" />
+              <div class="form-text" id="objKeyHint">
+                Lowercase, dot-separated — e.g. daily.lessons.complete.3
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label lvl-label">Kind</label>
+              <select id="objKind" class="form-select"></select>
+              <div class="form-text">How often the counter resets. That is the entire difference.</div>
+            </div>
+
+            <div class="col-12"><hr class="mb-0" /></div>
+
+            <!-- What it counts -->
+            <div class="col-md-6">
+              <label class="form-label lvl-label">Metric — what is counted</label>
+              <select id="objMetric" class="form-select" onchange="onMetricPicked()"></select>
+              <div class="form-text" id="objMetricHint"></div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label lvl-label">Scope</label>
+              <input id="objScope" class="form-control mono" list="scopeSuggestions" />
+              <datalist id="scopeSuggestions"></datalist>
+              <div class="form-text" id="objScopeHint"></div>
+            </div>
+
+            <div class="col-md-4">
+              <label class="form-label lvl-label">Target</label>
+              <input id="objTarget" type="number" min="1" step="1" class="form-control" value="1" />
+              <div class="form-text">The value the counter must reach.</div>
+            </div>
+            <div class="col-md-8">
+              <label class="form-label lvl-label">Aggregation</label>
+              <select id="objAggregation" class="form-select"></select>
+              <div class="form-text">Picking a metric proposes the one it is meant to be read with.</div>
+            </div>
+
+            <div class="col-12"><hr class="mb-0" /></div>
+
+            <!-- Who it is offered to -->
+            <div class="col-12">
+              <div class="lvl-label mb-2">Offered to — leave every box on &ldquo;any&rdquo; for the whole platform</div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label lvl-label">Game</label>
+              <select id="objGame" class="form-select"></select>
+              <div class="form-text">Restricts what counts to one game.</div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label lvl-label">Grade</label>
+              <select id="objGrade" class="form-select"></select>
+              <div class="form-text">A filter on who sees it, not on what counts.</div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label lvl-label">Language tree</label>
+              <select id="objLang" class="form-select"></select>
+              <div class="form-text">Content ids are language-scoped.</div>
+            </div>
+
+            <div class="col-12"><hr class="mb-0" /></div>
+
+            <!-- Availability -->
+            <div class="col-md-6">
+              <label class="form-label lvl-label">Available from (UTC)</label>
+              <div class="input-group">
+                <input id="objFrom" type="datetime-local" class="form-control" />
+                <button class="btn btn-outline-secondary" type="button"
+                        onclick="setWindowFromServer('objFrom', 0)">Now</button>
+                <button class="btn btn-outline-secondary" type="button"
+                        onclick="clearWindow('objFrom')">Clear</button>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label lvl-label">Available to (UTC)</label>
+              <div class="input-group">
+                <input id="objTo" type="datetime-local" class="form-control" />
+                <button class="btn btn-outline-secondary" type="button"
+                        onclick="setWindowFromServer('objTo', 24 * 7)">+7d</button>
+                <button class="btn btn-outline-secondary" type="button"
+                        onclick="setWindowFromServer('objTo', 24 * 30)">+30d</button>
+                <button class="btn btn-outline-secondary" type="button"
+                        onclick="clearWindow('objTo')">Never</button>
+              </div>
+              <div class="form-text">Offsets come from the <strong>server</strong> clock. Both blank means &ldquo;whenever it is active&rdquo;.</div>
+            </div>
+
+            <!-- Presentation -->
+            <div class="col-md-4">
+              <label class="form-label lvl-label">Icon key</label>
+              <input id="objIcon" class="form-control mono" placeholder="quest_lessons" />
+              <div class="form-text">A token Unity maps to art. Never a URL.</div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label lvl-label">Sort order</label>
+              <input id="objSort" type="number" class="form-control" value="0" />
+              <div class="form-text">Display order within its kind.</div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label lvl-label">State</label>
+              <div class="form-check form-switch mt-2">
+                <input class="form-check-input" type="checkbox" id="objActive" checked />
+                <label class="form-check-label" for="objActive">Active</label>
+              </div>
+              <div class="form-text">Clearing this retires it — offered to nobody, counting nothing.</div>
+            </div>
+
+            <div class="col-12"><hr class="mb-2" /></div>
+            <div class="col-12">
+              <div class="lvl-label mb-2">
+                Player-facing text — <strong>at least one language</strong>, and a language left blank
+                is simply not stored
+              </div>
+              <div id="objTranslations" class="row g-3"></div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-primary" onclick="submitObjective()">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toasts"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script type="module">
+    import { initObjectives } from '../js/objectives.js';
+    document.addEventListener('DOMContentLoaded', initObjectives);
+  </script>
+</body>
+</html>

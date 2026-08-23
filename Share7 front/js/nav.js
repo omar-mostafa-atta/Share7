@@ -10,6 +10,8 @@ import { escapeHtml } from './utils.js';
 const NAV_ITEMS = [
   { section: 'Content' },
   { id: 'curriculum', label: 'Curriculum',  icon: 'bi-diagram-3',               href: 'curriculum.html' },
+  { section: 'Engagement' },
+  { id: 'objectives', label: 'Objectives',  icon: 'bi-trophy',                  href: 'objectives.html' },
   { section: 'Commerce' },
   { id: 'games',      label: 'Games',       icon: 'bi-controller',              href: 'games.html' },
   { id: 'shop',       label: 'Shop',        icon: 'bi-bag',                     href: 'shop.html' },
