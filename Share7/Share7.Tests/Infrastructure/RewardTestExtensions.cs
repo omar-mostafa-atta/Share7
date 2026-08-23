@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging.Abstractions;
+using Share7.Infrastructure.Leaderboards;
 using Microsoft.EntityFrameworkCore;
 using Share7.Application.Common.Interfaces;
 using Share7.Application.Rewards.Models;
@@ -104,12 +106,16 @@ public static class RewardTestExtensions
     {
         var wallet = new WalletService(context);
 
+        // The real recorder, not a stub: it writes into the same DbContext and therefore the same
+        // transaction as the attempt, and that is precisely the property worth testing — a result
+        // that survived a rolled-back attempt would be a rank for gameplay that never happened.
         return new ProgressService(
             context,
             new LanguageService(context, new StubCurrentUser(userId)),
             new UnlockService(context),
             new RewardService(context, wallet),
-            wallet);
+            wallet,
+            new GameResultRecorder(context, NullLogger<GameResultRecorder>.Instance));
     }
 
     /// <summary>

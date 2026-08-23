@@ -3,10 +3,13 @@ using Microsoft.EntityFrameworkCore;
 using Share7.Application.Common.Models;
 using Share7.Application.Curriculum.Interfaces;
 using Share7.Application.Economy.Interfaces;
+using Share7.Application.Leaderboards.Interfaces;
+using Share7.Application.Leaderboards.Models;
 using Share7.Application.Progress.Interfaces;
 using Share7.Application.Progress.Models;
 using Share7.Application.Rewards.Interfaces;
 using Share7.Application.Rewards.Models;
+using Share7.Domain.Leaderboards;
 using Share7.Domain.Progress;
 using Share7.Infrastructure.Persistence;
 
@@ -45,19 +48,22 @@ public class ProgressService : IProgressService
     private readonly IUnlockService _unlockService;
     private readonly IRewardService _rewardService;
     private readonly IWalletService _walletService;
+    private readonly IGameResultRecorder _gameResults;
 
     public ProgressService(
         ApplicationDbContext dbContext,
         ILanguageService languageService,
         IUnlockService unlockService,
         IRewardService rewardService,
-        IWalletService walletService)
+        IWalletService walletService,
+        IGameResultRecorder gameResults)
     {
         _dbContext = dbContext;
         _languageService = languageService;
         _unlockService = unlockService;
         _rewardService = rewardService;
         _walletService = walletService;
+        _gameResults = gameResults;
     }
 
     // ------------------------------------------------------------- writing
@@ -243,6 +249,12 @@ public class ProgressService : IProgressService
             _dbContext.UserLessonProgress.Add(lessonRow);
         }
 
+        // Captured before the row moves, because every ranked metric below is a *transition*
+        // rather than a level: "first time this lesson was aced", "how much the best score
+        // improved". Reading them after the update would make each of them zero.
+        var previousState = lessonRow.CompletionState;
+        var previousBest = lessonRow.BestPercent;
+
         // Last-attempt figures: what the student just scored, which is what the results screen shows.
         lessonRow.CorrectCount = correctCount;
         lessonRow.TotalCount = totalCount;
@@ -277,6 +289,24 @@ public class ProgressService : IProgressService
                 // re-fire LessonAced simply because the stored state is still Aced.
                 CompletionState = attemptState,
                 RequestId = request.RequestId
+            },
+            cancellationToken);
+
+        // Ranking's only seam into gameplay. Inside the transaction on purpose: the result is the
+        // source of truth for every board, so an attempt that committed without it would be a rank
+        // silently lost. It writes rows and queues a job — no board is walked here, so finishing a
+        // lesson never waits on a leaderboard.
+        await _gameResults.RecordAsync(
+            new GameResultContext
+            {
+                UserId = userId,
+                GameId = request.GameId,
+                SourceId = request.LessonId,
+                OccurredAtUtc = now,
+                GradeId = gradeId,
+                LangId = langId,
+                RequestId = request.RequestId,
+                Metrics = RankedMetricsFor(previousState, recordState, previousBest, lessonRow.BestPercent, percent)
             },
             cancellationToken);
 
@@ -346,6 +376,51 @@ public class ProgressService : IProgressService
         await transaction.CommitAsync(cancellationToken);
 
         return ServiceResult<AttemptResultDto>.Success(response);
+    }
+
+    /// <summary>
+    /// What this attempt is worth to a leaderboard.
+    /// <para>
+    /// **Every metric here is a transition, never a level.** A counting metric that fired on each
+    /// attempt would rank whoever replayed the most rather than whoever learned the most, and no
+    /// aggregation downstream can undo that — by the time the projector sees the number, the
+    /// difference between "passed a new lesson" and "passed the same lesson again" is gone.
+    /// </para>
+    /// <para>
+    /// So a lesson counts once when it is first passed, once more when it is first aced, and
+    /// contributes only the amount by which its best score actually improved. A run that improved
+    /// nothing returns an empty list and records nothing at all.
+    /// </para>
+    /// </summary>
+    private static IReadOnlyList<GameResultDraft> RankedMetricsFor(
+        CompletionState previousState,
+        CompletionState recordState,
+        int previousBest,
+        int currentBest,
+        int attemptPercent)
+    {
+        var metrics = new List<GameResultDraft>(4);
+
+        var passed = recordState is CompletionState.Completed or CompletionState.Aced;
+        var wasPassed = previousState is CompletionState.Completed or CompletionState.Aced;
+
+        if (passed && !wasPassed)
+            metrics.Add(new GameResultDraft(LeaderboardMetrics.LessonsCompleted, 1));
+
+        if (recordState == CompletionState.Aced && previousState != CompletionState.Aced)
+            metrics.Add(new GameResultDraft(LeaderboardMetrics.LessonsAced, 1));
+
+        var improvement = currentBest - previousBest;
+
+        if (improvement > 0)
+            metrics.Add(new GameResultDraft(LeaderboardMetrics.TotalLessonScore, improvement));
+
+        // Aggregated with Best, so sending this run's own score is correct even when it is worse
+        // than the player's record — the projector keeps the higher of the two.
+        if (attemptPercent > 0)
+            metrics.Add(new GameResultDraft(LeaderboardMetrics.LessonBestPercent, attemptPercent));
+
+        return metrics;
     }
 
     /// <summary>Maps a score onto the completion ladder. The one place the thresholds live.</summary>

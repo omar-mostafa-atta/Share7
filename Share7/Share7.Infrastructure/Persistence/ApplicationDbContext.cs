@@ -6,6 +6,7 @@ using Share7.Domain.Economy;
 using Share7.Domain.Entities;
 using Share7.Domain.Equipment;
 using Share7.Domain.Games;
+using Share7.Domain.Leaderboards;
 using Share7.Domain.LookUps;
 using Share7.Domain.Multiplayer;
 using Share7.Domain.Progress;
@@ -115,6 +116,25 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, Applicati
 
     /// <summary>Idempotency keys for attempt submissions. **Successes only** — see the entity.</summary>
     public DbSet<ProgressRequestLog> ProgressRequestLogs => Set<ProgressRequestLog>();
+
+    // Leaderboards. GameResults is the source of truth and everything else in this block is a
+    // projection of it: entries, ranks and settlements are all reproducible by replaying that
+    // table, which is what makes an index rebuild safe and a lost cache survivable.
+    public DbSet<GameResult> GameResults => Set<GameResult>();
+    public DbSet<LeaderboardBoard> LeaderboardBoards => Set<LeaderboardBoard>();
+    public DbSet<LeaderboardBoardTranslation> LeaderboardBoardTranslations => Set<LeaderboardBoardTranslation>();
+    public DbSet<LeaderboardCycle> LeaderboardCycles => Set<LeaderboardCycle>();
+    public DbSet<LeaderboardEntry> LeaderboardEntries => Set<LeaderboardEntry>();
+    public DbSet<LeaderboardSettlement> LeaderboardSettlements => Set<LeaderboardSettlement>();
+
+    /// <summary>Deferred work, as rows rather than a process. See the entity for why.</summary>
+    public DbSet<LeaderboardJob> LeaderboardJobs => Set<LeaderboardJob>();
+
+    /// <summary>
+    /// The only name a public board may show. Every other name the schema holds is a child's real
+    /// name or their email address.
+    /// </summary>
+    public DbSet<PlayerDisplayName> PlayerDisplayNames => Set<PlayerDisplayName>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
