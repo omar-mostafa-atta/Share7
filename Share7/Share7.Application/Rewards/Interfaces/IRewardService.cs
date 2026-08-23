@@ -30,4 +30,23 @@ public interface IRewardService
     Task<IReadOnlyList<RewardDto>> EvaluateProgressAttemptAsync(
         ProgressRewardContext context,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Pays a player's final leaderboard placing, through the same rules, ledger and audit trail
+    /// as everything else.
+    /// <para>
+    /// **Deliberately not a second payout path.** A separate prize engine would mean two places
+    /// that can create currency, two idempotency schemes, and two answers to "why does this child
+    /// have these coins" — which is how an economy ends up with several disagreeing counters. The
+    /// only thing settlement adds is a new event type and a reference key shaped
+    /// <c>{boardKey}:{band}</c>.
+    /// </para>
+    /// <para>
+    /// Like the attempt path, this must run inside an open transaction: the payout and the
+    /// settlement row that records it commit together, or a retry pays a child twice.
+    /// </para>
+    /// </summary>
+    Task<IReadOnlyList<RewardDto>> EvaluateSettlementAsync(
+        SettlementRewardContext context,
+        CancellationToken cancellationToken = default);
 }

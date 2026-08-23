@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Share7.Domain.Entities;
+using Share7.Domain.Leaderboards;
 using Share7.Domain.Multiplayer;
 using Share7.Domain.Progress;
 using Share7.Infrastructure.Persistence;
@@ -40,7 +41,22 @@ public static class UserOwnedData
         // MultiplayerSessionPlayers — and SQL Server refuses a second cascade path into the same
         // table. So memberships in *other people's* sessions are removed here instead. The purge
         // runs before the user row goes, which is also what keeps the NoAction FK satisfied.
-        typeof(MultiplayerSessionPlayer)
+        typeof(MultiplayerSessionPlayer),
+
+        // Leaderboard standings, for the same structural reason: the cascade already arrives via
+        // the cycle's board, and SQL Server allows only one path.
+        //
+        // **A child's competitive history is deleted, not anonymised.** An anonymised row is still
+        // that child's record — it keeps their score, their timing and their position among their
+        // classmates, all of which are re-identifiable to anyone who was on the board at the time.
+        // Keeping it would also mean this platform holds a permanent ranking of a nine-year-old
+        // who asked to be forgotten. The currency they were paid stays in the ledger, because that
+        // is the economy's audit trail rather than a record about them.
+        //
+        // Removing entries mid-cycle leaves gaps in the ranks until the next reindex, which is
+        // correct: rank 4 disappearing does not promote rank 5 to fourth place retroactively.
+        typeof(LeaderboardEntry),
+        typeof(LeaderboardSettlement)
     ];
 
     /// <summary>

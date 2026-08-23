@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Share7.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using Share7.Infrastructure.Persistence;
 namespace Share7.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260823100717_LeaderboardSchema")]
+    partial class LeaderboardSchema
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1540,51 +1543,6 @@ namespace Share7.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("IX_LeaderboardJob_Claimable");
 
                     b.ToTable("LeaderboardJobs", (string)null);
-                });
-
-            modelBuilder.Entity("Share7.Domain.Leaderboards.LeaderboardMetricBound", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("Enabled")
-                        .HasColumnType("bit");
-
-                    b.Property<Guid?>("GameId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int?>("MaxResultsPerDay")
-                        .HasColumnType("int");
-
-                    b.Property<long?>("MaxValue")
-                        .HasColumnType("bigint");
-
-                    b.Property<long?>("MaxValuePerDay")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("Metric")
-                        .IsRequired()
-                        .HasMaxLength(48)
-                        .HasColumnType("nvarchar(48)");
-
-                    b.Property<DateTime?>("UpdatedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("GameId", "Metric")
-                        .IsUnique()
-                        .HasDatabaseName("UX_LeaderboardMetricBound_Scope")
-                        .HasFilter("[GameId] IS NOT NULL");
-
-                    b.HasIndex("Metric", "Enabled")
-                        .HasDatabaseName("IX_LeaderboardMetricBound_Lookup");
-
-                    b.ToTable("LeaderboardMetricBounds", (string)null);
                 });
 
             modelBuilder.Entity("Share7.Domain.Leaderboards.LeaderboardSettlement", b =>
@@ -3180,14 +3138,6 @@ namespace Share7.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Cycle");
-                });
-
-            modelBuilder.Entity("Share7.Domain.Leaderboards.LeaderboardMetricBound", b =>
-                {
-                    b.HasOne("Share7.Domain.Games.Game", null)
-                        .WithMany()
-                        .HasForeignKey("GameId")
-                        .OnDelete(DeleteBehavior.Cascade);
                 });
 
             modelBuilder.Entity("Share7.Domain.Leaderboards.LeaderboardSettlement", b =>

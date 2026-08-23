@@ -256,6 +256,56 @@ public static class ApiErrors
     public static readonly ApiErrorCode GameNotFound =
         new("GAME_NOT_FOUND", "multiplayer.game.not_found");
 
+    // ---- leaderboards ----------------------------------------------------------------------
+
+    public static readonly ApiErrorCode LeaderboardBoardNotFound =
+        new("LB_BOARD_NOT_FOUND", "leaderboard.board.not_found");
+
+    public static readonly ApiErrorCode LeaderboardCycleNotFound =
+        new("LB_CYCLE_NOT_FOUND", "leaderboard.cycle.not_found");
+
+    /// <summary>The board does not offer that cohort at all.</summary>
+    public static readonly ApiErrorCode LeaderboardCohortUnsupported =
+        new("LB_COHORT_UNSUPPORTED", "leaderboard.cohort.unsupported");
+
+    /// <summary>
+    /// The board offers the cohort but this caller has no membership in it — no grade on their
+    /// profile, for instance.
+    /// <para>
+    /// Deliberately distinct from an empty page. "You are not in a class yet" and "your class
+    /// board has nobody on it" are different things to a child, and a client that cannot tell them
+    /// apart will show the wrong one.
+    /// </para>
+    /// </summary>
+    public static readonly ApiErrorCode LeaderboardCohortUnavailable =
+        new("LB_COHORT_UNAVAILABLE", "leaderboard.cohort.unavailable");
+
+    /// <summary>Malformed, expired, or tampered-with paging cursor.</summary>
+    public static readonly ApiErrorCode LeaderboardCursorInvalid =
+        new("LB_CURSOR_INVALID", "leaderboard.cursor.invalid");
+
+    public static readonly ApiErrorCode LeaderboardLimitExceeded =
+        new("LB_LIMIT_EXCEEDED", "leaderboard.limit.exceeded");
+
+    /// <summary>Paging deeper than the caller's entitlement allows.</summary>
+    public static readonly ApiErrorCode LeaderboardRankLimit =
+        new("LB_RANK_LIMIT", "leaderboard.rank.limit");
+
+    /// <summary>
+    /// A board as authored could never rank anything — an unknown metric, a cohort the schema
+    /// cannot resolve, a key that would overflow a reward rule's reference. Refused at authoring
+    /// time, because a board that silently stays empty is far harder to notice than a refusal.
+    /// </summary>
+    public static readonly ApiErrorCode LeaderboardBoardInvalid =
+        new("LB_BOARD_INVALID", "leaderboard.board.invalid");
+
+    public static readonly ApiErrorCode LeaderboardBoardKeyTaken =
+        new("LB_BOARD_KEY_TAKEN", "leaderboard.board.key_taken");
+
+    /// <summary>Leaderboards are switched off for this deployment.</summary>
+    public static readonly ApiErrorCode LeaderboardDisabled =
+        new("LB_DISABLED", "leaderboard.disabled");
+
     // ---- generic -------------------------------------------------------------------------
 
     public static readonly ApiErrorCode NotFound =

@@ -26,6 +26,9 @@ using Share7.Infrastructure.Games;
 using Share7.Infrastructure.Identity;
 using Share7.Infrastructure.Multiplayer;
 using Share7.Infrastructure.Identity.ExternalAuth;
+using Share7.Application.Leaderboards.Interfaces;
+using Share7.Application.Leaderboards.Models;
+using Share7.Infrastructure.Leaderboards;
 using Share7.Infrastructure.Persistence;
 using Share7.Infrastructure.Progress;
 using Share7.Infrastructure.Rewards;
@@ -124,6 +127,20 @@ public static class DependencyInjection
 
         services.AddScoped<IMultiplayerSweepService, MultiplayerSweepService>();
         services.AddHostedService<MultiplayerSessionSweeper>();
+
+        // Leaderboards. Note there is no ILeaderboardWriteService and there must never be one:
+        // ranking is projected from results the server graded, so the only write seam is
+        // IGameResultRecorder, which no controller can reach.
+        services.Configure<LeaderboardOptions>(configuration.GetSection(LeaderboardOptions.SectionName));
+        services.AddScoped<IDisplayNameService, DisplayNameService>();
+        services.AddScoped<IPlausibilityGuard, PlausibilityGuard>();
+        services.AddScoped<IGameResultRecorder, GameResultRecorder>();
+        services.AddScoped<ILeaderboardProjector, LeaderboardProjector>();
+        services.AddScoped<ILeaderboardRolloverService, LeaderboardRolloverService>();
+        services.AddScoped<ILeaderboardSettlementService, LeaderboardSettlementService>();
+        services.AddScoped<ILeaderboardJobRunner, LeaderboardJobRunner>();
+        services.AddScoped<ILeaderboardService, LeaderboardService>();
+        services.AddScoped<ILeaderboardAdminService, LeaderboardAdminService>();
 
         return services;
     }
