@@ -26,7 +26,15 @@ public class ObjectiveProjector : IObjectiveProjector
         // stays a small indexed read on the hot path of finishing a lesson.
         var objectives = await ActiveObjectivesAsync(cancellationToken);
 
-        if (objectives.Count == 0) return;
+        if (objectives.Count == 0)
+        {
+            // **A streak is not an objective.** It counts the days a child actually played, which is
+            // true whether or not anyone has authored a quest yet — so it cannot sit behind this
+            // guard. Left here, a deployment with an empty objective table reports a permanent zero
+            // to a home screen that is already asking for the number.
+            await ProjectStreakOnlyAsync(userId, cancellationToken);
+            return;
+        }
 
         var progress = await _dbContext.UserObjectiveProgress
             .Where(p => p.UserId == userId)
@@ -46,6 +54,48 @@ public class ObjectiveProjector : IObjectiveProjector
 
         await FoldGroupsAsync(userId, objectives, progress, cancellationToken);
         await FoldStreakAsync(userId, results, cancellationToken);
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Folds the daily streak on its own, for the one case the main pass cannot reach: a deployment
+    /// with no authored objectives.
+    /// <para>
+    /// **Bounded by the streak's own last counted day, never by an objective floor.** Re-folding a
+    /// day older than <c>LastCycleKey</c> would read as a backwards gap and reset a streak that
+    /// never broke, so the read starts at that day — which <see cref="FoldStreakAsync"/> then skips
+    /// — and never before it. A player with no streak row has nothing counted yet, so their own
+    /// history is the bound, once.
+    /// </para>
+    /// </summary>
+    private async Task ProjectStreakOnlyAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        var lastCycleKey = await _dbContext.UserStreaks
+            .AsNoTracking()
+            .Where(s => s.UserId == userId && s.StreakKey == StreakKeys.Daily)
+            .Select(s => s.LastCycleKey)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var results = _dbContext.GameResults
+            .AsNoTracking()
+            .Where(r => r.UserId == userId && !r.IsFlagged);
+
+        if (TryDay(lastCycleKey ?? string.Empty, out var lastDay))
+        {
+            // Back out the cycle's own shift to land on the UTC instant that day began at, so the
+            // bound matches the keys the fold compares rather than UTC midnight.
+            var cutoff = lastDay.AddHours(-ObjectiveCycle.ResetOffsetHours);
+            results = results.Where(r => r.OccurredAtUtc >= cutoff);
+        }
+
+        var pending = await results
+            .OrderBy(r => r.Sequence)
+            .ToListAsync(cancellationToken);
+
+        if (pending.Count == 0) return;
+
+        await FoldStreakAsync(userId, pending, cancellationToken);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
     }

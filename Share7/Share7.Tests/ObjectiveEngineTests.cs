@@ -284,7 +284,130 @@ public class ObjectiveEngineTests
         Assert.Equal(ObjectiveState.Completed, await StateOfAsync(userId, objective.Id));
     }
 
+    // ---- streaks -------------------------------------------------------------------------------
+
+    /// <summary>
+    /// The regression test for a streak that sat behind the objective guard: a deployment can have
+    /// no quests authored at all, and a child who played today still played today.
+    /// </summary>
+    [Fact]
+    public async Task A_day_played_counts_toward_the_streak_with_no_objectives_authored()
+    {
+        await using var context = _fixture.CreateContext();
+        var userId = await TestData.CreateUserAsync(context);
+
+        await context.AddResultAsync(userId, LeaderboardMetrics.RunsSettled, 1);
+
+        await ObjectiveTestExtensions.CreateProjector(context).ProjectForUserAsync(userId);
+
+        var streak = await StreakOrNullAsync(userId);
+        Assert.NotNull(streak);
+        Assert.Equal(1, streak!.Current);
+        Assert.Equal(1, streak.Best);
+    }
+
+    [Fact]
+    public async Task Consecutive_days_extend_the_streak_with_no_objectives_authored()
+    {
+        await using var context = _fixture.CreateContext();
+        var userId = await TestData.CreateUserAsync(context);
+
+        await context.AddResultAsync(
+            userId, LeaderboardMetrics.RunsSettled, 1, occurredAtUtc: DateTime.UtcNow.AddDays(-1));
+        await context.AddResultAsync(userId, LeaderboardMetrics.RunsSettled, 1);
+
+        await ObjectiveTestExtensions.CreateProjector(context).ProjectForUserAsync(userId);
+
+        var streak = await StreakOrNullAsync(userId);
+        Assert.Equal(2, streak!.Current);
+        Assert.Equal(2, streak.Best);
+    }
+
+    /// <summary>
+    /// Guards the bound the streak-only pass reads under. It starts at the last counted day rather
+    /// than at the whole history, and that day has to be skipped rather than recounted — a second
+    /// projection over the same results must leave the number alone.
+    /// </summary>
+    [Fact]
+    public async Task Projecting_twice_counts_a_day_once_with_no_objectives_authored()
+    {
+        await using var context = _fixture.CreateContext();
+        var userId = await TestData.CreateUserAsync(context);
+
+        await context.AddResultAsync(userId, LeaderboardMetrics.RunsSettled, 1);
+
+        var projector = ObjectiveTestExtensions.CreateProjector(context);
+        await projector.ProjectForUserAsync(userId);
+        await projector.ProjectForUserAsync(userId);
+
+        var streak = await StreakOrNullAsync(userId);
+        Assert.Equal(1, streak!.Current);
+    }
+
+    /// <summary>
+    /// The same forgiveness the objective-backed path applies, on the path that has no objectives:
+    /// one missed day spends a freeze rather than breaking the count.
+    /// </summary>
+    [Fact]
+    public async Task A_missed_day_spends_a_freeze_with_no_objectives_authored()
+    {
+        await using var context = _fixture.CreateContext();
+        var userId = await TestData.CreateUserAsync(context);
+
+        await context.AddResultAsync(
+            userId, LeaderboardMetrics.RunsSettled, 1, occurredAtUtc: DateTime.UtcNow.AddDays(-2));
+        await context.AddResultAsync(userId, LeaderboardMetrics.RunsSettled, 1);
+
+        await ObjectiveTestExtensions.CreateProjector(context).ProjectForUserAsync(userId);
+
+        var streak = await StreakOrNullAsync(userId);
+        Assert.Equal(2, streak!.Current);
+        Assert.Equal(1, streak.FreezesRemaining);
+    }
+
+    /// <summary>
+    /// The objective-backed path still folds the streak. Authoring a quest must not be what turns
+    /// the count on, and must not be what turns it off either.
+    /// </summary>
+    [Fact]
+    public async Task A_streak_still_folds_when_objectives_are_authored()
+    {
+        await using var context = _fixture.CreateContext();
+        var userId = await TestData.CreateUserAsync(context);
+        await context.CreateObjectiveAsync(LeaderboardMetrics.RunsSettled, target: 3);
+
+        await context.AddResultAsync(userId, LeaderboardMetrics.RunsSettled, 1);
+
+        await ObjectiveTestExtensions.CreateProjector(context).ProjectForUserAsync(userId);
+
+        var streak = await StreakOrNullAsync(userId);
+        Assert.Equal(1, streak!.Current);
+    }
+
+    /// <summary>A flagged result is not a day played, on this path as on every other.</summary>
+    [Fact]
+    public async Task A_flagged_result_does_not_start_a_streak()
+    {
+        await using var context = _fixture.CreateContext();
+        var userId = await TestData.CreateUserAsync(context);
+
+        await context.AddResultAsync(userId, LeaderboardMetrics.RunsSettled, 1, isFlagged: true);
+
+        await ObjectiveTestExtensions.CreateProjector(context).ProjectForUserAsync(userId);
+
+        Assert.Null(await StreakOrNullAsync(userId));
+    }
+
     // ---- helpers -------------------------------------------------------------------------------
+
+    private async Task<UserStreak?> StreakOrNullAsync(Guid userId)
+    {
+        await using var check = _fixture.CreateContext();
+
+        return await check.UserStreaks
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.UserId == userId && s.StreakKey == StreakKeys.Daily);
+    }
 
     private async Task<UserObjectiveProgress?> RowOrNullAsync(Guid userId, Guid objectiveId)
     {
