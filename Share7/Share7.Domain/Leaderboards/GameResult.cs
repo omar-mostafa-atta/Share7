@@ -23,6 +23,23 @@ public class GameResult
     /// </summary>
     public Guid Id { get; set; }
 
+    /// <summary>
+    /// Monotonic write order, assigned by the database.
+    /// <para>
+    /// **A stream needs an order, and <see cref="Id"/> cannot give one** — it is a random Guid, so
+    /// "everything since I last looked" is not expressible against it. <c>CreatedAtUtc</c> is not
+    /// enough either: two results written in the same millisecond cannot be separated, so a cursor
+    /// on it either re-reads or skips.
+    /// </para>
+    /// <para>
+    /// Added for the objective projector, which is a **second** consumer of this table and needs its
+    /// own position in it. <see cref="ProjectedAtUtc"/> is a single mark owned by the leaderboard
+    /// projector and is deliberately not overloaded with a second meaning; consumers keep their
+    /// watermark in <c>ProjectionCheckpoint</c> instead.
+    /// </para>
+    /// </summary>
+    public long Sequence { get; set; }
+
     public Guid UserId { get; set; }
 
     public Guid GameId { get; set; }
@@ -48,6 +65,23 @@ public class GameResult
     /// not opened.
     /// </summary>
     public DateTime OccurredAtUtc { get; set; }
+
+    /// <summary>
+    /// The sub-dimension of the metric, when it has one — a pickup kind for
+    /// <c>PICKUPS_COLLECTED</c>, a currency key for <c>CURRENCY_EARNED</c>. Null for metrics that
+    /// measure one thing.
+    /// <para>
+    /// Exists so "collect 200 coins" and "collect 200 gems" are one metric with two scopes rather
+    /// than two metrics — otherwise every pickup kind a mini-game invents needs a new constant and
+    /// a new producer, which does not survive 200 mini-games.
+    /// </para>
+    /// <para>
+    /// **Leaderboards ignore this and aggregate across every scope.** A board on
+    /// <c>PICKUPS_COLLECTED</c> ranks total pickups, which is what an operator authoring one means.
+    /// Objectives are what read it, through <c>Objective.SourceFilter</c>.
+    /// </para>
+    /// </summary>
+    public string? Scope { get; set; }
 
     public GameResultSource SourceType { get; set; }
 

@@ -67,6 +67,13 @@ public class GameResultRecorder : IGameResultRecorder
                 context.UserId, context.GameId, draft.Metric, draft.Value,
                 context.OccurredAtUtc, cancellationToken);
 
+            // A producer that already judged this gameplay suspect wins over a per-metric bound
+            // that happens to pass: the guard cannot see that the run these figures came from is
+            // sitting in a review queue.
+            flagReason ??= context.PreFlagged
+                ? context.PreFlagReason ?? "source_flagged"
+                : null;
+
             if (flagReason is not null)
             {
                 _logger.LogWarning(
@@ -81,8 +88,9 @@ public class GameResultRecorder : IGameResultRecorder
                 GameId = context.GameId,
                 Metric = draft.Metric,
                 Value = draft.Value,
+                Scope = draft.Scope,
                 OccurredAtUtc = context.OccurredAtUtc,
-                SourceType = GameResultSource.Attempt,
+                SourceType = context.SourceType,
                 SourceId = context.SourceId,
                 RequestId = context.RequestId,
                 GradeId = context.GradeId,

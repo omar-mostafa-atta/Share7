@@ -4,6 +4,10 @@ using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Share7.Application.Common.Models;
+using Share7.Application.Curriculum.Interfaces;
+using Share7.Application.Leaderboards.Interfaces;
+using Share7.Application.Leaderboards.Models;
+using Share7.Domain.Leaderboards;
 using Share7.Application.Economy.Interfaces;
 using Share7.Application.Economy.Models;
 using Share7.Application.Rewards.Interfaces;
@@ -41,6 +45,8 @@ public class RunService : IRunService
     private readonly IRewardService _rewards;
     private readonly IEarnCeilingService _ceiling;
     private readonly IRunLayoutVerifier _layouts;
+    private readonly IGameResultRecorder _gameResults;
+    private readonly ILanguageService _languageService;
     private readonly RunOptions _options;
 
     public RunService(
@@ -49,6 +55,8 @@ public class RunService : IRunService
         IRewardService rewards,
         IEarnCeilingService ceiling,
         IRunLayoutVerifier layouts,
+        IGameResultRecorder gameResults,
+        ILanguageService languageService,
         IOptions<RunOptions> options)
     {
         _dbContext = dbContext;
@@ -56,6 +64,8 @@ public class RunService : IRunService
         _rewards = rewards;
         _ceiling = ceiling;
         _layouts = layouts;
+        _gameResults = gameResults;
+        _languageService = languageService;
         _options = options.Value;
     }
 
@@ -745,6 +755,30 @@ public class RunService : IRunService
             }))
             : null;
 
+        // Ranking's seam into runs, and the only one. Inside the transaction for the same reason the
+        // attempt path puts it there: these results are the source of truth for every board and every
+        // objective, so a run that committed without them would be a rank and a quest step silently
+        // lost. It writes rows and queues a job — no board is walked here, so finishing a run never
+        // waits on a leaderboard.
+        await _gameResults.RecordAsync(
+            new GameResultContext
+            {
+                UserId = userId,
+                GameId = run.GameId,
+                SourceId = run.Id,
+                OccurredAtUtc = now,
+                GradeId = await ResolveGradeIdAsync(userId, cancellationToken),
+                LangId = await _languageService.ResolveCurrentAsync(cancellationToken),
+                RequestId = resultRequestId,
+                SourceType = GameResultSource.Session,
+                // A run held back for review must not rank or advance an objective while it sits
+                // there. The per-metric bounds cannot see that; the run already decided.
+                PreFlagged = run.IsFlagged,
+                PreFlagReason = run.FlagReason,
+                Metrics = RunMetricsFor(run, durationMs, outcome, collected, lines, earnedByCurrency)
+            },
+            cancellationToken);
+
         await _dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
@@ -1066,4 +1100,66 @@ public class RunService : IRunService
 
     private static bool IsUniqueViolation(DbUpdateException exception) =>
         exception.InnerException is SqlException { Number: 2601 or 2627 };
+
+    /// <summary>
+    /// What a settled run is worth to a leaderboard or an objective.
+    /// <para>
+    /// **Every count here is what was <i>settled</i>, never what was reported.** A claim of 500
+    /// coins that the per-run cap settled at 180 raises 180 — otherwise a "collect 500" objective
+    /// pays out on a number the economy already refused, which is the cap defeated through a side
+    /// door. Duration is the server-bounded figure for the same reason.
+    /// </para>
+    /// <para>
+    /// A run that settled nothing still raises <c>RUNS_SETTLED</c>: playing is the thing being
+    /// measured, and a daily "play three runs" must not depend on how well they went.
+    /// </para>
+    /// </summary>
+    private static IReadOnlyList<GameResultDraft> RunMetricsFor(
+        Run run,
+        int durationMs,
+        RunOutcome outcome,
+        IReadOnlyDictionary<string, int> collected,
+        List<SettlementLine> lines,
+        Dictionary<Guid, long> earnedByCurrency)
+    {
+        var metrics = new List<GameResultDraft>(6 + lines.Count);
+
+        metrics.Add(new GameResultDraft(LeaderboardMetrics.RunsSettled, 1));
+
+        if (outcome == RunOutcome.Completed)
+            metrics.Add(new GameResultDraft(LeaderboardMetrics.RunsCompleted, 1));
+
+        // Whole seconds. A sub-second run is a real run but rounds to nothing, and the recorder
+        // drops zeroes — which is correct: it contributes nothing to a Sum and cannot win a Best.
+        var seconds = durationMs / 1000;
+
+        if (seconds > 0)
+        {
+            metrics.Add(new GameResultDraft(LeaderboardMetrics.RunSeconds, seconds));
+            metrics.Add(new GameResultDraft(LeaderboardMetrics.BestRunSeconds, seconds));
+        }
+
+        // Paid counts, scoped by kind — one metric for every pickup kind any mini-game ever adds.
+        foreach (var line in lines)
+        {
+            if (line.PaidCount > 0)
+                metrics.Add(new GameResultDraft(
+                    LeaderboardMetrics.PickupsCollected, line.PaidCount, line.Source));
+        }
+
+        return metrics;
+    }
+
+    /// <summary>
+    /// The player's grade as it is right now, snapshotted onto the result. Null when they have no
+    /// profile yet — a run is playable before a grade is chosen, and an ungraded result still
+    /// belongs on the all-grades ladders.
+    /// </summary>
+    private async Task<Guid?> ResolveGradeIdAsync(Guid userId, CancellationToken cancellationToken) =>
+        await _dbContext.StudentProfiles
+            .AsNoTracking()
+            .Where(p => p.UserId == userId)
+            .Select(p => (Guid?)p.GradeId)
+            .FirstOrDefaultAsync(cancellationToken);
+
 }

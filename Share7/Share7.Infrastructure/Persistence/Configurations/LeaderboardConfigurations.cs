@@ -20,7 +20,17 @@ public class GameResultConfiguration : IEntityTypeConfiguration<GameResult>
         builder.HasKey(r => r.Id);
 
         builder.Property(r => r.Metric).IsRequired().HasMaxLength(48);
+        builder.Property(r => r.Scope).HasMaxLength(64);
         builder.Property(r => r.RequestId).HasMaxLength(128);
+
+        // Database-assigned write order. A second identity column is not possible in SQL Server and
+        // the key is already a Guid, so this is the table's identity and the Guid stays the PK.
+        builder.Property(r => r.Sequence).UseIdentityColumn();
+
+        // The cursor every non-leaderboard consumer reads by: "everything after N, in order".
+        builder.HasIndex(r => r.Sequence)
+            .IsUnique()
+            .HasDatabaseName("UX_GameResult_Sequence");
         builder.Property(r => r.FlagReason).HasMaxLength(256);
         builder.Property(r => r.SourceType).HasConversion<int>();
 
@@ -41,7 +51,11 @@ public class GameResultConfiguration : IEntityTypeConfiguration<GameResult>
         // Belt and braces over the attempt path's own idempotency: even if a caller somehow
         // emitted twice for one submission, the second insert cannot land. Filtered because a null
         // RequestId is not a collision.
-        builder.HasIndex(r => new { r.UserId, r.RequestId, r.Metric })
+        // Scope is part of the key, not an afterthought: one settlement legitimately raises
+        // PICKUPS_COLLECTED once per pickup kind under a single RequestId, and without Scope here
+        // the second kind would be refused as a duplicate of the first. Two rows that agree on all
+        // four — including both having no scope — really are the same emission.
+        builder.HasIndex(r => new { r.UserId, r.RequestId, r.Metric, r.Scope })
             .IsUnique()
             .HasFilter("[RequestId] IS NOT NULL")
             .HasDatabaseName("UX_GameResult_Submission");
