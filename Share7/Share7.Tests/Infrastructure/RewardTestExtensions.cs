@@ -11,6 +11,7 @@ using Share7.Infrastructure.Curriculum;
 using Share7.Infrastructure.Economy;
 using Share7.Infrastructure.Persistence;
 using Share7.Infrastructure.Progress;
+using Share7.Infrastructure.Progression;
 using Share7.Infrastructure.Rewards;
 
 namespace Share7.Tests.Infrastructure;
@@ -74,7 +75,7 @@ public static class RewardTestExtensions
     {
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
 
-        var rewards = await new RewardService(context, new WalletService(context))
+        var rewards = await new RewardService(context, new WalletService(context), new LevelService(context))
             .EvaluateProgressAttemptAsync(rewardContext, cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
@@ -113,12 +114,13 @@ public static class RewardTestExtensions
             context,
             new LanguageService(context, new StubCurrentUser(userId)),
             new UnlockService(context),
-            new RewardService(context, wallet),
+            new RewardService(context, wallet, new LevelService(context)),
             wallet,
             new GameResultRecorder(
                 context,
                 new PlausibilityGuard(context),
-                NullLogger<GameResultRecorder>.Instance));
+                NullLogger<GameResultRecorder>.Instance),
+            new LevelService(context));
     }
 
     /// <summary>

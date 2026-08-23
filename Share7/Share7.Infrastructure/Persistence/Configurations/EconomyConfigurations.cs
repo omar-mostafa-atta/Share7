@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Share7.Application.Common.Models;
+using Share7.Domain.Constants;
 using Share7.Domain.Economy;
 using Share7.Infrastructure.Identity;
 
@@ -19,8 +20,36 @@ public class CurrencyConfiguration : IEntityTypeConfiguration<Currency>
         builder.Property(c => c.Description).HasMaxLength(512);
         builder.Property(c => c.Enabled).HasDefaultValue(true);
 
+        // Deliberately **no** HasDefaultValue on IsSpendable. A store default makes EF treat the
+        // property as store-generated during seeding, and it then omits any value equal to the CLR
+        // default from the seed insert — so `IsSpendable = false` on xp below would be dropped and
+        // the row would come back spendable, quietly undoing the one property the level derivation
+        // depends on. Existing rows are backfilled by an explicit default on the AddColumn in the
+        // migration instead, and new rows get theirs from the property initializer.
+        builder.Property(c => c.IsSpendable).IsRequired();
+        builder.Property(c => c.IsHard).IsRequired();
+
         builder.HasIndex(c => c.Key).IsUnique();
+
+        // Seeded rather than created through the admin API, unlike every other currency, because
+        // the player level is derived from this balance — a deployment without it has a
+        // progression endpoint that cannot answer. Same reasoning as the seeded languages and
+        // grades; see CurrencyIds.
+        builder.HasData(new Currency
+        {
+            Id = CurrencyIds.Xp,
+            Key = CurrencyKeys.Xp,
+            Name = "Experience",
+            Description = "Earned by playing and learning. Determines player level; cannot be spent.",
+            Enabled = true,
+            IsSpendable = false,
+            IsHard = false,
+            CreatedAtUtc = SeededAtUtc
+        });
     }
+
+    /// <summary>Fixed, for the reason given on <c>LevelThresholdConfiguration.SeededAtUtc</c>.</summary>
+    private static readonly DateTime SeededAtUtc = new(2026, 8, 23, 0, 0, 0, DateTimeKind.Utc);
 }
 
 public class UserCurrencyBalanceConfiguration : IEntityTypeConfiguration<UserCurrencyBalance>

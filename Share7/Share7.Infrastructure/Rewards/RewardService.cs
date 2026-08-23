@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -5,6 +6,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 using Share7.Application.Common.Models;
 using Share7.Application.Economy.Interfaces;
 using Share7.Application.Economy.Models;
+using Share7.Application.Progression.Interfaces;
 using Share7.Application.Rewards.Interfaces;
 using Share7.Application.Rewards.Models;
 using Share7.Domain.Economy;
@@ -28,11 +30,13 @@ public class RewardService : IRewardService
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly IWalletService _wallet;
+    private readonly ILevelService _levels;
 
-    public RewardService(ApplicationDbContext dbContext, IWalletService wallet)
+    public RewardService(ApplicationDbContext dbContext, IWalletService wallet, ILevelService levels)
     {
         _dbContext = dbContext;
         _wallet = wallet;
+        _levels = levels;
     }
 
     public async Task<IReadOnlyList<RewardDto>> EvaluateProgressAttemptAsync(
@@ -76,7 +80,7 @@ public class RewardService : IRewardService
                 attempt = context.AttemptNumber
             }));
 
-        return await PayMatchingAsync(rules, target, transaction, cancellationToken);
+        return await PayWithLevelUpsAsync(rules, target, transaction, cancellationToken);
     }
 
     public async Task<IReadOnlyList<RewardDto>> EvaluateSettlementAsync(
@@ -119,7 +123,7 @@ public class RewardService : IRewardService
                 band = context.ReferenceKey
             }));
 
-        return await PayMatchingAsync(rules, target, transaction, cancellationToken);
+        return await PayWithLevelUpsAsync(rules, target, transaction, cancellationToken);
     }
 
     /// <summary>
@@ -130,19 +134,118 @@ public class RewardService : IRewardService
         List<RewardRule> rules,
         PayoutTarget target,
         IDbContextTransaction transaction,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int indexOffset = 0)
     {
         var paid = new List<RewardDto>();
 
         for (var i = 0; i < rules.Count; i++)
         {
-            var reward = await TryPayAsync(rules[i], target, transaction, i, cancellationToken);
+            var reward = await TryPayAsync(
+                rules[i], target, transaction, indexOffset + i, cancellationToken);
 
             if (reward is not null)
                 paid.Add(reward);
         }
 
         return paid;
+    }
+
+    /// <summary>
+    /// Pays the matching rules, then pays for any level the XP they granted took the player past.
+    /// <para>
+    /// **Level-up is a consequence of a payout, so it is resolved after one — never inside it.**
+    /// Several rules can each grant XP for a single attempt (attempted, completed and aced all
+    /// fire), and the level that matters is the one reached once they have all landed. Detecting
+    /// per rule would announce level 6 and then level 7 for what the child experienced as one
+    /// result screen.
+    /// </para>
+    /// <para>
+    /// **This runs exactly once and cannot re-enter.** A level-up rule that granted XP would be a
+    /// payout causing the event that triggers it; XP grants are stripped from these rules here, and
+    /// the rewards paid below are deliberately not fed back into detection. Authoring refuses such
+    /// a rule too — this is the structural half of that guarantee, the half that holds even if a
+    /// rule predates the validation.
+    /// </para>
+    /// </summary>
+    private async Task<IReadOnlyList<RewardDto>> PayWithLevelUpsAsync(
+        List<RewardRule> rules,
+        PayoutTarget target,
+        IDbContextTransaction transaction,
+        CancellationToken cancellationToken)
+    {
+        var paid = await PayMatchingAsync(rules, target, transaction, cancellationToken);
+
+        var xpGranted = paid
+            .SelectMany(reward => reward.Grants)
+            .Where(grant => string.Equals(grant.Currency, _levels.XpCurrencyKey, StringComparison.Ordinal))
+            .Sum(grant => grant.Amount);
+
+        if (xpGranted <= 0) return paid;
+
+        // Read the balance rather than tracking it through the payout: it is authoritative, it is
+        // one query, and it stays correct no matter which rule paid the XP or in what order.
+        var after = await _levels.GetForUserAsync(target.UserId, cancellationToken);
+
+        var crossed = await _levels.LevelsCrossedAsync(
+            after.Xp - xpGranted, after.Xp, cancellationToken);
+
+        if (crossed.Count == 0) return paid;
+
+        var levelRules = await _dbContext.RewardRules
+            .AsNoTracking()
+            .Include(r => r.Grants)
+            .ThenInclude(g => g.Currency)
+            .Where(r => r.Enabled && r.EventType == RewardEventType.PlayerLevelUp)
+            .OrderBy(r => r.Id)
+            .ToListAsync(cancellationToken);
+
+        if (levelRules.Count == 0) return paid;
+
+        // Safe to mutate: these are untracked copies, fetched here and used nowhere else. A rule
+        // left with nothing to pay is skipped by TryPayAsync rather than claiming its key.
+        foreach (var rule in levelRules)
+        {
+            rule.Grants = rule.Grants
+                .Where(grant => grant.CurrencyId != _levels.XpCurrencyId)
+                .ToList();
+        }
+
+        var combined = new List<RewardDto>(paid);
+
+        // Offset so each level's savepoints stay distinct from the main pass's and from each
+        // other's, rather than reusing reward_0 and moving a savepoint another frame may roll to.
+        var savepointOffset = rules.Count;
+
+        foreach (var level in crossed)
+        {
+            var reference = level.ToString(CultureInfo.InvariantCulture);
+
+            var matching = levelRules
+                .Where(rule => rule.ReferenceKey == null || rule.ReferenceKey == reference)
+                .ToList();
+
+            if (matching.Count == 0) continue;
+
+            // A level is reached once, ever — so both repeat policies collapse to the same key and
+            // a replayed attempt cannot pay for level 7 twice.
+            var levelKey = $"level:{reference}";
+
+            var levelTarget = new PayoutTarget(
+                UserId: target.UserId,
+                SourceType: LedgerSourceType.System,
+                SourceId: reference,
+                OnceKey: levelKey,
+                SubmissionKey: levelKey,
+                Metadata: JsonSerializer.Serialize(new { level, xp = after.Xp }));
+
+            combined.AddRange(await PayMatchingAsync(
+                matching, levelTarget, transaction, cancellationToken, savepointOffset));
+
+            savepointOffset += matching.Count;
+        }
+
+        return combined;
     }
 
     /// <summary>

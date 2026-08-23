@@ -6,6 +6,7 @@ using Share7.Infrastructure.Leaderboards;
 using Share7.Infrastructure.Economy;
 using Share7.Infrastructure.Persistence;
 using Share7.Infrastructure.Rewards;
+using Share7.Infrastructure.Progression;
 
 namespace Share7.Tests.Infrastructure;
 
@@ -64,7 +65,7 @@ public static class LeaderboardTestExtensions
         ApplicationDbContext context, LeaderboardOptions? options = null) =>
         new(context,
             CreateProjector(context, options),
-            new RewardService(context, new WalletService(context)),
+            new RewardService(context, new WalletService(context), new LevelService(context)),
             NullLogger<LeaderboardSettlementService>.Instance);
 
     /// <summary>A board with one open cycle covering all of time unless bounded.</summary>

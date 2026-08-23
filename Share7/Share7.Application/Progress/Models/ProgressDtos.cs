@@ -1,4 +1,5 @@
 using Share7.Application.Economy.Models;
+using Share7.Application.Progression.Models;
 using Share7.Application.Rewards.Models;
 
 namespace Share7.Application.Progress.Models;
@@ -171,4 +172,24 @@ public class AttemptResultDto
     /// </para>
     /// </summary>
     public IReadOnlyList<BalanceDto> Balances { get; set; } = [];
+
+    /// <summary>
+    /// Where the player stands on the level curve **after** this attempt — absolute, like
+    /// <see cref="Balances"/>, and computed server-side.
+    /// <para>
+    /// Returned on every attempt, not only on the ones that levelled someone up, so the results
+    /// screen can fill an XP bar without a second round trip.
+    /// </para>
+    /// </summary>
+    public PlayerLevelDto? Level { get; set; }
+
+    /// <summary>
+    /// Levels reached during this attempt, ascending. Empty on almost every attempt.
+    /// <para>
+    /// A list because one generous grant can cross several, and each is a separate celebration —
+    /// and separately a reward rule that may have paid. Whatever those rules paid is already in
+    /// <see cref="Rewards"/> and already counted in <see cref="Balances"/>.
+    /// </para>
+    /// </summary>
+    public IReadOnlyList<int> LevelsGained { get; set; } = [];
 }

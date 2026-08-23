@@ -1,8 +1,10 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Share7.Application.Common.Models;
 using Share7.Application.Rewards.Interfaces;
 using Share7.Application.Rewards.Models;
 using Share7.Domain.Economy;
+using Share7.Domain.Constants;
 using Share7.Domain.Rewards;
 using Share7.Infrastructure.Persistence;
 
@@ -48,10 +50,11 @@ public class RewardAdminService : IRewardAdminService
             return Invalid(
                 $"'{request.EventType}' is not a reward event type. Valid values: {ValidNames<RewardEventType>()}.");
 
-        if (ValidateReferenceKey(request.ReferenceKey) is { } referenceFailure)
+        if (ValidateReferenceKey(eventType, request.ReferenceKey) is { } referenceFailure)
             return referenceFailure;
 
         var policy = await ParsePolicyAsync(
+            eventType,
             request.RepeatPolicy,
             request.TransactionType,
             request.CooldownSeconds,
@@ -111,6 +114,7 @@ public class RewardAdminService : IRewardAdminService
                 $"Reward rule {ruleId} does not exist.");
 
         var policy = await ParsePolicyAsync(
+            rule.EventType,
             request.RepeatPolicy,
             request.TransactionType,
             request.CooldownSeconds,
@@ -173,6 +177,7 @@ public class RewardAdminService : IRewardAdminService
     private sealed record RulePolicy(RewardRepeatPolicy RepeatPolicy, CurrencyTransactionType TransactionType);
 
     private async Task<ServiceResult<RulePolicy>> ParsePolicyAsync(
+        RewardEventType eventType,
         string repeatPolicyText,
         string? transactionTypeText,
         int? cooldownSeconds,
@@ -228,6 +233,16 @@ public class RewardAdminService : IRewardAdminService
                 ServiceErrorKind.Validation,
                 $"Currency {duplicate.Key} is listed more than once. Combine the amounts into a single grant.");
 
+        // A level-up rule that granted XP would be a payout causing the event that triggers it.
+        // Refused here so it cannot be authored; RewardService also strips XP from these rules at
+        // evaluation time, so a rule that predates this check still cannot loop.
+        if (eventType == RewardEventType.PlayerLevelUp
+            && grants.Any(g => g.CurrencyId == CurrencyIds.Xp))
+            return ServiceResult<RulePolicy>.Failure(
+                ApiErrors.RewardRuleInvalid,
+                ServiceErrorKind.Validation,
+                "A PLAYER_LEVEL_UP rule cannot grant XP — the payout would cause the event that triggers it.");
+
         var requested = grants.Select(g => g.CurrencyId).ToList();
 
         var known = await _dbContext.Currencies
@@ -247,17 +262,44 @@ public class RewardAdminService : IRewardAdminService
     }
 
     /// <summary>
-    /// Every event type currently defined scopes by lesson, so a reference key that is not a lesson
-    /// id is a typo that would leave the rule permanently unmatched.
+    /// What a reference key is allowed to look like depends on what the event scopes by. A key in
+    /// the wrong shape is a typo that leaves the rule permanently unmatched — it never errors, it
+    /// just never pays, which is the worst way for configuration to fail.
     /// <para>
-    /// The lesson's *existence* is deliberately not checked: Rewards resolving ids in Curriculum
-    /// would couple the two domains for a validation the admin console can do better with a picker.
+    /// The referenced thing's *existence* is deliberately not checked: Rewards resolving ids in
+    /// Curriculum would couple the two domains for a validation the admin console can do better
+    /// with a picker.
     /// </para>
     /// </summary>
-    private static ServiceResult<RewardRuleDto>? ValidateReferenceKey(string? referenceKey) =>
-        !string.IsNullOrWhiteSpace(referenceKey) && !Guid.TryParse(referenceKey.Trim(), out _)
-            ? Invalid($"referenceKey '{referenceKey}' is not a lesson id. Leave it null to apply the rule to every lesson.")
-            : null;
+    private static ServiceResult<RewardRuleDto>? ValidateReferenceKey(
+        RewardEventType eventType,
+        string? referenceKey)
+    {
+        if (string.IsNullOrWhiteSpace(referenceKey)) return null;
+
+        var key = referenceKey.Trim();
+
+        return eventType switch
+        {
+            // The level reached. A null key pays on every level-up, which is how a flat
+            // "20 coins per level" is expressed.
+            RewardEventType.PlayerLevelUp =>
+                int.TryParse(key, NumberStyles.None, CultureInfo.InvariantCulture, out var level) && level > 0
+                    ? null
+                    : Invalid($"referenceKey '{referenceKey}' is not a level. Use the level number, or leave it null to pay on every level-up."),
+
+            // {boardKey}:{band} — authored by the settlement path, not a lesson id.
+            RewardEventType.LeaderboardSettled =>
+                key.Contains(':')
+                    ? null
+                    : Invalid($"referenceKey '{referenceKey}' is not a leaderboard band. Use '{{boardKey}}:{{band}}'."),
+
+            // The lesson events, and anything added later that scopes by content.
+            _ => Guid.TryParse(key, out _)
+                ? null
+                : Invalid($"referenceKey '{referenceKey}' is not a lesson id. Leave it null to apply the rule to every lesson.")
+        };
+    }
 
     // ------------------------------------------------------------- mapping
 
