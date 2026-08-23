@@ -57,4 +57,15 @@ public class LeaderboardOptions
     public int DefaultPageSize { get; set; } = 25;
 
     public int MaxPageSize { get; set; } = 100;
+
+    /// <summary>
+    /// Shared secret an external pinger presents to drive deferred work, since the caller is a
+    /// machine with no account.
+    /// <para>
+    /// **Null closes the endpoint rather than opening it.** An unset secret must never degrade
+    /// into an unauthenticated write surface — that failure mode is how a maintenance hook becomes
+    /// a denial-of-service lever.
+    /// </para>
+    /// </summary>
+    public string? MaintenanceKey { get; set; }
 }

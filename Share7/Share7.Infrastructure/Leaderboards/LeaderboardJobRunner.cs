@@ -21,6 +21,7 @@ public class LeaderboardJobRunner : ILeaderboardJobRunner
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly ILeaderboardProjector _projector;
+    private readonly ILeaderboardRolloverService _rollover;
     private readonly LeaderboardOptions _options;
     private readonly ILogger<LeaderboardJobRunner> _logger;
 
@@ -30,11 +31,13 @@ public class LeaderboardJobRunner : ILeaderboardJobRunner
     public LeaderboardJobRunner(
         ApplicationDbContext dbContext,
         ILeaderboardProjector projector,
+        ILeaderboardRolloverService rollover,
         IOptions<LeaderboardOptions> options,
         ILogger<LeaderboardJobRunner> logger)
     {
         _dbContext = dbContext;
         _projector = projector;
+        _rollover = rollover;
         _options = options.Value;
         _logger = logger;
     }
@@ -146,16 +149,19 @@ public class LeaderboardJobRunner : ILeaderboardJobRunner
                 await _projector.ReindexCycleAsync(reindexCycle, cancellationToken);
                 break;
 
+            case LeaderboardJobKind.Rollover:
+                await _rollover.RolloverAsync(cancellationToken);
+                break;
+
             case LeaderboardJobKind.Prune:
                 await PruneAsync(cancellationToken);
                 break;
 
-            case LeaderboardJobKind.Rollover:
             case LeaderboardJobKind.Settle:
-                // Landing in phase 3 and 4. Declared here so the kinds are stable in the enum and
-                // in the database before the handlers exist — a job kind that changes number later
-                // would silently re-point rows already written.
-                _logger.LogWarning("Leaderboard job kind {Kind} is not implemented yet.", job.Kind);
+                // Phase 4. Declared here so the kind is stable in the enum and in the database
+                // before the handler exists — renumbering a job kind later would silently
+                // re-point rows already written.
+                _logger.LogWarning("Leaderboard settlement is not implemented yet.");
                 break;
 
             default:

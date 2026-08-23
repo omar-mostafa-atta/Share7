@@ -44,9 +44,13 @@ public static class LeaderboardTestExtensions
         return new LeaderboardJobRunner(
             context,
             CreateProjector(context, resolved),
+            CreateRollover(context),
             Options.Create(resolved),
             NullLogger<LeaderboardJobRunner>.Instance);
     }
+
+    public static LeaderboardRolloverService CreateRollover(ApplicationDbContext context) =>
+        new(context, NullLogger<LeaderboardRolloverService>.Instance);
 
     /// <summary>A board with one open cycle covering all of time unless bounded.</summary>
     public static async Task<(LeaderboardBoard Board, LeaderboardCycle Cycle)> CreateBoardAsync(

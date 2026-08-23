@@ -135,7 +135,10 @@ public static class DependencyInjection
         services.AddScoped<IDisplayNameService, DisplayNameService>();
         services.AddScoped<IGameResultRecorder, GameResultRecorder>();
         services.AddScoped<ILeaderboardProjector, LeaderboardProjector>();
+        services.AddScoped<ILeaderboardRolloverService, LeaderboardRolloverService>();
         services.AddScoped<ILeaderboardJobRunner, LeaderboardJobRunner>();
+        services.AddScoped<ILeaderboardService, LeaderboardService>();
+        services.AddScoped<ILeaderboardAdminService, LeaderboardAdminService>();
 
         return services;
     }

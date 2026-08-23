@@ -26,3 +26,23 @@ public interface ILeaderboardJobRunner
     /// </summary>
     Task<int> RunDueAsync(int maxJobs, CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// Moves cycles through their states and keeps a live window in existence.
+/// <para>
+/// Separate from the projector because the two fail differently and should not take each other
+/// down: a board whose ranking is stuck should still roll over into next week, and a rollover that
+/// cannot create a window should not stop every other board's results from being counted.
+/// </para>
+/// </summary>
+public interface ILeaderboardRolloverService
+{
+    /// <summary>
+    /// Opens scheduled cycles that are due, closes open cycles that have ended, and creates the
+    /// window covering now for any board missing one. Returns how many rows it changed.
+    /// <para>
+    /// Safe to run concurrently: the unique window index is what arbitrates, not the caller.
+    /// </para>
+    /// </summary>
+    Task<int> RolloverAsync(CancellationToken cancellationToken = default);
+}
