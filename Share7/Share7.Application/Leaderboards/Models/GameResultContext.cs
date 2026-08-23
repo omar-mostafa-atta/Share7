@@ -1,9 +1,15 @@
+using Share7.Domain.Leaderboards;
+
 namespace Share7.Application.Leaderboards.Models;
 
 /// <summary>One measurement a completed piece of gameplay produced.</summary>
 /// <param name="Metric">A value from <c>LeaderboardMetrics</c>. Anything else is refused.</param>
 /// <param name="Value">The measurement, already in the metric's canonical unit.</param>
-public sealed record GameResultDraft(string Metric, long Value);
+/// <param name="Scope">
+/// The metric's sub-dimension when it has one — a pickup kind, a currency key. Null for metrics
+/// that measure a single thing. Boards aggregate across scopes; objectives filter on them.
+/// </param>
+public sealed record GameResultDraft(string Metric, long Value, string? Scope = null);
 
 /// <summary>
 /// Everything the leaderboard needs to know about one authoritative piece of gameplay.
@@ -51,4 +57,25 @@ public sealed class GameResultContext
     /// which is what keeps replaying a lesson from farming a counting metric.
     /// </summary>
     public required IReadOnlyList<GameResultDraft> Metrics { get; init; }
+
+    /// <summary>
+    /// What kind of gameplay produced this. Defaults to <see cref="GameResultSource.Attempt"/> so
+    /// the curriculum path, which predates every other source, needs no change.
+    /// </summary>
+    public GameResultSource SourceType { get; init; } = GameResultSource.Attempt;
+
+    /// <summary>
+    /// Set when the **producer** already judged this gameplay implausible — a run clamped by its
+    /// pickup caps, or one whose layout check failed.
+    /// <para>
+    /// Carried through rather than re-derived. The plausibility guard bounds a single metric
+    /// against what that metric can believably be; it cannot see that the run those metrics came
+    /// from was already held back for review. Without this, a suspicious run's results would rank
+    /// and pay objectives while the run itself sat in the review queue.
+    /// </para>
+    /// </summary>
+    public bool PreFlagged { get; init; }
+
+    /// <summary>Why the producer flagged it. Used when <see cref="PreFlagged"/> is set.</summary>
+    public string? PreFlagReason { get; init; }
 }

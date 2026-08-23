@@ -73,4 +73,15 @@ public class RewardRule
     public DateTime UpdatedAtUtc { get; set; }
 
     public ICollection<RewardRuleGrant> Grants { get; set; } = new List<RewardRuleGrant>();
+
+    /// <summary>
+    /// Products this rule hands over alongside any currency — a badge for an achievement, a
+    /// cosmetic for a season tier. Usually empty.
+    /// <para>
+    /// **A rule with only these and no currency grants is valid**, which is the normal shape for a
+    /// badge: the achievement is the reward, and the badge is what says so.
+    /// </para>
+    /// </summary>
+    public ICollection<RewardRuleEntitlementGrant> EntitlementGrants { get; set; } =
+        new List<RewardRuleEntitlementGrant>();
 }

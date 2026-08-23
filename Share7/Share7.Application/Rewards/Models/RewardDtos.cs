@@ -66,6 +66,30 @@ public class SettlementRewardContext
     public required long Value { get; init; }
 }
 
+/// <summary>
+/// What the claim path knows about one finished objective.
+/// <para>
+/// Carries no amount, like every other context here. The objective decides which rule matches; the
+/// rule decides what it pays.
+/// </para>
+/// </summary>
+public class ObjectiveRewardContext
+{
+    public required Guid UserId { get; init; }
+
+    /// <summary>The objective's stable key. Matches the rule's <c>ReferenceKey</c>.</summary>
+    public required string ObjectiveKey { get; init; }
+
+    /// <summary>
+    /// Which cycle is being claimed. Part of the idempotency key, so today's daily and yesterday's
+    /// are separate payouts of the same objective rather than one that already fired.
+    /// </summary>
+    public required string CycleKey { get; init; }
+
+    /// <summary>The client's optional idempotency key for this claim.</summary>
+    public string? RequestId { get; init; }
+}
+
 // ---- evaluation output (client-facing) ------------------------------------------------------
 
 /// <summary>
@@ -82,6 +106,18 @@ public class RewardGrantDto
 /// One rule that fired, and everything it paid. Several can come back from a single attempt: a
 /// perfect run of a lesson matches the attempted, completed and aced rules at once.
 /// </summary>
+/// <summary>One product handed over by a reward. A badge, usually.</summary>
+public class RewardEntitlementDto
+{
+    public Guid ProductId { get; init; }
+
+    /// <summary>The product's stable key, which the client maps to its own art.</summary>
+    public string ProductKey { get; init; } = string.Empty;
+
+    /// <summary>False when the player already owned it — granting is idempotent, not an error.</summary>
+    public bool IsNew { get; init; }
+}
+
 public class RewardDto
 {
     public Guid RuleId { get; init; }
@@ -99,6 +135,9 @@ public class RewardDto
     public Guid TransactionId { get; init; }
 
     public IReadOnlyList<RewardGrantDto> Grants { get; init; } = [];
+
+    /// <summary>Products this reward handed over. Empty for the overwhelming majority of rules.</summary>
+    public IReadOnlyList<RewardEntitlementDto> Entitlements { get; init; } = [];
 }
 
 // ---- rule authoring (admin) -----------------------------------------------------------------
@@ -115,6 +154,12 @@ public class RewardGrantRequest
 
 public class CreateRewardRuleRequest
 {
+    /// <summary>
+    /// Products this rule hands over — typically a badge for an achievement. Optional, and a rule
+    /// granting only these with no currency is valid.
+    /// </summary>
+    public List<Guid> EntitlementProductIds { get; set; } = [];
+
     [Required]
     [MaxLength(128)]
     public string Name { get; set; } = string.Empty;

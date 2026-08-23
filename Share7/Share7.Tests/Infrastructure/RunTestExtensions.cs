@@ -1,3 +1,7 @@
+using Share7.Infrastructure.Objectives;
+using Share7.Infrastructure.Leaderboards;
+using Share7.Domain.Constants;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Share7.Application.Common.Models;
@@ -31,6 +35,7 @@ public static class RunTestExtensions
         ApplicationDbContext context,
         IWalletService? wallet = null,
         RunOptions? options = null,
+        Guid? langId = null,
         params IRunLayoutGenerator[] generators)
     {
         var resolved = wallet ?? new WalletService(context);
@@ -38,9 +43,18 @@ public static class RunTestExtensions
         return new RunService(
             context,
             resolved,
-            new RewardService(context, resolved, new LevelService(context)),
+            new RewardService(context, resolved, new LevelService(context), new Share7.Infrastructure.Commerce.EntitlementService(context)),
             new EarnCeilingService(context),
             new RunLayoutVerifier(generators),
+            // The real recorder, not a stub: it writes into the same DbContext and therefore the
+            // same transaction as the settlement, which is the property worth testing — a result
+            // that survived a rolled-back settlement would be a rank for a run that never paid.
+            new GameResultRecorder(
+                context,
+                new PlausibilityGuard(context),
+                NullLogger<GameResultRecorder>.Instance),
+            new ObjectiveProjector(context, NullLogger<ObjectiveProjector>.Instance),
+            new StubLanguageService(langId ?? LanguageIds.English),
             Options.Create(options ?? Permissive()));
     }
 

@@ -131,3 +131,29 @@ public class RewardTransactionLineConfiguration : IEntityTypeConfiguration<Rewar
             .OnDelete(DeleteBehavior.Restrict);
     }
 }
+
+public class RewardRuleEntitlementGrantConfiguration
+    : IEntityTypeConfiguration<RewardRuleEntitlementGrant>
+{
+    public void Configure(EntityTypeBuilder<RewardRuleEntitlementGrant> builder)
+    {
+        builder.ToTable("RewardRuleEntitlementGrants");
+        builder.HasKey(g => g.Id);
+
+        // One product per rule. Listing it twice would grant it twice, which is a no-op the second
+        // time but reads as a bug in the admin UI.
+        builder.HasIndex(g => new { g.RewardRuleId, g.ProductId }).IsUnique();
+
+        builder.HasOne(g => g.RewardRule)
+            .WithMany(r => r.EntitlementGrants)
+            .HasForeignKey(g => g.RewardRuleId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Restrict, matching how currency grants hold a currency: retiring a product must not
+        // silently strip it out of the rules that hand it over.
+        builder.HasOne(g => g.Product)
+            .WithMany()
+            .HasForeignKey(g => g.ProductId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}

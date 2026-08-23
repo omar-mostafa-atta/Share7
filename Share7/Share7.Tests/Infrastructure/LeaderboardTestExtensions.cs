@@ -65,7 +65,7 @@ public static class LeaderboardTestExtensions
         ApplicationDbContext context, LeaderboardOptions? options = null) =>
         new(context,
             CreateProjector(context, options),
-            new RewardService(context, new WalletService(context), new LevelService(context)),
+            new RewardService(context, new WalletService(context), new LevelService(context), new Share7.Infrastructure.Commerce.EntitlementService(context)),
             NullLogger<LeaderboardSettlementService>.Instance);
 
     /// <summary>A board with one open cycle covering all of time unless bounded.</summary>

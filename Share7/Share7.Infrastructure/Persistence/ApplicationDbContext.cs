@@ -10,6 +10,7 @@ using Share7.Domain.Leaderboards;
 using Share7.Domain.LookUps;
 using Share7.Domain.Multiplayer;
 using Share7.Domain.Progress;
+using Share7.Domain.Objectives;
 using Share7.Domain.Progression;
 using Share7.Domain.Rewards;
 using Share7.Domain.Runs;
@@ -81,6 +82,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, Applicati
     // without either domain knowing about the other.
     public DbSet<RewardRule> RewardRules => Set<RewardRule>();
     public DbSet<RewardRuleGrant> RewardRuleGrants => Set<RewardRuleGrant>();
+
+    /// <summary>Products a rule hands over — badges, mostly. Usually empty.</summary>
+    public DbSet<RewardRuleEntitlementGrant> RewardRuleEntitlementGrants => Set<RewardRuleEntitlementGrant>();
     public DbSet<RewardTransaction> RewardTransactions => Set<RewardTransaction>();
     public DbSet<RewardTransactionLine> RewardTransactionLines => Set<RewardTransactionLine>();
 
@@ -124,6 +128,32 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, Applicati
     /// it and their XP balance, and is deliberately not stored anywhere.
     /// </summary>
     public DbSet<LevelThreshold> LevelThresholds => Set<LevelThreshold>();
+
+    // Objectives: quests, achievements and everything shaped like them. One definition table and
+    // one counter table for all of it — a daily quest and an achievement differ by how often the
+    // counter resets and by nothing else, and modelling them apart is how a platform ends up with
+    // several counters that drift.
+    public DbSet<Objective> Objectives => Set<Objective>();
+    public DbSet<ObjectiveTranslation> ObjectiveTranslations => Set<ObjectiveTranslation>();
+    public DbSet<UserObjectiveProgress> UserObjectiveProgress => Set<UserObjectiveProgress>();
+
+    // Missions, weekly challenge sets and season passes: one grouping table with a completion mode,
+    // because all three are the same structure with a different rule over the same members.
+    public DbSet<ObjectiveGroup> ObjectiveGroups => Set<ObjectiveGroup>();
+    public DbSet<ObjectiveGroupTranslation> ObjectiveGroupTranslations => Set<ObjectiveGroupTranslation>();
+    public DbSet<UserObjectiveGroupProgress> UserObjectiveGroupProgress => Set<UserObjectiveGroupProgress>();
+
+    /// <summary>
+    /// Consecutive-day streaks. The one thing here an objective counter cannot express — no
+    /// aggregation distinguishes "seven days running" from "seven days spread over a month".
+    /// </summary>
+    public DbSet<UserStreak> UserStreaks => Set<UserStreak>();
+
+    /// <summary>
+    /// How far each non-leaderboard consumer has read the GameResult stream. Separate from
+    /// <c>GameResult.ProjectedAtUtc</c>, which is the leaderboard projector's own single mark.
+    /// </summary>
+    public DbSet<ProjectionCheckpoint> ProjectionCheckpoints => Set<ProjectionCheckpoint>();
 
     // Leaderboards. GameResults is the source of truth and everything else in this block is a
     // projection of it: entries, ranks and settlements are all reproducible by replaying that

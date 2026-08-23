@@ -4,6 +4,8 @@ using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Share7.Application.Common.Models;
+using Share7.Application.Commerce.Interfaces;
+using Share7.Domain.Commerce;
 using Share7.Application.Economy.Interfaces;
 using Share7.Application.Economy.Models;
 using Share7.Application.Progression.Interfaces;
@@ -32,12 +34,18 @@ public class RewardService : IRewardService
     private readonly ApplicationDbContext _dbContext;
     private readonly IWalletService _wallet;
     private readonly ILevelService _levels;
+    private readonly IEntitlementService _entitlements;
 
-    public RewardService(ApplicationDbContext dbContext, IWalletService wallet, ILevelService levels)
+    public RewardService(
+        ApplicationDbContext dbContext,
+        IWalletService wallet,
+        ILevelService levels,
+        IEntitlementService entitlements)
     {
         _dbContext = dbContext;
         _wallet = wallet;
         _levels = levels;
+        _entitlements = entitlements;
     }
 
     public async Task<IReadOnlyList<RewardDto>> EvaluateProgressAttemptAsync(
@@ -59,6 +67,8 @@ public class RewardService : IRewardService
             .AsNoTracking()
             .Include(r => r.Grants)
             .ThenInclude(g => g.Currency)
+            .Include(r => r.EntitlementGrants)
+            .ThenInclude(g => g.Product)
             .Where(r => r.Enabled
                         && events.Contains(r.EventType)
                         && (r.ReferenceKey == null || r.ReferenceKey == reference))
@@ -84,6 +94,50 @@ public class RewardService : IRewardService
         return await PayWithLevelUpsAsync(rules, target, transaction, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<RewardDto>> EvaluateObjectiveAsync(
+        ObjectiveRewardContext context,
+        CancellationToken cancellationToken = default)
+    {
+        var transaction = _dbContext.Database.CurrentTransaction
+            ?? throw new InvalidOperationException(
+                "Objective rewards must be evaluated inside an open transaction so the payout and the claim commit together.");
+
+        // Unlike settlement, an unscoped rule *is* matched: "any completed quest is worth 5 coins"
+        // is a reasonable thing for an operator to author, and a specific rule composes with it
+        // exactly as the lesson rules compose.
+        var rules = await _dbContext.RewardRules
+            .AsNoTracking()
+            .Include(r => r.Grants)
+            .ThenInclude(g => g.Currency)
+            .Include(r => r.EntitlementGrants)
+            .ThenInclude(g => g.Product)
+            .Where(r => r.Enabled
+                        && r.EventType == RewardEventType.ObjectiveCompleted
+                        && (r.ReferenceKey == null || r.ReferenceKey == context.ObjectiveKey))
+            .OrderBy(r => r.Id)
+            .ToListAsync(cancellationToken);
+
+        // The objective in its cycle *is* the payout identity: one claim, ever. Both repeat
+        // policies collapse onto it, so a retried claim collides with the first rather than paying
+        // a second time, while next week's cycle is a genuinely different key.
+        var claim = $"{context.ObjectiveKey}:{context.CycleKey}";
+
+        var target = new PayoutTarget(
+            UserId: context.UserId,
+            SourceType: LedgerSourceType.System,
+            SourceId: context.ObjectiveKey,
+            OnceKey: claim,
+            SubmissionKey: claim,
+            Metadata: JsonSerializer.Serialize(new
+            {
+                objective = context.ObjectiveKey,
+                cycle = context.CycleKey,
+                requestId = context.RequestId
+            }));
+
+        return await PayWithLevelUpsAsync(rules, target, transaction, cancellationToken);
+    }
+
     public async Task<IReadOnlyList<RewardDto>> EvaluateSettlementAsync(
         SettlementRewardContext context,
         CancellationToken cancellationToken = default)
@@ -99,6 +153,8 @@ public class RewardService : IRewardService
             .AsNoTracking()
             .Include(r => r.Grants)
             .ThenInclude(g => g.Currency)
+            .Include(r => r.EntitlementGrants)
+            .ThenInclude(g => g.Product)
             .Where(r => r.Enabled
                         && r.EventType == RewardEventType.LeaderboardSettled
                         && r.ReferenceKey == context.ReferenceKey)
@@ -144,6 +200,8 @@ public class RewardService : IRewardService
             .AsNoTracking()
             .Include(r => r.Grants)
             .ThenInclude(g => g.Currency)
+            .Include(r => r.EntitlementGrants)
+            .ThenInclude(g => g.Product)
             .Where(r => r.Enabled
                         && r.EventType == RewardEventType.RunSettled
                         && (r.ReferenceKey == null || r.ReferenceKey == reference))
@@ -242,6 +300,8 @@ public class RewardService : IRewardService
             .AsNoTracking()
             .Include(r => r.Grants)
             .ThenInclude(g => g.Currency)
+            .Include(r => r.EntitlementGrants)
+            .ThenInclude(g => g.Product)
             .Where(r => r.Enabled && r.EventType == RewardEventType.PlayerLevelUp)
             .OrderBy(r => r.Id)
             .ToListAsync(cancellationToken);
@@ -314,7 +374,9 @@ public class RewardService : IRewardService
         int index,
         CancellationToken cancellationToken)
     {
-        if (rule.Grants.Count == 0)
+        // A badge rule grants no currency at all, which is the normal shape for an achievement:
+        // finishing it is the reward and the badge is what says so.
+        if (rule.Grants.Count == 0 && rule.EntitlementGrants.Count == 0)
             return null;
 
         // One retired currency disables the whole rule. Paying the remaining lines would record a
@@ -474,6 +536,39 @@ public class RewardService : IRewardService
             });
         }
 
+        var entitlements = new List<RewardEntitlementDto>();
+
+        // Ordered for the same reason the currency grants are: two runs of one reward produce
+        // byte-identical output, which is what makes a replay comparable to the original.
+        foreach (var grant in rule.EntitlementGrants.OrderBy(g => g.ProductId))
+        {
+            var granted = await _entitlements.GrantAsync(
+                context.UserId,
+                grant.ProductId,
+                EntitlementSource.RewardRule,
+                idempotencyKey,
+                cancellationToken);
+
+            if (!granted.Succeeded)
+            {
+                // Same all-or-nothing rule the currency grants obey: a rule that could not hand
+                // over its badge pays nothing and leaves its key unspent, so a corrected product
+                // can pay it properly later rather than finding it marked done.
+                await AbandonAsync(transaction, savepoint, cancellationToken);
+                return null;
+            }
+
+            entitlements.Add(new RewardEntitlementDto
+            {
+                ProductId = grant.ProductId,
+                ProductKey = grant.Product?.Key ?? string.Empty,
+
+                // Granting is idempotent, so a re-grant is a success that changed nothing. Said
+                // plainly here so a client does not celebrate a badge the child already had.
+                IsNew = granted.Value?.AlreadyOwned != true
+            });
+        }
+
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         return new RewardDto
@@ -482,7 +577,8 @@ public class RewardService : IRewardService
             RuleName = rule.Name,
             EventType = WireEnum.ToWire(rule.EventType),
             TransactionId = rewardTransaction.Id,
-            Grants = grants
+            Grants = grants,
+            Entitlements = entitlements
         };
     }
 
@@ -504,7 +600,7 @@ public class RewardService : IRewardService
 
         foreach (var entry in _dbContext.ChangeTracker.Entries().ToList())
         {
-            if (entry.Entity is RewardTransaction or RewardTransactionLine or CurrencyLedgerEntry)
+            if (entry.Entity is RewardTransaction or RewardTransactionLine or CurrencyLedgerEntry or Entitlement)
                 entry.State = EntityState.Detached;
         }
     }

@@ -41,12 +41,53 @@ public static class LeaderboardMetrics
     /// </summary>
     public const string LessonBestPercent = "LESSON_BEST_PERCENT";
 
+    // ---- runs (non-curriculum gameplay) ------------------------------------------------------
+
+    /// <summary>
+    /// Runs the player has finished and had settled, whatever the outcome. Raised once per settled
+    /// run — a run that failed still happened.
+    /// </summary>
+    public const string RunsSettled = "RUNS_SETTLED";
+
+    /// <summary>Runs whose outcome was <c>Completed</c>. Raised alongside <see cref="RunsSettled"/>.</summary>
+    public const string RunsCompleted = "RUNS_COMPLETED";
+
+    /// <summary>
+    /// Seconds played, summed. Taken from the run's **server-bounded** duration, never the client's
+    /// reported figure, so a modified build cannot inflate a time-played ladder by lying.
+    /// </summary>
+    public const string RunSeconds = "RUN_SECONDS";
+
+    /// <summary>
+    /// The longest single run, in seconds. The same value <see cref="RunSeconds"/> raises, kept as
+    /// its own metric because one is a <c>Sum</c> ladder and the other a <c>Best</c> one, and a
+    /// board cannot choose an aggregation per entry.
+    /// </summary>
+    public const string BestRunSeconds = "BEST_RUN_SECONDS";
+
+    /// <summary>
+    /// Pickups collected, **as settled** — after the per-run cap, never as reported. Scoped by
+    /// pickup kind, so one metric serves coins, gems and every chest a future mini-game invents.
+    /// <para>
+    /// Raising the reported count would let a claim of 500 coins that settled at 180 still pay a
+    /// "collect 500" objective, which is the pickup cap defeated through a side door.
+    /// </para>
+    /// </summary>
+    public const string PickupsCollected = "PICKUPS_COLLECTED";
+
+    /// <summary>
+    /// Currency actually credited, scoped by currency key. Net of caps, like everything else here.
+    /// One result per settlement rather than per coin — the grant already happens once.
+    /// </summary>
+    public const string CurrencyEarned = "CURRENCY_EARNED";
+
     /// <summary>
     /// Every metric a board may be authored against.
     /// <para>
-    /// Deliberately short. Distance, survival time and anything else a mini-game measures for
-    /// itself needs the authoritative result route before it can appear here — until then there is
-    /// nothing to raise it.
+    /// The run metrics arrived with the authoritative result route this list used to be waiting
+    /// for. Distance and per-game scores still are not here: the run result carries pickups,
+    /// duration and an outcome, and nothing else a mini-game measures for itself. Adding one means
+    /// adding a field to the run result and the code that bounds it, in the same change.
     /// </para>
     /// </summary>
     public static readonly IReadOnlySet<string> Known = new HashSet<string>(StringComparer.Ordinal)
@@ -54,7 +95,13 @@ public static class LeaderboardMetrics
         LessonsCompleted,
         LessonsAced,
         TotalLessonScore,
-        LessonBestPercent
+        LessonBestPercent,
+        RunsSettled,
+        RunsCompleted,
+        RunSeconds,
+        BestRunSeconds,
+        PickupsCollected,
+        CurrencyEarned
     };
 
     public static bool IsKnown(string? metric) => metric is not null && Known.Contains(metric);

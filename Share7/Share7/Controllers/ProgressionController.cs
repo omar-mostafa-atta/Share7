@@ -1,6 +1,12 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Share7.Application.Common.Interfaces;
+using System.ComponentModel.DataAnnotations;
+using Share7.API.Extensions;
+using Share7.Application.Common.Models;
+using Share7.Application.Objectives.Interfaces;
+using Share7.Application.Objectives.Models;
+using Share7.Domain.Objectives;
 using Share7.Application.Progression.Interfaces;
 using Share7.Application.Progression.Models;
 
@@ -26,11 +32,16 @@ namespace Share7.API.Controllers;
 public class ProgressionController : ControllerBase
 {
     private readonly ILevelService _levels;
+    private readonly IObjectiveService _objectives;
     private readonly ICurrentUserService _currentUser;
 
-    public ProgressionController(ILevelService levels, ICurrentUserService currentUser)
+    public ProgressionController(
+        ILevelService levels,
+        IObjectiveService objectives,
+        ICurrentUserService currentUser)
     {
         _levels = levels;
+        _objectives = objectives;
         _currentUser = currentUser;
     }
 
@@ -66,11 +77,74 @@ public class ProgressionController : ControllerBase
             return Unauthorized();
 
         var level = await _levels.GetForUserAsync(userId, cancellationToken);
+        var objectives = await _objectives.GetForUserAsync(userId, cancellationToken);
+        var streak = await _objectives.GetStreakAsync(userId, cancellationToken);
 
         return Ok(new ProgressionSnapshotDto
         {
             Level = level,
+            Daily = Kind(objectives, ObjectiveKind.Daily),
+            Weekly = Kind(objectives, ObjectiveKind.Weekly),
+            Achievements = Kind(objectives, ObjectiveKind.Achievement),
+            Streak = new StreakDto
+            {
+                Current = streak.Current,
+                Best = streak.Best,
+                FreezesRemaining = streak.FreezesRemaining
+            },
             ServerTimeUtc = DateTime.UtcNow
         });
     }
+
+    /// <summary>
+    /// Collects a completed objective.
+    /// <code>
+    /// POST /api/progression/objectives/daily.lessons.complete.3/claim
+    /// { "requestId": "one-id-per-claim" }
+    /// </code>
+    /// <para>
+    /// Returns the same shape the attempt and run responses use: <c>rewards</c> are deltas to
+    /// animate, <c>balances</c> are absolute totals that already include them. **Assign the
+    /// balances; never add the rewards.**
+    /// </para>
+    /// <para>
+    /// <c>409</c> when there is nothing to collect — not finished, already collected, or the claim
+    /// window has closed. One answer for all three on purpose: they are the same fact to a caller,
+    /// and the payout is idempotent on the objective and its cycle regardless.
+    /// </para>
+    /// <para>
+    /// **The client never states an amount here.** It names an objective; the server decides
+    /// whether it was earned and what it pays.
+    /// </para>
+    /// </summary>
+    [HttpPost("objectives/{key}/claim")]
+    public async Task<IActionResult> Claim(
+        string key,
+        [FromBody] ClaimObjectiveRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (_currentUser.UserId is not { } userId)
+            return Unauthorized();
+
+        var result = await _objectives.ClaimAsync(
+            userId, key, request?.RequestId, cancellationToken);
+
+        return result.Succeeded ? Ok(result.Value) : result.ToErrorResult();
+    }
+
+    private static IReadOnlyList<ObjectiveDto> Kind(
+        IReadOnlyList<ObjectiveDto> objectives, ObjectiveKind kind)
+    {
+        var wire = WireEnum.ToWire(kind);
+
+        return [.. objectives.Where(o => string.Equals(o.Kind, wire, StringComparison.Ordinal))];
+    }
+}
+
+/// <summary>The claim body. Carries an idempotency key and deliberately nothing else.</summary>
+public class ClaimObjectiveRequest
+{
+    /// <summary>Client-minted, reused unchanged on every retry of this claim. Optional.</summary>
+    [MaxLength(128)]
+    public string? RequestId { get; set; }
 }

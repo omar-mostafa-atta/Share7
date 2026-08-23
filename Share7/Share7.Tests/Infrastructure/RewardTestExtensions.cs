@@ -1,3 +1,4 @@
+using Share7.Infrastructure.Objectives;
 using Microsoft.Extensions.Logging.Abstractions;
 using Share7.Infrastructure.Leaderboards;
 using Microsoft.EntityFrameworkCore;
@@ -75,7 +76,7 @@ public static class RewardTestExtensions
     {
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
 
-        var rewards = await new RewardService(context, new WalletService(context), new LevelService(context))
+        var rewards = await new RewardService(context, new WalletService(context), new LevelService(context), new Share7.Infrastructure.Commerce.EntitlementService(context))
             .EvaluateProgressAttemptAsync(rewardContext, cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
@@ -114,13 +115,14 @@ public static class RewardTestExtensions
             context,
             new LanguageService(context, new StubCurrentUser(userId)),
             new UnlockService(context),
-            new RewardService(context, wallet, new LevelService(context)),
+            new RewardService(context, wallet, new LevelService(context), new Share7.Infrastructure.Commerce.EntitlementService(context)),
             wallet,
             new GameResultRecorder(
                 context,
                 new PlausibilityGuard(context),
                 NullLogger<GameResultRecorder>.Instance),
-            new LevelService(context));
+            new LevelService(context),
+            new ObjectiveProjector(context, NullLogger<ObjectiveProjector>.Instance));
     }
 
     /// <summary>

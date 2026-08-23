@@ -46,6 +46,22 @@ public interface IRewardService
     /// settlement row that records it commit together, or a retry pays a child twice.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// Pays a claimed objective, through the same rules, ledger and audit trail as everything else.
+    /// <para>
+    /// **Not a third payout path** — the same reason settlement is not a second one. A quest engine
+    /// that could grant would mean another place currency comes from, another idempotency scheme,
+    /// and another answer to "why does this child have these coins".
+    /// </para>
+    /// <para>
+    /// Must run inside an open transaction: the payout and the row that records the claim commit
+    /// together, or a retry pays twice.
+    /// </para>
+    /// </summary>
+    Task<IReadOnlyList<RewardDto>> EvaluateObjectiveAsync(
+        ObjectiveRewardContext context,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<RewardDto>> EvaluateSettlementAsync(
         SettlementRewardContext context,
         CancellationToken cancellationToken = default);

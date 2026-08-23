@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Share7.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using Share7.Infrastructure.Persistence;
 namespace Share7.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260823183039_ObjectivesEngine")]
+    partial class ObjectivesEngine
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2267,9 +2270,6 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("GradeId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid?>("GroupId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<string>("IconKey")
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
@@ -2302,9 +2302,6 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.Property<int>("SortOrder")
                         .HasColumnType("int");
 
-                    b.Property<int>("StepOrder")
-                        .HasColumnType("int");
-
                     b.Property<long>("Target")
                         .HasColumnType("bigint");
 
@@ -2313,8 +2310,6 @@ namespace Share7.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("GroupId");
-
                     b.HasIndex("Key")
                         .IsUnique();
 
@@ -2322,93 +2317,6 @@ namespace Share7.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("IX_Objective_Active");
 
                     b.ToTable("Objectives", (string)null);
-                });
-
-            modelBuilder.Entity("Share7.Domain.Objectives.ObjectiveGroup", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("AvailableFromUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("AvailableToUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("CompletionMode")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("nvarchar(16)");
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("IconKey")
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Key")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.Property<string>("Kind")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
-
-                    b.Property<int>("RequiredCount")
-                        .HasColumnType("int");
-
-                    b.Property<string>("SeasonKey")
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("UpdatedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Key")
-                        .IsUnique();
-
-                    b.ToTable("ObjectiveGroups", (string)null);
-                });
-
-            modelBuilder.Entity("Share7.Domain.Objectives.ObjectiveGroupTranslation", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(512)
-                        .HasColumnType("nvarchar(512)");
-
-                    b.Property<Guid>("GroupId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("LangId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("GroupId", "LangId")
-                        .IsUnique();
-
-                    b.ToTable("ObjectiveGroupTranslations", (string)null);
                 });
 
             modelBuilder.Entity("Share7.Domain.Objectives.ObjectiveTranslation", b =>
@@ -2438,48 +2346,6 @@ namespace Share7.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("ObjectiveTranslations", (string)null);
-                });
-
-            modelBuilder.Entity("Share7.Domain.Objectives.UserObjectiveGroupProgress", b =>
-                {
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("GroupId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("CycleKey")
-                        .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
-
-                    b.Property<DateTime?>("ClaimableUntilUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("ClaimedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("CompletedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("CompletedCount")
-                        .HasColumnType("int");
-
-                    b.Property<string>("State")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("nvarchar(16)");
-
-                    b.Property<DateTime>("UpdatedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("UserId", "GroupId", "CycleKey");
-
-                    b.HasIndex("GroupId");
-
-                    b.HasIndex("UserId", "State")
-                        .HasDatabaseName("IX_UserObjectiveGroupProgress_User");
-
-                    b.ToTable("UserObjectiveGroupProgress", (string)null);
                 });
 
             modelBuilder.Entity("Share7.Domain.Objectives.UserObjectiveProgress", b =>
@@ -2525,40 +2391,6 @@ namespace Share7.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("IX_UserObjectiveProgress_User");
 
                     b.ToTable("UserObjectiveProgress", (string)null);
-                });
-
-            modelBuilder.Entity("Share7.Domain.Objectives.UserStreak", b =>
-                {
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("StreakKey")
-                        .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
-
-                    b.Property<int>("Best")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Current")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("FreezeRegeneratedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("FreezesRemaining")
-                        .HasColumnType("int");
-
-                    b.Property<string>("LastCycleKey")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
-
-                    b.Property<DateTime>("UpdatedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("UserId", "StreakKey");
-
-                    b.ToTable("UserStreaks", (string)null);
                 });
 
             modelBuilder.Entity("Share7.Domain.Progress.ProgressRequestLog", b =>
@@ -3128,28 +2960,6 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.HasIndex("EventType", "Enabled", "ReferenceKey");
 
                     b.ToTable("RewardRules", (string)null);
-                });
-
-            modelBuilder.Entity("Share7.Domain.Rewards.RewardRuleEntitlementGrant", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("ProductId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("RewardRuleId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProductId");
-
-                    b.HasIndex("RewardRuleId", "ProductId")
-                        .IsUnique();
-
-                    b.ToTable("RewardRuleEntitlementGrants", (string)null);
                 });
 
             modelBuilder.Entity("Share7.Domain.Rewards.RewardRuleGrant", b =>
@@ -4295,27 +4105,6 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.Navigation("Session");
                 });
 
-            modelBuilder.Entity("Share7.Domain.Objectives.Objective", b =>
-                {
-                    b.HasOne("Share7.Domain.Objectives.ObjectiveGroup", "Group")
-                        .WithMany()
-                        .HasForeignKey("GroupId")
-                        .OnDelete(DeleteBehavior.NoAction);
-
-                    b.Navigation("Group");
-                });
-
-            modelBuilder.Entity("Share7.Domain.Objectives.ObjectiveGroupTranslation", b =>
-                {
-                    b.HasOne("Share7.Domain.Objectives.ObjectiveGroup", "Group")
-                        .WithMany("Translations")
-                        .HasForeignKey("GroupId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Group");
-                });
-
             modelBuilder.Entity("Share7.Domain.Objectives.ObjectiveTranslation", b =>
                 {
                     b.HasOne("Share7.Domain.Objectives.Objective", "Objective")
@@ -4325,23 +4114,6 @@ namespace Share7.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Objective");
-                });
-
-            modelBuilder.Entity("Share7.Domain.Objectives.UserObjectiveGroupProgress", b =>
-                {
-                    b.HasOne("Share7.Domain.Objectives.ObjectiveGroup", "Group")
-                        .WithMany()
-                        .HasForeignKey("GroupId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Group");
                 });
 
             modelBuilder.Entity("Share7.Domain.Objectives.UserObjectiveProgress", b =>
@@ -4359,15 +4131,6 @@ namespace Share7.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Objective");
-                });
-
-            modelBuilder.Entity("Share7.Domain.Objectives.UserStreak", b =>
-                {
-                    b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("Share7.Domain.Progress.ProgressRequestLog", b =>
@@ -4416,25 +4179,6 @@ namespace Share7.Infrastructure.Persistence.Migrations
                         .HasForeignKey("QuestionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("Share7.Domain.Rewards.RewardRuleEntitlementGrant", b =>
-                {
-                    b.HasOne("Share7.Domain.Commerce.Product", "Product")
-                        .WithMany()
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Share7.Domain.Rewards.RewardRule", "RewardRule")
-                        .WithMany("EntitlementGrants")
-                        .HasForeignKey("RewardRuleId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Product");
-
-                    b.Navigation("RewardRule");
                 });
 
             modelBuilder.Entity("Share7.Domain.Rewards.RewardRuleGrant", b =>
@@ -4663,15 +4407,8 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.Navigation("Translations");
                 });
 
-            modelBuilder.Entity("Share7.Domain.Objectives.ObjectiveGroup", b =>
-                {
-                    b.Navigation("Translations");
-                });
-
             modelBuilder.Entity("Share7.Domain.Rewards.RewardRule", b =>
                 {
-                    b.Navigation("EntitlementGrants");
-
                     b.Navigation("Grants");
                 });
 
