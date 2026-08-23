@@ -56,6 +56,10 @@ public interface IObjectiveService
     Task<IReadOnlyList<ObjectiveDto>> GetForUserAsync(
         Guid userId, CancellationToken cancellationToken = default);
 
+    /// <summary>The player's daily streak, or zeroes when they have never played.</summary>
+    Task<(int Current, int Best, int FreezesRemaining)> GetStreakAsync(
+        Guid userId, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Pays a completed objective and marks it claimed.
     /// <para>

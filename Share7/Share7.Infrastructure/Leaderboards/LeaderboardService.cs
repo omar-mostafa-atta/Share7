@@ -62,7 +62,7 @@ public class LeaderboardService : ILeaderboardService
         var boards = await _dbContext.LeaderboardBoards
             .AsNoTracking()
             .Where(b => b.IsActive
-                        && (gameId == null || b.GameId == gameId)
+                        && (gameId == null || b.GameId == null || b.GameId == gameId)
                         && (b.LangId == null || b.LangId == langId))
             .Include(b => b.Translations.Where(t => t.LangId == langId))
             .ToListAsync(cancellationToken);

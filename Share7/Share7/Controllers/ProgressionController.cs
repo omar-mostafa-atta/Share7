@@ -78,6 +78,7 @@ public class ProgressionController : ControllerBase
 
         var level = await _levels.GetForUserAsync(userId, cancellationToken);
         var objectives = await _objectives.GetForUserAsync(userId, cancellationToken);
+        var streak = await _objectives.GetStreakAsync(userId, cancellationToken);
 
         return Ok(new ProgressionSnapshotDto
         {
@@ -85,6 +86,12 @@ public class ProgressionController : ControllerBase
             Daily = Kind(objectives, ObjectiveKind.Daily),
             Weekly = Kind(objectives, ObjectiveKind.Weekly),
             Achievements = Kind(objectives, ObjectiveKind.Achievement),
+            Streak = new StreakDto
+            {
+                Current = streak.Current,
+                Best = streak.Best,
+                FreezesRemaining = streak.FreezesRemaining
+            },
             ServerTimeUtc = DateTime.UtcNow
         });
     }

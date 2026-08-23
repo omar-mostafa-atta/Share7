@@ -161,6 +161,21 @@ public class ObjectiveService : IObjectiveService
         });
     }
 
+    public async Task<(int Current, int Best, int FreezesRemaining)> GetStreakAsync(
+        Guid userId, CancellationToken cancellationToken = default)
+    {
+        var streak = await _dbContext.UserStreaks
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                s => s.UserId == userId && s.StreakKey == StreakKeys.Daily, cancellationToken);
+
+        // Zeroes rather than null: a child who has never played has a streak of nothing, and a
+        // nullable here would make every caller special-case the most common state.
+        return streak is null
+            ? (0, 0, 0)
+            : (streak.Current, streak.Best, streak.FreezesRemaining);
+    }
+
     // ---- mapping -------------------------------------------------------------------------------
 
     private static ObjectiveDto ToDto(

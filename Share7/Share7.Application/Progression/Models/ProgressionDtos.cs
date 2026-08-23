@@ -68,8 +68,25 @@ public class ProgressionSnapshotDto
     /// <summary>Objectives that never reset, and their badges once those exist.</summary>
     public IReadOnlyList<ObjectiveDto> Achievements { get; init; } = [];
 
+    /// <summary>The player's daily streak. Zeroes for someone who has never played.</summary>
+    public StreakDto Streak { get; init; } = new();
+
     /// <summary>The server's clock, so the client never compares against the device's.</summary>
     public DateTime ServerTimeUtc { get; init; }
+}
+
+/// <summary>
+/// A consecutive-day streak.
+/// <para>
+/// <see cref="FreezesRemaining"/> is surfaced deliberately: a child who missed a day and kept their
+/// streak should be told a freeze covered it, not left to think the rule is inconsistent.
+/// </para>
+/// </summary>
+public class StreakDto
+{
+    public int Current { get; init; }
+    public int Best { get; init; }
+    public int FreezesRemaining { get; init; }
 }
 
 // ---- curve authoring (admin) -----------------------------------------------------------------
