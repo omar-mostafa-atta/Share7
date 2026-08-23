@@ -356,7 +356,8 @@ Field names mirror `MiniGameDefinitionSO`. Note the id field is **`gameId`**, no
 | `gameKey` | string | stable slug, e.g. `"subway_runner"` |
 | `displayName` `description` | string | resolved into `langId` |
 | `langId` | string (guid) | |
-| `lobbyScene` `gameplayScene` | int | Unity build indices |
+| `lobbyScene` `gameplayScene` | int | Unity build indices. Superseded by the addresses below; still served |
+| `lobbySceneAddress` `gameplaySceneAddress` | string \| null | Addressables scene addresses. **Null means this game still uses the build indices** |
 | `minPlayers` `maxPlayers` | int | **server is authoritative** |
 | `readyTimeoutSeconds` | number | `20`, not `20.0` |
 | `supportsSinglePlayer` `supportsMultiplayer` `useLobby` `useMatchmaking` `isActive` | bool | |
@@ -366,6 +367,7 @@ Field names mirror `MiniGameDefinitionSO`. Note the id field is **`gameId`**, no
   "gameId": "2a1c2578-cb44-4382-9f6d-172dd589c03a", "gameKey": "subway_runner",
   "displayName": "Subway Runner", "description": "Steer.", "langId": "9c4d7f2a-…",
   "lobbyScene": 1, "gameplayScene": 2,
+  "lobbySceneAddress": null, "gameplaySceneAddress": null,
   "minPlayers": 1, "maxPlayers": 2, "readyTimeoutSeconds": 20,
   "supportsSinglePlayer": true, "supportsMultiplayer": true,
   "useLobby": true, "useMatchmaking": true, "isActive": true
@@ -373,6 +375,11 @@ Field names mirror `MiniGameDefinitionSO`. Note the id field is **`gameId`**, no
 ```
 
 `GET /api/games` returns a bare array of these; `GET /api/games/{id}` returns one object.
+
+**Read `gameplaySceneAddress` first, and fall back to the indices when it is null.** A build index
+cannot name a scene that is not in the build, so a mini-game whose scenes are downloaded on demand
+has no index to give. Null is the discriminator, not a missing value — the two fields are the
+migration, and both are served until no shipped build reads the indices.
 
 ---
 
@@ -728,7 +735,8 @@ using System.Collections.Generic;
 [Serializable] public class GameDto {
     public Guid GameId; public string GameKey;
     public string DisplayName; public string Description; public Guid LangId;
-    public int LobbyScene; public int GameplayScene;
+    public int LobbyScene; public int GameplayScene;                 // legacy; null-check the addresses first
+    public string LobbySceneAddress; public string GameplaySceneAddress;   // null = still on the indices
     public int MinPlayers; public int MaxPlayers; public float ReadyTimeoutSeconds;
     public bool SupportsSinglePlayer; public bool SupportsMultiplayer;
     public bool UseLobby; public bool UseMatchmaking; public bool IsActive;

@@ -488,6 +488,7 @@ Active games only, names in the caller's language.
   "gameId": "…", "gameKey": "subway_runner",
   "displayName": "Subway Runner", "description": "Steer into the right door.", "langId": "…",
   "lobbyScene": 1, "gameplayScene": 2,
+  "lobbySceneAddress": null, "gameplaySceneAddress": null,
   "minPlayers": 1, "maxPlayers": 2, "readyTimeoutSeconds": 20,
   "supportsSinglePlayer": true, "supportsMultiplayer": true,
   "useLobby": true, "useMatchmaking": true, "isActive": true
@@ -501,6 +502,21 @@ Field names mirror `MiniGameDefinitionSO` so this deserializes straight into you
 counts or timeouts, the server's numbers are what matchmaking will enforce. `lobbyScene` and
 `gameplayScene` are stored here but are client build artifacts — renumbering scenes in a rebuild
 will silently desync them.
+
+#### Scene addresses
+
+`lobbySceneAddress` and `gameplaySceneAddress` are Addressables scene addresses, e.g.
+`"Assets/Games/Runner/Scenes/GameRunner.unity"`.
+
+**Read the addresses first; fall back to the indices when `gameplaySceneAddress` is null.** A build
+index cannot name a scene that is not in the build, so a mini-game whose scenes are downloaded on
+demand has no index to give. Both are served, so a client that has not moved yet keeps working —
+null is the discriminator, not a missing value.
+
+The server never checks that an address resolves. It cannot see your content catalogue. It checks
+only that the pair is coherent: a lobby address without a gameplay address is rejected, and a game
+with `useLobby: true` on addressable scenes must address its lobby. Whether the address actually
+points at an addressable scene is your content validator's job.
 
 ### `GET /api/games/{gameId}` — authenticated
 
@@ -886,6 +902,7 @@ Create/update body:
 {
   "gameKey": "subway_runner",
   "lobbyScene": 1, "gameplayScene": 2,
+  "lobbySceneAddress": null, "gameplaySceneAddress": null,
   "minPlayers": 1, "maxPlayers": 2, "readyTimeoutSeconds": 20,
   "supportsSinglePlayer": true, "supportsMultiplayer": true,
   "useLobby": true, "useMatchmaking": true, "isActive": true,
@@ -899,6 +916,13 @@ Create/update body:
 `gameKey` must be unique. A `displayName` is required for every language. The player range must
 be coherent with the declared modes — `maxPlayers > 1` with `supportsMultiplayer: false` is
 rejected, as is a game supporting neither mode.
+
+Scene addresses are optional and validated as a **pair**: `gameplaySceneAddress` is the anchor, so
+a `lobbySceneAddress` on its own is rejected, and a game with `useLobby: true` that supplies a
+gameplay address must supply a lobby address too. Blank and whitespace-only values are stored as
+null — an empty string would read as an authored address that resolves to nothing, and that only
+surfaces when a child launches the game. Omitting both on an update **clears** them, since these
+endpoints are a full replace; that is the rollback path if a content build has to be pulled.
 
 Delete is refused with `409` and a breakdown while any progress exists:
 

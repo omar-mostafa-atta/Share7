@@ -204,6 +204,8 @@ Games
   GameKey               nvarchar(64) unique     -- readable slug, e.g. "subway_runner"
   LobbyScene            int
   GameplayScene         int
+  LobbySceneAddress     nvarchar(256) null      -- Addressables scene address
+  GameplaySceneAddress  nvarchar(256) null      -- null = still on the build indices
   MinPlayers            int  default 1
   MaxPlayers            int  default 2
   ReadyTimeoutSeconds   float default 20
@@ -222,6 +224,14 @@ game two ids and split its progress in half.
 
 `LobbyScene`/`GameplayScene` are Unity build indices, stored here by request. They are client
 build artifacts, so a client rebuild that renumbers scenes desyncs them from the DB.
+
+`LobbySceneAddress`/`GameplaySceneAddress` supersede them. A build index cannot name a scene that
+is not in the build, so a mini-game whose scenes are downloaded on demand has no index to give —
+scene identity has to be a key the client's content system can resolve. **Null means the game
+still uses the indices**, which is the flag clients switch on while games are migrated one at a
+time; both columns are served until no shipped build reads the indices. Nullable rather than
+`NOT NULL DEFAULT ''` for exactly that reason: "not authored yet" and "authored as blank" must not
+look the same.
 
 No availability matrix (game restricted to certain grades/subjects) in this pass — every active
 game is available everywhere.
