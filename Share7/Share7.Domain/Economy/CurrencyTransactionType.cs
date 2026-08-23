@@ -43,6 +43,12 @@ public enum LedgerSourceType
 {
     Unknown = 0,
     ProgressAttempt,
+
+    /// <summary>
+    /// A settled run of a mini-game. <c>SourceId</c> is the run id, which is the join back to the
+    /// <c>RunPayout</c> rows explaining how the amount was arrived at.
+    /// </summary>
+    RunSettlement,
     Purchase,
     Admin,
     System

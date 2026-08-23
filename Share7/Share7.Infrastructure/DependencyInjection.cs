@@ -17,6 +17,8 @@ using Share7.Application.Multiplayer.Models;
 using Share7.Application.Progress.Interfaces;
 using Share7.Application.Progression.Interfaces;
 using Share7.Application.Rewards.Interfaces;
+using Share7.Application.Runs.Interfaces;
+using Share7.Application.Runs.Models;
 using Share7.Application.Users.Interfaces;
 using Share7.Infrastructure.Commerce;
 using Share7.Infrastructure.Curriculum;
@@ -34,6 +36,7 @@ using Share7.Infrastructure.Leaderboards;
 using Share7.Infrastructure.Persistence;
 using Share7.Infrastructure.Progress;
 using Share7.Infrastructure.Rewards;
+using Share7.Infrastructure.Runs;
 
 namespace Share7.Infrastructure;
 
@@ -112,6 +115,19 @@ public static class DependencyInjection
         services.AddScoped<IPurchaseService, PurchaseService>();
         services.AddScoped<IAccountDeletionService, AccountDeletionService>();
         services.AddScoped<IUserProfileService, UserProfileService>();
+
+        services.Configure<RunOptions>(configuration.GetSection(RunOptions.SectionName));
+        services.AddScoped<IEarnCeilingService, EarnCeilingService>();
+        services.AddScoped<IRunService, RunService>();
+        services.AddScoped<IRunAdminService, RunAdminService>();
+
+        // **No IRunLayoutGenerator is registered, and that is the shipped state.** With none, every
+        // game settles on the plausibility bounds alone and nothing is ever rejected as impossible.
+        // Registering one is a port of the Unity track generator, and a half-ported generator is
+        // strictly worse than none — it would reject real runs from real children while appearing to
+        // work. The verifier resolves whatever is registered here, so turning verification on for a
+        // game is one AddSingleton once its generator is ported and pinned to shared fixture vectors.
+        services.AddSingleton<IRunLayoutVerifier, RunLayoutVerifier>();
 
         services.Configure<EquipmentOptions>(configuration.GetSection(EquipmentOptions.SectionName));
         services.AddScoped<IEquipmentService, EquipmentService>();

@@ -247,10 +247,25 @@ public class RewardAdminService : IRewardAdminService
 
         var known = await _dbContext.Currencies
             .Where(c => requested.Contains(c.Id))
-            .Select(c => c.Id)
+            .Select(c => new { c.Id, c.Key, c.IsHard })
             .ToListAsync(cancellationToken);
 
-        var missing = requested.Except(known).ToList();
+        // **A gameplay path that mints hard currency has to be bounded at authoring time.** A rule
+        // grants a fixed amount, so a daily limit makes its ceiling arithmetic — amount x limit —
+        // rather than a matter of how much somebody plays. Without one, a rule paying gems on every
+        // settled run is an unbounded source for a currency people pay real money for, and unlike a
+        // soft currency it can never be rebalanced downward afterwards, because they already paid.
+        //
+        // A ONCE rule needs no limit: it pays at most once per account, ever, which is already a
+        // ceiling. EVERY_TIME is the shape that needs the bound.
+        if (repeatPolicy == RewardRepeatPolicy.EveryTime && dailyLimit is null
+            && known.FirstOrDefault(c => c.IsHard) is { } unboundedHard)
+            return ServiceResult<RulePolicy>.Failure(
+                ApiErrors.RewardRuleInvalid,
+                ServiceErrorKind.Validation,
+                $"'{unboundedHard.Key}' is a hard currency, so an EVERY_TIME rule granting it must set dailyLimit. An unbounded gameplay source for a currency people pay for cannot be corrected after the fact.");
+
+        var missing = requested.Except(known.Select(c => c.Id)).ToList();
 
         if (missing.Count > 0)
             return ServiceResult<RulePolicy>.Failure(

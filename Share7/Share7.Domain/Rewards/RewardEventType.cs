@@ -70,5 +70,21 @@ public enum RewardEventType
     /// cannot re-enter — see <c>RewardService</c>.
     /// </para>
     /// </summary>
-    PlayerLevelUp
+    PlayerLevelUp,
+
+    /// <summary>
+    /// A run of a mini-game settled. Raised by <c>RunService</c> at any outcome, on a run the server
+    /// itself opened — never on a result for a run that was never started.
+    /// <para>
+    /// **For the <i>fixed</i> half of a run's payout only**: completed a run, first run of the day, a
+    /// perfect run. What the run's pickups were worth is not expressible as a rule, because it varies
+    /// with what was collected — that comes from <c>PickupValuation</c>, and is granted through the
+    /// same wallet inside the same transaction.
+    /// </para>
+    /// <para>
+    /// Scoped by <c>ReferenceKey</c> = the **game id**, not a lesson id. A rule with a null reference
+    /// pays for a run of any game, which is the normal case.
+    /// </para>
+    /// </summary>
+    RunSettled
 }

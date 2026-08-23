@@ -12,6 +12,7 @@ using Share7.Domain.Multiplayer;
 using Share7.Domain.Progress;
 using Share7.Domain.Progression;
 using Share7.Domain.Rewards;
+using Share7.Domain.Runs;
 using Share7.Infrastructure.Identity;
 
 namespace Share7.Infrastructure.Persistence;
@@ -148,6 +149,22 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, Applicati
     /// name or their email address.
     /// </summary>
     public DbSet<PlayerDisplayName> PlayerDisplayNames => Set<PlayerDisplayName>();
+
+
+    // Runs — the pickup economy. A 3D coin is a gameplay signal, not currency: the client reports
+    // what it collected, and settlement decides what that was worth. Nothing the client sends carries
+    // an amount, and nothing in this domain writes a balance directly — every grant goes through
+    // IWalletService, inside the same transaction that records why.
+    public DbSet<Run> Runs => Set<Run>();
+
+    /// <summary>The whole economy-tuning surface. Rebalancing is an UPDATE here, not a client release.</summary>
+    public DbSet<PickupValuation> PickupValuations => Set<PickupValuation>();
+
+    /// <summary>Why a run paid what it paid, gross and net. Immutable audit, one row per source.</summary>
+    public DbSet<RunPayout> RunPayouts => Set<RunPayout>();
+
+    /// <summary>Gameplay-earned currency per user per UTC day — the counter the earning ceiling reads.</summary>
+    public DbSet<DailyCurrencyLedger> DailyCurrencyLedger => Set<DailyCurrencyLedger>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

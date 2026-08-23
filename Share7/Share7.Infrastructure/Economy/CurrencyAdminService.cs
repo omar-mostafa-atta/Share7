@@ -28,7 +28,9 @@ public class CurrencyAdminService : ICurrencyAdminService
                 Key = c.Key,
                 Name = c.Name,
                 Description = c.Description,
-                Enabled = c.Enabled
+                Enabled = c.Enabled,
+                IsHard = c.IsHard,
+                DailyEarnCap = c.DailyEarnCap
             })
             .ToListAsync(cancellationToken);
 
@@ -61,6 +63,13 @@ public class CurrencyAdminService : ICurrencyAdminService
             Name = name,
             Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim(),
             Enabled = true,
+            IsHard = request.IsHard,
+
+            // A hard currency defaults to a ceiling of **zero**, not to "no ceiling". "No gameplay
+            // source" is the only safe default for something with a price attached: an operator who
+            // forgets to set a cap gets a currency that cannot be farmed, rather than one that can be
+            // farmed without limit and can never be rebalanced downward afterwards.
+            DailyEarnCap = request.DailyEarnCap ?? (request.IsHard ? 0 : null),
             CreatedAtUtc = DateTime.UtcNow
         };
 
@@ -91,6 +100,13 @@ public class CurrencyAdminService : ICurrencyAdminService
         currency.Name = name;
         currency.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
         currency.Enabled = request.Enabled;
+
+        // IsHard is deliberately not updatable. Flipping a soft currency hard would leave every
+        // unbounded valuation row already pointing at it in place, and flipping a hard one soft is
+        // how a currency people paid for quietly becomes farmable. Author a new currency instead.
+        currency.DailyEarnCap = currency.IsHard
+            ? request.DailyEarnCap ?? 0
+            : request.DailyEarnCap;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
@@ -142,6 +158,8 @@ public class CurrencyAdminService : ICurrencyAdminService
         Key = currency.Key,
         Name = currency.Name,
         Description = currency.Description,
-        Enabled = currency.Enabled
+        Enabled = currency.Enabled,
+        IsHard = currency.IsHard,
+        DailyEarnCap = currency.DailyEarnCap
     };
 }

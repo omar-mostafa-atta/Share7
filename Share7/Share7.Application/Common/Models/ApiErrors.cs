@@ -306,6 +306,65 @@ public static class ApiErrors
     public static readonly ApiErrorCode LeaderboardDisabled =
         new("LB_DISABLED", "leaderboard.disabled");
 
+    // ---- runs ------------------------------------------------------------------------------
+
+    /// <summary>No run with that id belongs to the caller — including one that was never started.</summary>
+    public static readonly ApiErrorCode RunNotFound =
+        new("RUN_NOT_FOUND", "runs.run.not_found");
+
+    /// <summary>
+    /// The run was held open past its expiry and can no longer settle. Terminal: the client should
+    /// drop the queued result rather than keep retrying it forever.
+    /// </summary>
+    public static readonly ApiErrorCode RunExpired =
+        new("RUN_EXPIRED", "runs.run.expired");
+
+    /// <summary>
+    /// The run is in a state that cannot settle and is not simply a replay — a settled run returns
+    /// its settlement rather than this.
+    /// </summary>
+    public static readonly ApiErrorCode RunNotOpen =
+        new("RUN_NOT_OPEN", "runs.run.not_open");
+
+    /// <summary>
+    /// The idempotency key has already been spent on a **different** run. Refused rather than paid:
+    /// one key, one operation, or a retry pays for a run it did not belong to.
+    /// </summary>
+    public static readonly ApiErrorCode RunRequestIdReused =
+        new("RUN_REQUEST_ID_REUSED", "runs.run.request_id_reused");
+
+    /// <summary>
+    /// The claim is **impossible against the run's own seeded layout** — more of a kind than the track
+    /// contained, a pickup that was never spawned, or the same one twice.
+    /// <para>
+    /// The one refusal in the run feature that is not a state error. Everything else caps and pays,
+    /// because everything else is probabilistic; this compares a claim against a layout the server
+    /// generated, so it is not a judgement about likelihood.
+    /// </para>
+    /// </summary>
+    public static readonly ApiErrorCode RunRejected =
+        new("RUN_REJECTED", "runs.run.rejected");
+
+    /// <summary>No valuation row with that id.</summary>
+    public static readonly ApiErrorCode ValuationNotFound =
+        new("VALUATION_NOT_FOUND", "runs.valuation.not_found");
+
+    /// <summary>
+    /// The valuation could never price safely as written — an illegal kind token, a negative value, a
+    /// missing per-run bound, or a **hard currency without a daily cap**. Refused at creation because a
+    /// missing bound discovered later is currency already in circulation.
+    /// </summary>
+    public static readonly ApiErrorCode ValuationInvalid =
+        new("VALUATION_INVALID", "runs.valuation.invalid");
+
+    /// <summary>That game already prices that kind in that currency. Update the row instead.</summary>
+    public static readonly ApiErrorCode ValuationDuplicate =
+        new("VALUATION_DUPLICATE", "runs.valuation.duplicate");
+
+    /// <summary>The game exists but is retired, so no new run may be opened against it.</summary>
+    public static readonly ApiErrorCode GameInactive =
+        new("GAME_INACTIVE", "games.game.inactive");
+
     // ---- generic -------------------------------------------------------------------------
 
     public static readonly ApiErrorCode NotFound =

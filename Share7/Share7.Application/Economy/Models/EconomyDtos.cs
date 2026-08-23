@@ -22,6 +22,28 @@ public class CreateCurrencyRequest
 
     [MaxLength(512)]
     public string? Description { get; set; }
+
+    /// <summary>
+    /// **True for a currency people pay real money for.** Cannot be changed later, and the reason is
+    /// not tidiness: flipping a soft currency hard leaves every unbounded valuation row already
+    /// pointing at it in place, and flipping a hard one soft is how a currency people bought quietly
+    /// becomes farmable.
+    /// <para>
+    /// Setting this commits to bounded gameplay sources: a <c>PickupValuation</c> for it is refused
+    /// without a per-day cap, and an <c>EVERY_TIME</c> reward rule granting it is refused without a
+    /// daily limit. Both at authoring time, because a missing bound found later is currency already
+    /// in circulation.
+    /// </para>
+    /// </summary>
+    public bool IsHard { get; set; }
+
+    /// <summary>
+    /// Most of this currency one account may **earn from gameplay** in a UTC day. Null means no
+    /// ceiling for a soft currency; for a hard one, omitting it means **zero** — no gameplay source at
+    /// all, which is the only safe default for something with a price attached.
+    /// </summary>
+    [Range(0, long.MaxValue)]
+    public long? DailyEarnCap { get; set; }
 }
 
 public class UpdateCurrencyRequest
@@ -35,6 +57,14 @@ public class UpdateCurrencyRequest
 
     /// <summary>Retire a currency by setting this false; balances and history survive.</summary>
     public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    /// Retunes the daily earning ceiling. Null lifts it for a soft currency; on a **hard** one null is
+    /// read as zero rather than as "unlimited", because lifting the ceiling on something people paid
+    /// for by leaving a field blank is not a decision anybody should be able to make by accident.
+    /// </summary>
+    [Range(0, long.MaxValue)]
+    public long? DailyEarnCap { get; set; }
 }
 
 public class CurrencyDto
@@ -44,6 +74,12 @@ public class CurrencyDto
     public string Name { get; init; } = string.Empty;
     public string? Description { get; init; }
     public bool Enabled { get; init; }
+
+    /// <summary>Whether this is a currency people pay real money for. Immutable once created.</summary>
+    public bool IsHard { get; init; }
+
+    /// <summary>Most one account may earn from gameplay per UTC day, or null for no ceiling.</summary>
+    public long? DailyEarnCap { get; init; }
 }
 
 // ---- balances ------------------------------------------------------------------------------

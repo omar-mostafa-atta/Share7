@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Share7.Domain.Progress;
+using Share7.Domain.Runs;
 
 namespace Share7.Application.Rewards.Models;
 
@@ -217,4 +218,33 @@ public class RewardRuleDto
     public IReadOnlyList<RewardRuleGrantDto> Grants { get; init; } = [];
     public DateTime CreatedAtUtc { get; init; }
     public DateTime UpdatedAtUtc { get; init; }
+}
+
+/// <summary>
+/// Everything the reward engine is allowed to know about a settled run — all of it owned by the
+/// server, which opened the run and stamped its clock. There is no field here the client can set
+/// that influences what a reward is worth.
+/// <para>
+/// **This covers the <i>fixed</i> half of a run's payout only** — "completed a run", "first run of
+/// the day". What the pickups were worth is not a rule, because it varies with what was collected;
+/// <c>PickupValuation</c> answers that, and both halves are granted through the same wallet inside
+/// the same transaction.
+/// </para>
+/// </summary>
+public class RunRewardContext
+{
+    public required Guid UserId { get; init; }
+    public required Guid GameId { get; init; }
+
+    /// <summary>
+    /// Identifies the settlement, and is why a run cannot be paid twice by an <c>EVERY_TIME</c> rule:
+    /// one run settles once, so its id is a submission key that no retry can duplicate.
+    /// </summary>
+    public required Guid RunId { get; init; }
+
+    /// <summary>Server-clamped, not the raw client claim. Recorded as ledger metadata.</summary>
+    public required int DurationMs { get; init; }
+
+    /// <summary>How the run ended. Metadata for now; a future rule may branch on it.</summary>
+    public required RunOutcome Outcome { get; init; }
 }

@@ -49,4 +49,25 @@ public interface IRewardService
     Task<IReadOnlyList<RewardDto>> EvaluateSettlementAsync(
         SettlementRewardContext context,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Evaluates every enabled <c>RUN_SETTLED</c> rule for a run the server itself opened and
+    /// re-valued, and credits what they pay.
+    /// <para>
+    /// Same contract as <see cref="EvaluateProgressAttemptAsync"/> — **must be called inside an open
+    /// transaction**, never throws for an unpayable rule, and rolls a half-paid rule back to a
+    /// savepoint so it pays nothing rather than half. Losing a bonus must never cost the child the
+    /// pickups they actually collected.
+    /// </para>
+    /// <para>
+    /// Rules matching this event are scoped by <c>ReferenceKey</c> = the **game id**. Fixed bonuses
+    /// only: the variable, per-pickup half of a run's payout comes from <c>PickupValuation</c>, which
+    /// is a different mechanism for a reason — a rule grants a fixed amount and cannot express
+    /// "one coin per coin collected".
+    /// </para>
+    /// </summary>
+    /// <returns>One entry per rule that actually paid, empty when none did.</returns>
+    Task<IReadOnlyList<RewardDto>> EvaluateRunSettlementAsync(
+        RunRewardContext context,
+        CancellationToken cancellationToken = default);
 }

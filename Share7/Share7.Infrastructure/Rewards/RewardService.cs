@@ -11,6 +11,7 @@ using Share7.Application.Rewards.Interfaces;
 using Share7.Application.Rewards.Models;
 using Share7.Domain.Economy;
 using Share7.Domain.Progress;
+using Share7.Domain.Runs;
 using Share7.Domain.Rewards;
 using Share7.Infrastructure.Persistence;
 
@@ -121,6 +122,51 @@ public class RewardService : IRewardService
                 rank = context.FinalRank,
                 value = context.Value,
                 band = context.ReferenceKey
+            }));
+
+        return await PayWithLevelUpsAsync(rules, target, transaction, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<RewardDto>> EvaluateRunSettlementAsync(
+        RunRewardContext context,
+        CancellationToken cancellationToken = default)
+    {
+        var transaction = _dbContext.Database.CurrentTransaction
+            ?? throw new InvalidOperationException(
+                "Run rewards must be evaluated inside an open transaction so the payout and the settled run commit together.");
+
+        // Runs are scoped by game rather than lesson: a run is any bounded activity that ends and
+        // settles, and most of them have no lesson at all. An unscoped rule *is* matched here — unlike
+        // leaderboard settlement, "pay for finishing any run" is a thing an operator genuinely means.
+        var reference = context.GameId.ToString();
+
+        var rules = await _dbContext.RewardRules
+            .AsNoTracking()
+            .Include(r => r.Grants)
+            .ThenInclude(g => g.Currency)
+            .Where(r => r.Enabled
+                        && r.EventType == RewardEventType.RunSettled
+                        && (r.ReferenceKey == null || r.ReferenceKey == reference))
+            .OrderBy(r => r.Id)
+            .ToListAsync(cancellationToken);
+
+        // The run id *is* the submission key, and needs no fallback. A run settles exactly once — a
+        // replayed result returns the stored settlement without ever reaching here — so unlike an
+        // attempt there is no ordinal to disambiguate and no retry that can look like a new one.
+        var target = new PayoutTarget(
+            UserId: context.UserId,
+            SourceType: LedgerSourceType.RunSettlement,
+            SourceId: context.RunId.ToString(),
+            // A `Once` rule is scoped to the game, so "first ever run of this game" pays once and
+            // every later run collides with it.
+            OnceKey: reference,
+            SubmissionKey: $"run:{context.RunId}",
+            Metadata: JsonSerializer.Serialize(new
+            {
+                gameId = context.GameId,
+                runId = context.RunId,
+                durationMs = context.DurationMs,
+                outcome = WireEnum.ToWire(context.Outcome)
             }));
 
         return await PayWithLevelUpsAsync(rules, target, transaction, cancellationToken);

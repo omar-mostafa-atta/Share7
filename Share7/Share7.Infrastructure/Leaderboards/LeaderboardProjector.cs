@@ -121,12 +121,27 @@ public class LeaderboardProjector : ILeaderboardProjector
         bool isHidden,
         CancellationToken cancellationToken)
     {
-        var entry = await _dbContext.LeaderboardEntries.FirstOrDefaultAsync(
-            e => e.CycleId == cycle.Id
-                 && e.Cohort == cohort
-                 && e.CohortKey == cohortKey
-                 && e.UserId == result.UserId,
-            cancellationToken);
+        // **The change tracker is consulted before the database, and that ordering is the whole
+        // point.** ProjectAsync saves once, after the entire pending loop, so a row added for an
+        // earlier result in this same batch is not in the database yet — a database-only lookup finds
+        // nothing, adds a second row for the same member, and SaveChanges dies on
+        // UX_LeaderboardEntry_Member. That is not an edge case: Best and Sum both mean "one player,
+        // several results in a cycle", which is the case the aggregations exist for. And because the
+        // whole batch shares one transaction, the duplicate rolls back *everyone's* projection and
+        // leaves the results unclaimed, so the next pass re-reads the same batch and fails the same
+        // way. It wedges rather than degrading.
+        var entry =
+            _dbContext.LeaderboardEntries.Local.FirstOrDefault(
+                e => e.CycleId == cycle.Id
+                     && e.Cohort == cohort
+                     && e.CohortKey == cohortKey
+                     && e.UserId == result.UserId)
+            ?? await _dbContext.LeaderboardEntries.FirstOrDefaultAsync(
+                e => e.CycleId == cycle.Id
+                     && e.Cohort == cohort
+                     && e.CohortKey == cohortKey
+                     && e.UserId == result.UserId,
+                cancellationToken);
 
         if (entry is null)
         {
@@ -335,7 +350,12 @@ public class LeaderboardProjector : ILeaderboardProjector
     private async Task<LeaderboardCycle?> CycleForAsync(
         LeaderboardBoard board, DateTime occurredAtUtc, CancellationToken cancellationToken)
     {
-        var grace = TimeSpan.FromSeconds(board.GraceSeconds);
+        // The grace window is folded into a parameter before the query rather than expressed inside
+        // it. `occurredAtUtc >= c.ClosedAtUtc.Value - grace` is the same comparison, but subtracting a
+        // captured TimeSpan from a *column* is arithmetic SQL Server's provider cannot translate, so
+        // EF gave up on the whole predicate at compile time — which threw on every projection rather
+        // than merely running slowly. Rearranged to column-vs-parameter, it translates.
+        var latestClose = occurredAtUtc.AddSeconds(board.GraceSeconds);
 
         return await _dbContext.LeaderboardCycles
             .Include(c => c.Board)
@@ -346,7 +366,7 @@ public class LeaderboardProjector : ILeaderboardProjector
                      && (c.State == LeaderboardCycleState.Open
                          || (c.State == LeaderboardCycleState.Closed
                              && c.ClosedAtUtc != null
-                             && occurredAtUtc >= c.ClosedAtUtc.Value - grace)),
+                             && c.ClosedAtUtc <= latestClose)),
                 cancellationToken);
     }
 

@@ -64,6 +64,26 @@ public class Currency
     /// </summary>
     public bool IsHard { get; set; }
 
+    /// <summary>
+    /// Most of this currency one account may **earn from gameplay** in a UTC day, or null for no
+    /// ceiling.
+    /// <para>
+    /// **Earned, not held, and not spent.** Purchased currency is deliberately outside it: a ceiling
+    /// that counted purchases would stop a child whose parent bought coins from earning any, which
+    /// makes the purchase actively harmful.
+    /// </para>
+    /// <para>
+    /// This is the bound <see cref="Rewards.RewardRule.DailyLimit"/> cannot express. That caps how
+    /// many times a *rule* fires; with a fixed grant the two coincide, but a run's payout scales with
+    /// what was collected, so one mispriced valuation row is otherwise unbounded.
+    /// </para>
+    /// <para>
+    /// Creating a currency with <see cref="IsHard"/> and no cap sets this to **zero** — no gameplay
+    /// source at all is the only safe default for something with a price attached.
+    /// </para>
+    /// </summary>
+    public long? DailyEarnCap { get; set; }
+
     public DateTime CreatedAtUtc { get; set; }
 
     public ICollection<UserCurrencyBalance> Balances { get; set; } = new List<UserCurrencyBalance>();

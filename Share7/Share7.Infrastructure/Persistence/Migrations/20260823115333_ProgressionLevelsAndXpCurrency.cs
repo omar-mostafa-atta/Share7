@@ -13,12 +13,12 @@ namespace Share7.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<bool>(
-                name: "IsHard",
-                table: "Currencies",
-                type: "bit",
-                nullable: false,
-                defaultValue: false);
+            // `IsHard` is deliberately NOT added here. RunBoundsReviewAndHardCurrency (102939) already
+            // creates it, and this migration was generated against a model snapshot that had lost that
+            // work — two sessions were writing the same snapshot file in parallel. Adding it twice is
+            // what made a migrate-from-scratch fail with "Column name 'IsHard' ... specified more than
+            // once", which took every test with it. The seed below still writes the column; it exists
+            // by the time this runs.
 
             migrationBuilder.AddColumn<bool>(
                 name: "IsSpendable",
@@ -128,10 +128,8 @@ namespace Share7.Infrastructure.Persistence.Migrations
                 keyColumn: "Id",
                 keyValue: new Guid("3f9c8b21-6d47-4e05-9a13-8c2e7f04b6d5"));
 
-            migrationBuilder.DropColumn(
-                name: "IsHard",
-                table: "Currencies");
-
+            // The matching DropColumn is gone too — the column belongs to the earlier migration, and
+            // reverting this one must not take it away from the runs feature that still needs it.
             migrationBuilder.DropColumn(
                 name: "IsSpendable",
                 table: "Currencies");
