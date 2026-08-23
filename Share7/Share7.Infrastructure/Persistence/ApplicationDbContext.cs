@@ -113,6 +113,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, Applicati
     /// <summary>Idempotency keys for multiplayer operations. **Successes only** — see the entity.</summary>
     public DbSet<MultiplayerRequestLog> MultiplayerRequestLogs => Set<MultiplayerRequestLog>();
 
+    /// <summary>Idempotency keys for attempt submissions. **Successes only** — see the entity.</summary>
+    public DbSet<ProgressRequestLog> ProgressRequestLogs => Set<ProgressRequestLog>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Share7.Application.Common.Models;
 using Share7.Application.Curriculum.Interfaces;
@@ -26,6 +27,19 @@ public class ProgressService : IProgressService
     /// <summary>A lesson counts as passed at half marks. This is also the unlock threshold.</summary>
     private const int PassPercent = 50;
 
+    /// <summary>What an attempt's idempotency key is spent on. One key, one operation.</summary>
+    private const string AttemptOperation = "attempt";
+
+    /// <summary>
+    /// camelCase, matching the wire. The stored body is replayed to the client verbatim, so
+    /// serialising it with different options here would quietly change a payload that is supposed
+    /// to be identical to the first response.
+    /// </summary>
+    private static readonly JsonSerializerOptions AttemptJson = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     private readonly ApplicationDbContext _dbContext;
     private readonly ILanguageService _languageService;
     private readonly IUnlockService _unlockService;
@@ -51,6 +65,13 @@ public class ProgressService : IProgressService
     public async Task<ServiceResult<AttemptResultDto>> SubmitAttemptAsync(
         Guid userId, SubmitAttemptRequest request, CancellationToken cancellationToken = default)
     {
+        // A retry of a run already recorded replays the original answer rather than recording a
+        // second attempt. Checked before any work: the whole point is that the retry is free.
+        // Only successes are ever logged, so a run refused for a locked lesson is not pinned to
+        // its "no" and succeeds normally once the lesson opens.
+        if (await TryReplayAttemptAsync(userId, request.RequestId, cancellationToken) is { } replayed)
+            return ServiceResult<AttemptResultDto>.Success(replayed);
+
         var langId = await _languageService.ResolveCurrentAsync(cancellationToken);
 
         var game = await _dbContext.Games
@@ -166,11 +187,9 @@ public class ProgressService : IProgressService
         var totalCount = questions.Count;
         var percent = (int)Math.Round(correctCount * 100.0 / totalCount, MidpointRounding.AwayFromZero);
 
-        var completionState = percent >= 100
-            ? CompletionState.Aced
-            : percent >= PassPercent
-                ? CompletionState.Completed
-                : CompletionState.Uncompleted;
+        // What *this* run scored. Rewards read this — an ace already paid for must not pay again
+        // just because the record still says Aced.
+        var attemptState = StateFor(percent);
 
         var now = DateTime.UtcNow;
 
@@ -224,13 +243,20 @@ public class ProgressService : IProgressService
             _dbContext.UserLessonProgress.Add(lessonRow);
         }
 
+        // Last-attempt figures: what the student just scored, which is what the results screen shows.
         lessonRow.CorrectCount = correctCount;
         lessonRow.TotalCount = totalCount;
         lessonRow.Percent = percent;
         lessonRow.Attempts += 1;
-        lessonRow.CompletionState = completionState;
         lessonRow.QuestionsVersion = lesson.Version;
         lessonRow.LastAttemptAt = now;
+
+        // Record figures: monotonic, and the only thing unlocks and rankings read. A worse replay
+        // updates the figures above and deliberately leaves these alone.
+        lessonRow.BestPercent = Math.Max(lessonRow.BestPercent, percent);
+
+        var recordState = StateFor(lessonRow.BestPercent);
+        lessonRow.CompletionState = recordState;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
@@ -247,18 +273,19 @@ public class ProgressService : IProgressService
                 LessonId = request.LessonId,
                 AttemptNumber = lessonRow.Attempts,
                 Percent = percent,
-                CompletionState = completionState,
+                // This run's state, not the record's. A replay of an already-aced lesson must not
+                // re-fire LessonAced simply because the stored state is still Aced.
+                CompletionState = attemptState,
                 RequestId = request.RequestId
             },
             cancellationToken);
 
-        await transaction.CommitAsync(cancellationToken);
-
-        // Read after the commit so what goes back is the committed truth, and so the transaction
-        // is not held open for it.
+        // Read inside the transaction rather than after it. The reward grants above are only
+        // visible from in here, and the response about to be stored for replay has to be the same
+        // one returned — a balance read on the other side of the commit could differ from it.
         var balances = await _walletService.GetBalancesAsync(userId, cancellationToken);
 
-        return ServiceResult<AttemptResultDto>.Success(new AttemptResultDto
+        var response = new AttemptResultDto
         {
             GameId = request.GameId,
             LessonId = request.LessonId,
@@ -267,7 +294,8 @@ public class ProgressService : IProgressService
             TotalCount = totalCount,
             Percent = percent,
             Attempts = lessonRow.Attempts,
-            CompletionState = completionState.ToString(),
+            // The record, so a worse replay reports the ace it did not lose.
+            CompletionState = recordState.ToString(),
             FirstAttemptWasPerfect = lessonRow.FirstAttemptWasPerfect,
             QuestionsVersion = lesson.Version,
             Answers = answerResults,
@@ -275,7 +303,91 @@ public class ProgressService : IProgressService
             Unlocked = unlocked,
             Rewards = rewards,
             Balances = balances
-        });
+        };
+
+        if (!string.IsNullOrWhiteSpace(request.RequestId))
+        {
+            var log = new ProgressRequestLog
+            {
+                UserId = userId,
+                RequestId = request.RequestId.Trim(),
+                Operation = AttemptOperation,
+                LessonId = request.LessonId,
+                ResponseJson = JsonSerializer.Serialize(response, AttemptJson),
+                CreatedAtUtc = now
+            };
+
+            _dbContext.ProgressRequestLogs.Add(log);
+
+            try
+            {
+                // Inside the transaction on purpose: the log row and the attempt it describes
+                // commit together, so there is no window where the attempt is recorded but the
+                // key that guards it is not.
+                await _dbContext.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateException)
+            {
+                // Another retry of this same run won the race and committed first. The key is the
+                // concurrency guard: roll this one back and hand back their answer, so two
+                // in-flight retries still produce exactly one attempt.
+                _dbContext.Entry(log).State = EntityState.Detached;
+                await transaction.RollbackAsync(cancellationToken);
+
+                var winner = await TryReplayAttemptAsync(userId, request.RequestId, cancellationToken);
+
+                return winner is not null
+                    ? ServiceResult<AttemptResultDto>.Success(winner)
+                    : ServiceResult<AttemptResultDto>.Conflict(
+                        "This attempt is already being recorded. Retry with the same requestId.");
+            }
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+
+        return ServiceResult<AttemptResultDto>.Success(response);
+    }
+
+    /// <summary>Maps a score onto the completion ladder. The one place the thresholds live.</summary>
+    private static CompletionState StateFor(int percent) => percent >= 100
+        ? CompletionState.Aced
+        : percent >= PassPercent
+            ? CompletionState.Completed
+            : CompletionState.Uncompleted;
+
+    /// <summary>
+    /// The stored answer for a run already recorded, or null when this is the first time it has
+    /// been seen — including whenever the client sent no <c>requestId</c>, which stays
+    /// non-idempotent exactly as before.
+    /// </summary>
+    private async Task<AttemptResultDto?> TryReplayAttemptAsync(
+        Guid userId, string? requestId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(requestId))
+            return null;
+
+        var key = requestId.Trim();
+
+        var logged = await _dbContext.ProgressRequestLogs
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                l => l.UserId == userId && l.RequestId == key && l.Operation == AttemptOperation,
+                cancellationToken);
+
+        if (logged is null)
+            return null;
+
+        try
+        {
+            return JsonSerializer.Deserialize<AttemptResultDto>(logged.ResponseJson, AttemptJson);
+        }
+        catch (JsonException)
+        {
+            // A body this deployment can no longer parse, because the DTO changed shape since it
+            // was written. Re-running is the safe fallback: the attempt is graded from scratch and
+            // the reward engine still deduplicates on the same requestId, so nothing is paid twice.
+            return null;
+        }
     }
 
     // ------------------------------------------------------------- reading
