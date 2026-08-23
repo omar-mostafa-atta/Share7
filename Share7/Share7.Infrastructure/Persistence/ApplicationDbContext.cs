@@ -82,6 +82,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, Applicati
     // without either domain knowing about the other.
     public DbSet<RewardRule> RewardRules => Set<RewardRule>();
     public DbSet<RewardRuleGrant> RewardRuleGrants => Set<RewardRuleGrant>();
+
+    /// <summary>Products a rule hands over — badges, mostly. Usually empty.</summary>
+    public DbSet<RewardRuleEntitlementGrant> RewardRuleEntitlementGrants => Set<RewardRuleEntitlementGrant>();
     public DbSet<RewardTransaction> RewardTransactions => Set<RewardTransaction>();
     public DbSet<RewardTransactionLine> RewardTransactionLines => Set<RewardTransactionLine>();
 

@@ -43,7 +43,7 @@ public static class RunTestExtensions
         return new RunService(
             context,
             resolved,
-            new RewardService(context, resolved, new LevelService(context)),
+            new RewardService(context, resolved, new LevelService(context), new Share7.Infrastructure.Commerce.EntitlementService(context)),
             new EarnCeilingService(context),
             new RunLayoutVerifier(generators),
             // The real recorder, not a stub: it writes into the same DbContext and therefore the

@@ -12,5 +12,11 @@ public enum EntitlementSource
     Purchase,
 
     /// <summary>Handed over by an admin. <c>SourceId</c> is the admin's user id.</summary>
-    AdminGrant
+    AdminGrant,
+
+    /// <summary>
+    /// Earned through a reward rule — an achievement's badge, a season tier's cosmetic. Distinct
+    /// from a purchase because a refund path must never reach something a child earned by playing.
+    /// </summary>
+    RewardRule
 }

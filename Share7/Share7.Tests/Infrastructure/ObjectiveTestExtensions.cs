@@ -73,7 +73,7 @@ public static class ObjectiveTestExtensions
         return new ObjectiveService(
             context,
             new Share7.Infrastructure.Rewards.RewardService(
-                context, wallet, new Share7.Infrastructure.Progression.LevelService(context)),
+                context, wallet, new Share7.Infrastructure.Progression.LevelService(context), new Share7.Infrastructure.Commerce.EntitlementService(context)),
             wallet,
             new StubLanguageService(langId ?? LanguageIds.English));
     }
