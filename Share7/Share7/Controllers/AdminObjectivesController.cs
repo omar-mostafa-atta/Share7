@@ -92,4 +92,28 @@ public class AdminObjectivesController : ControllerBase
 
         return result.Succeeded ? Ok(result.Value) : result.ToErrorResult();
     }
+
+    /// <summary>
+    /// Deletes an objective <b>and every player counter against it</b>.
+    /// <para>
+    /// Refused with <c>409</c> and a breakdown under <c>details</c> while any progress exists,
+    /// unless <paramref name="force"/> is set. **Retiring is almost always what you want**: setting
+    /// <c>isActive: false</c> through <c>PUT</c> stops the objective being offered and stops it
+    /// counting, and loses nothing. This endpoint is for an objective authored by mistake — one
+    /// whose key was wrong, or whose metric was — before anybody played it.
+    /// </para>
+    /// <para>
+    /// The reward rule that pays for it is <b>not</b> deleted with it. It keys on the objective's
+    /// key rather than its id, so it survives as a rule nothing can now trigger; the refusal counts
+    /// them so an operator can clean them up in <c>/api/admin/reward-rules</c>.
+    /// </para>
+    /// </summary>
+    [HttpDelete("{objectiveId:guid}")]
+    public async Task<IActionResult> Delete(
+        Guid objectiveId, [FromQuery] bool force, CancellationToken cancellationToken)
+    {
+        var result = await _objectives.DeleteAsync(objectiveId, force, cancellationToken);
+
+        return result.Succeeded ? Ok(new { deleted = result.Value }) : result.ToErrorResult();
+    }
 }

@@ -892,9 +892,32 @@ English set and republish it over the Arabic one. The upload endpoints have alwa
 | Endpoint | Does |
 |---|---|
 | `GET /api/admin/games` | every game, disabled ones included |
+| `GET /api/admin/games/{gameId}` | one game with **every** language — the authoring read |
 | `POST /api/admin/games` | register a game |
 | `PUT /api/admin/games/{gameId}` | full replace, translations included |
 | `DELETE /api/admin/games/{gameId}?force=true` | delete a game **and all progress for it** |
+
+`GET /api/admin/games/{gameId}` is the read an **edit form** fills from, and is not the same as
+`GET /api/games/{gameId}`. The player-facing one resolves a single `displayName` from the caller's
+content language, which is right for Unity and wrong for authoring: `PUT` here is a full replace, so
+a form filled from the one-language read would send that language back on its own and silently
+delete every other one. This one returns `translations[]` — literally the array the save request
+takes back — alongside every field `SaveGameRequest` accepts:
+
+```json
+{
+  "gameId": "…", "gameKey": "subway_runner",
+  "lobbyScene": 1, "gameplayScene": 2,
+  "lobbySceneAddress": null, "gameplaySceneAddress": null,
+  "minPlayers": 1, "maxPlayers": 2, "readyTimeoutSeconds": 20,
+  "supportsSinglePlayer": true, "supportsMultiplayer": true,
+  "useLobby": true, "useMatchmaking": true, "isActive": true,
+  "translations": [
+    { "langId": "…en…", "displayName": "Subway Runner", "description": "Steer into the right door." },
+    { "langId": "…ar…", "displayName": "عداء الأنفاق", "description": "اختر الباب الصحيح." }
+  ]
+}
+```
 
 Create/update body:
 
@@ -933,6 +956,70 @@ Delete is refused with `409` and a breakdown while any progress exists:
 
 **Setting `isActive: false` is the reversible alternative** and is almost always what you want
 instead of deleting.
+
+### Objectives
+
+Quests and achievements. **Admin only** — an objective decides what gets paid, so a player who could
+author one could set their own reward.
+
+| Endpoint | Does |
+|---|---|
+| `GET /api/admin/objectives` | every objective, retired ones included, with all translations |
+| `POST /api/admin/objectives` | author one |
+| `PUT /api/admin/objectives/{objectiveId}` | retune target, window, art and ordering; replaces translations |
+| `DELETE /api/admin/objectives/{objectiveId}?force=true` | delete one **and every counter against it** |
+
+One table is every daily quest, weekly quest and achievement the platform has. They differ by `kind`
+(`DAILY`, `WEEKLY`, `MONTHLY`, `SEASONAL`, `ACHIEVEMENT`), which is a statement about how often the
+counter resets and nothing else. What an objective **pays** is not here — that is a reward rule on
+`OBJECTIVE_COMPLETED` with the objective's `key` as its reference, so currency has one place it can
+come from.
+
+Create body:
+
+```json
+{
+  "key": "daily.lessons.complete.3",
+  "kind": "DAILY",
+  "metric": "LESSONS_COMPLETED",
+  "scope": null,
+  "target": 3,
+  "aggregation": "SUM",
+  "gameId": null, "gradeId": null, "langId": null,
+  "availableFromUtc": null, "availableToUtc": null,
+  "iconKey": "quest_lessons",
+  "sortOrder": 0, "isActive": true,
+  "translations": [ { "langId": "…en…", "name": "Finish 3 lessons", "description": null } ]
+}
+```
+
+`metric` is validated against `LeaderboardMetrics` — an objective on something nothing raises is
+dead configuration that never errors and never completes. `scope` narrows the metric to one
+sub-dimension (a pickup kind, a currency key), which is what makes "collect 200 coins" and "collect
+20 gems" two rows over one metric. **At least one** translation is required, not one per language:
+an objective with no name has nothing a client could render, but a partly-translated one is still
+shippable.
+
+The update body carries only `target`, `availableFromUtc`, `availableToUtc`, `iconKey`, `sortOrder`,
+`isActive` and `translations`. **`key`, `kind`, `metric`, `scope`, `aggregation` and the
+game/grade/language filters cannot be changed**: every progress row already counting is counting
+under the old meaning, and the reward transactions already paid claim against the old key. Retire it
+and author a new one.
+
+Delete is refused with `409` and a breakdown while any progress exists:
+
+```json
+{ "errors": ["'daily.lessons.complete.3' has 214 progress row(s) across 60 student(s), of which 12 completed and 180 already paid. …"],
+  "details": { "progressRows": 214, "students": 60, "completed": 12, "claimed": 180,
+               "rewardRules": 1, "hasProgress": true } }
+```
+
+**Retiring (`isActive: false`) is the reversible alternative** and is almost always what you want:
+it stops the objective being offered and stops it counting, and loses nothing. Delete exists for the
+objective authored by mistake — a wrong key, a wrong metric — before anybody played it. The reward
+rule that pays for the key is **not** deleted with it: it keys on the objective's key rather than
+its id, so it survives as a rule nothing can trigger, and `rewardRules` counts them so they can be
+cleaned up in `/api/admin/reward-rules`.
 
 ### `DELETE /api/admin/users/{userId}`
 

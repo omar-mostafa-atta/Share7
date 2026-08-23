@@ -4,6 +4,7 @@ using Share7.Application.Objectives.Interfaces;
 using Share7.Application.Objectives.Models;
 using Share7.Domain.Leaderboards;
 using Share7.Domain.Objectives;
+using Share7.Domain.Rewards;
 using Share7.Infrastructure.Persistence;
 
 namespace Share7.Infrastructure.Objectives;
@@ -142,6 +143,46 @@ public class ObjectiveAdminService : IObjectiveAdminService
             .FirstAsync(o => o.Id == objectiveId, cancellationToken);
 
         return ServiceResult<ObjectiveAdminDto>.Success(ToDto(saved));
+    }
+
+    public async Task<ServiceResult<ObjectiveDeletionImpact>> DeleteAsync(
+        Guid objectiveId, bool force, CancellationToken cancellationToken = default)
+    {
+        var objective = await _dbContext.Objectives
+            .FirstOrDefaultAsync(o => o.Id == objectiveId, cancellationToken);
+
+        if (objective is null)
+            return ServiceResult<ObjectiveDeletionImpact>.NotFound($"No objective {objectiveId}.");
+
+        var progress = _dbContext.UserObjectiveProgress.Where(p => p.ObjectiveId == objectiveId);
+
+        var impact = new ObjectiveDeletionImpact
+        {
+            ProgressRows = await progress.CountAsync(cancellationToken),
+            Students = await progress.Select(p => p.UserId).Distinct().CountAsync(cancellationToken),
+            Completed = await progress.CountAsync(p => p.State == ObjectiveState.Completed, cancellationToken),
+            Claimed = await progress.CountAsync(p => p.State == ObjectiveState.Claimed, cancellationToken),
+
+            // Not deleted with the objective and not a reason to refuse on their own — a rule whose
+            // reference no longer resolves simply stops firing. Reported because an operator who
+            // deletes the objective and leaves the rule behind will otherwise never hear about it.
+            RewardRules = await _dbContext.RewardRules.CountAsync(
+                r => r.EventType == RewardEventType.ObjectiveCompleted && r.ReferenceKey == objective.Key,
+                cancellationToken)
+        };
+
+        if (!force && impact.HasProgress)
+            return ServiceResult<ObjectiveDeletionImpact>.Conflict(
+                $"'{objective.Key}' has {impact.Describe()}. Deleting it destroys all of that — " +
+                "resend with force=true to confirm, or set isActive=false instead, which stops it " +
+                "being offered and stops it counting while losing nothing.",
+                impact);
+
+        // Translations and progress rows both cascade from Objectives.
+        _dbContext.Objectives.Remove(objective);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return ServiceResult<ObjectiveDeletionImpact>.Success(impact);
     }
 
     private static Guid? DuplicateLanguage(IEnumerable<ObjectiveTranslationRequest> translations) =>

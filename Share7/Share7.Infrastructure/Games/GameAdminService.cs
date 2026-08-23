@@ -19,6 +19,44 @@ public class GameAdminService : IGameAdminService
         _gameService = gameService;
     }
 
+    public async Task<GameAdminDto?> GetForAuthoringAsync(Guid gameId, CancellationToken cancellationToken = default)
+    {
+        var game = await _dbContext.Games
+            .AsNoTracking()
+            .Include(g => g.Translations)
+            .FirstOrDefaultAsync(g => g.Id == gameId, cancellationToken);
+
+        if (game is null)
+            return null;
+
+        return new GameAdminDto
+        {
+            GameId = game.Id,
+            GameKey = game.GameKey,
+            LobbyScene = game.LobbyScene,
+            GameplayScene = game.GameplayScene,
+            LobbySceneAddress = game.LobbySceneAddress,
+            GameplaySceneAddress = game.GameplaySceneAddress,
+            MinPlayers = game.MinPlayers,
+            MaxPlayers = game.MaxPlayers,
+            ReadyTimeoutSeconds = game.ReadyTimeoutSeconds,
+            SupportsSinglePlayer = game.SupportsSinglePlayer,
+            SupportsMultiplayer = game.SupportsMultiplayer,
+            UseLobby = game.UseLobby,
+            UseMatchmaking = game.UseMatchmaking,
+            IsActive = game.IsActive,
+
+            // The save request's own translation type, so what comes back out is literally what has
+            // to go back in — an edit form never has to remap between a read shape and a write one.
+            Translations = [.. game.Translations.Select(t => new GameTranslationRequest
+            {
+                LangId = t.LangId,
+                DisplayName = t.DisplayName,
+                Description = t.Description
+            })]
+        };
+    }
+
     public async Task<ServiceResult<GameDto>> CreateAsync(SaveGameRequest request, CancellationToken cancellationToken = default)
     {
         var validation = await ValidateAsync(request, null, cancellationToken);

@@ -97,11 +97,16 @@ public static class ObjectiveTestExtensions
         bool isFlagged = false,
         CancellationToken cancellationToken = default)
     {
+        // GameResults carries a real foreign key to Games, so a fabricated id is refused by the
+        // database rather than quietly stored. A caller who does not care which game the result came
+        // from still needs one to exist — the objective under test is almost never game-scoped.
+        var resolvedGameId = gameId ?? (await context.CreateGameAsync(cancellationToken: cancellationToken)).Id;
+
         var result = new GameResult
         {
             Id = Guid.NewGuid(),
             UserId = userId,
-            GameId = gameId ?? Guid.NewGuid(),
+            GameId = resolvedGameId,
             Metric = metric,
             Scope = scope,
             Value = value,

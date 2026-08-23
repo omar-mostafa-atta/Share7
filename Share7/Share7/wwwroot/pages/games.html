@@ -63,10 +63,18 @@
     <div class="modal-dialog modal-lg">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title">Add game</h5>
+          <h5 class="modal-title" id="gameTitle">Add game</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
+          <div class="alert alert-warning d-none" id="gameReplaceNote">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            <strong>Saving replaces the whole game row, translations included.</strong> Every field
+            below is sent, so this form was filled from the game&rsquo;s <em>full</em> record rather
+            than the listing — clear a box here and it is cleared on the game.
+            The key is fixed: it is the stable machine name the Unity catalog refers to.
+          </div>
+
           <div class="row g-2">
             <div class="col-md-6">
               <label class="form-label lvl-label">Game key (permanent)</label>
@@ -83,6 +91,25 @@
             </div>
           </div>
           <div class="form-text mt-1">Scene numbers are Unity <em>build indices</em>.</div>
+
+          <div class="row g-2 mt-2">
+            <div class="col-md-6">
+              <label class="form-label lvl-label">Lobby scene address</label>
+              <input id="gameLobbyAddress" class="form-control mono"
+                     placeholder="Assets/Games/Runner/Scenes/Lobby.unity" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label lvl-label">Gameplay scene address</label>
+              <input id="gameGameplayAddress" class="form-control mono"
+                     placeholder="Assets/Games/Runner/Scenes/GameRunner.unity" />
+            </div>
+          </div>
+          <div class="form-text mt-1">
+            Addressables addresses, which supersede the build indices. <strong>Leave both blank to
+            keep using the indices</strong> — that is the flag the client switches on. The gameplay
+            address is the anchor: a lobby address on its own is refused, and a game that uses a
+            lobby needs both.
+          </div>
 
           <hr />
 
@@ -130,7 +157,7 @@
         </div>
         <div class="modal-footer">
           <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button class="btn btn-primary" onclick="submitGame()">Create</button>
+          <button class="btn btn-primary" id="gameSaveBtn" onclick="submitGame()">Create</button>
         </div>
       </div>
     </div>

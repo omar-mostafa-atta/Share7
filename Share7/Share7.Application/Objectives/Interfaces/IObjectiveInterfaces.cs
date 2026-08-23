@@ -85,4 +85,17 @@ public interface IObjectiveAdminService
 
     Task<ServiceResult<ObjectiveAdminDto>> UpdateAsync(
         Guid objectiveId, UpdateObjectiveRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Destroys an objective and every counter row against it.
+    /// <para>
+    /// Refused with a breakdown while any progress exists unless <paramref name="force"/> is set: a
+    /// completed objective is somebody's record, and a claimed one has ledger entries keyed on its
+    /// <c>Key</c> that nothing else would explain. Retiring is the reversible alternative and is
+    /// what an operator almost always wants — this exists for the authoring mistake nobody has
+    /// played yet.
+    /// </para>
+    /// </summary>
+    Task<ServiceResult<ObjectiveDeletionImpact>> DeleteAsync(
+        Guid objectiveId, bool force, CancellationToken cancellationToken = default);
 }

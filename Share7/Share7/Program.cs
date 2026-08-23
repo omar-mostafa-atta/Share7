@@ -57,7 +57,32 @@ app.UseSwaggerUI();
 app.UseHttpsRedirection();
 // `/` resolves to wwwroot/index.html — the admin console. Must precede UseStaticFiles.
 app.UseDefaultFiles();
-app.UseStaticFiles();
+
+// `Cache-Control: no-cache` on the console's own assets — which means "revalidate", not "do not
+// store". Without it these responses carry only ETag and Last-Modified, and a response with no
+// explicit freshness lets a browser invent one: roughly a tenth of the file's age, so an admin
+// who loads a three-day-old nav.js is served it from disk for the next several hours without
+// the server ever being asked. That is indistinguishable from a deploy that did not take, and it
+// cost an afternoon once already.
+//
+// Revalidation is nearly free because the ETag is still sent: the browser asks, and the answer is
+// a 304 with no body until the file genuinely changes. Applied only to the console's own source —
+// anything fingerprinted can be cached hard, but nothing here is.
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = context =>
+    {
+        var path = context.Context.Request.Path.Value;
+
+        if (path is not null &&
+            (path.EndsWith(".js", StringComparison.OrdinalIgnoreCase) ||
+             path.EndsWith(".css", StringComparison.OrdinalIgnoreCase) ||
+             path.EndsWith(".html", StringComparison.OrdinalIgnoreCase)))
+        {
+            context.Context.Response.Headers.CacheControl = "no-cache";
+        }
+    }
+});
 
 app.UseAuthentication();
 app.UseAuthorization();

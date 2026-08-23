@@ -35,6 +35,23 @@ public class AdminGamesController : ControllerBase
     }
 
     /// <summary>
+    /// One game with its names in <b>every</b> language — the read an edit form fills from.
+    /// <para>
+    /// <c>GET /api/games/{id}</c> deliberately cannot serve this. It resolves one translation from
+    /// the caller's content language, which is right for the Unity client and wrong for authoring:
+    /// <c>PUT</c> here is a full replace, so a form filled from that read would send a single
+    /// language back and silently delete the others.
+    /// </para>
+    /// </summary>
+    [HttpGet("{gameId:guid}")]
+    public async Task<IActionResult> GetForAuthoring(Guid gameId, CancellationToken cancellationToken)
+    {
+        var game = await _gameAdminService.GetForAuthoringAsync(gameId, cancellationToken);
+
+        return game is null ? NotFound(new { errors = new[] { "Game not found." } }) : Ok(game);
+    }
+
+    /// <summary>
     /// Registers a game. Requires a unique <c>gameKey</c> and a displayName for every
     /// configured language.
     /// </summary>

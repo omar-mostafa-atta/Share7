@@ -58,7 +58,7 @@
   color: #92400e;
 }
 
-/* ── Offers page — server time ── */
+/* ── Offers and objectives pages — server time ── */
 .server-time-badge {
   display: inline-flex;
   align-items: center;
@@ -90,9 +90,10 @@
   letter-spacing: 0.06em;
 }
 
-/* ── tab-like sub-nav for curriculum sub-sections ── */
+/* ── tab-like sub-nav: curriculum sub-sections, objective kinds ── */
 .sub-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.25rem;
   background: var(--s7-bg);
   padding: 0.3rem;
