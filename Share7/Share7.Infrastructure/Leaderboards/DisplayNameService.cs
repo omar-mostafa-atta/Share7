@@ -1,3 +1,4 @@
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Share7.Application.Leaderboards.Interfaces;
@@ -88,6 +89,15 @@ public class DisplayNameService : IDisplayNameService
                 await _dbContext.SaveChangesAsync(cancellationToken);
                 return row.Handle;
             }
+            // A handle cannot be issued to an account that no longer exists, and no number of
+            // retries will change that. Rethrown immediately rather than swallowed into the loop,
+            // which would burn every attempt and then report an exhausted keyspace — a diagnosis
+            // that would send someone to widen the generator over a deleted user.
+            catch (DbUpdateException exception) when (IsForeignKeyViolation(exception))
+            {
+                _dbContext.Entry(row).State = EntityState.Detached;
+                throw;
+            }
             catch (DbUpdateException)
             {
                 _dbContext.Entry(row).State = EntityState.Detached;
@@ -110,6 +120,13 @@ public class DisplayNameService : IDisplayNameService
             $"Could not issue a unique display handle for {userId} in {MaxHandleAttempts} attempts. " +
             "The handle keyspace is likely exhausted and the generator needs widening.");
     }
+
+    /// <summary>
+    /// A row pointing at a user that is not there. Distinct from the unique violation the retry loop
+    /// exists for: that one is a collision worth another attempt, this one never is.
+    /// </summary>
+    private static bool IsForeignKeyViolation(DbUpdateException exception) =>
+        exception.InnerException is SqlException { Number: 547 };
 
     public async Task<bool> IsHiddenAsync(Guid userId, CancellationToken cancellationToken = default)
     {

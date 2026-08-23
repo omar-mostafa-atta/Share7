@@ -356,11 +356,23 @@ public class LeaderboardService : ILeaderboardService
     public async Task<ServiceResult<LeaderboardVisibilityDto>> GetVisibilityAsync(
         Guid userId, CancellationToken cancellationToken = default)
     {
+        // **Checked before minting anything.** Access tokens outlive the account they name — a
+        // deletion cannot reach into a device and expire one — so this runs for a user row that is
+        // already gone, and issuing a handle for it fails on the foreign key rather than returning
+        // an answer. Refusing here is the difference between a 404 and an unhandled exception.
+        if (!await AccountExistsAsync(userId, cancellationToken))
+            return AccountGone<LeaderboardVisibilityDto>();
+
         var handle = await _displayNames.EnsureHandleAsync(userId, cancellationToken);
 
         var row = await _dbContext.PlayerDisplayNames
             .AsNoTracking()
-            .FirstAsync(n => n.UserId == userId, cancellationToken);
+            .FirstOrDefaultAsync(n => n.UserId == userId, cancellationToken);
+
+        // The handle above should have created this row. A null here means the account was deleted
+        // in the moment between the two, which is the same answer as never having existed.
+        if (row is null)
+            return AccountGone<LeaderboardVisibilityDto>();
 
         return ServiceResult<LeaderboardVisibilityDto>.Success(new LeaderboardVisibilityDto
         {
@@ -370,9 +382,23 @@ public class LeaderboardService : ILeaderboardService
         });
     }
 
+    private Task<bool> AccountExistsAsync(Guid userId, CancellationToken cancellationToken) =>
+        _dbContext.Users.AsNoTracking().AnyAsync(u => u.Id == userId, cancellationToken);
+
+    private static ServiceResult<T> AccountGone<T>() =>
+        ServiceResult<T>.Failure(
+            ApiErrors.AccountNotFound,
+            ServiceErrorKind.NotFound,
+            "The account this token was issued for no longer exists.");
+
     public async Task<ServiceResult<LeaderboardVisibilityDto>> SetVisibilityAsync(
         Guid userId, bool isHidden, CancellationToken cancellationToken = default)
     {
+        // Guarded here too rather than leaning on the read below: the write runs first, and it mints
+        // a handle on the way through.
+        if (!await AccountExistsAsync(userId, cancellationToken))
+            return AccountGone<LeaderboardVisibilityDto>();
+
         var applied = await _displayNames.SetHiddenAsync(userId, isHidden, cancellationToken);
 
         if (!applied)
