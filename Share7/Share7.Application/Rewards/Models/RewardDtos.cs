@@ -66,6 +66,30 @@ public class SettlementRewardContext
     public required long Value { get; init; }
 }
 
+/// <summary>
+/// What the claim path knows about one finished objective.
+/// <para>
+/// Carries no amount, like every other context here. The objective decides which rule matches; the
+/// rule decides what it pays.
+/// </para>
+/// </summary>
+public class ObjectiveRewardContext
+{
+    public required Guid UserId { get; init; }
+
+    /// <summary>The objective's stable key. Matches the rule's <c>ReferenceKey</c>.</summary>
+    public required string ObjectiveKey { get; init; }
+
+    /// <summary>
+    /// Which cycle is being claimed. Part of the idempotency key, so today's daily and yesterday's
+    /// are separate payouts of the same objective rather than one that already fired.
+    /// </summary>
+    public required string CycleKey { get; init; }
+
+    /// <summary>The client's optional idempotency key for this claim.</summary>
+    public string? RequestId { get; init; }
+}
+
 // ---- evaluation output (client-facing) ------------------------------------------------------
 
 /// <summary>

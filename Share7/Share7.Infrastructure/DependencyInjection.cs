@@ -15,6 +15,8 @@ using Share7.Application.Games.Interfaces;
 using Share7.Application.Multiplayer.Interfaces;
 using Share7.Application.Multiplayer.Models;
 using Share7.Application.Progress.Interfaces;
+using Share7.Application.Objectives.Interfaces;
+using Share7.Infrastructure.Objectives;
 using Share7.Application.Progression.Interfaces;
 using Share7.Application.Rewards.Interfaces;
 using Share7.Application.Runs.Interfaces;
@@ -104,6 +106,9 @@ public static class DependencyInjection
         services.AddScoped<IWalletService, WalletService>();
         services.AddScoped<ICurrencyAdminService, CurrencyAdminService>();
         services.AddScoped<ILevelService, LevelService>();
+        services.AddScoped<IObjectiveProjector, ObjectiveProjector>();
+        services.AddScoped<IObjectiveService, ObjectiveService>();
+        services.AddScoped<IObjectiveAdminService, ObjectiveAdminService>();
         services.AddScoped<IRewardService, RewardService>();
         services.AddScoped<IRewardAdminService, RewardAdminService>();
         services.AddScoped<IEntitlementService, EntitlementService>();

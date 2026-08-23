@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Share7.Application.Objectives.Models;
 
 namespace Share7.Application.Progression.Models;
 
@@ -57,6 +58,15 @@ public class PlayerLevelDto
 public class ProgressionSnapshotDto
 {
     public PlayerLevelDto Level { get; init; } = new();
+
+    /// <summary>Quests resetting today. Empty until some are authored.</summary>
+    public IReadOnlyList<ObjectiveDto> Daily { get; init; } = [];
+
+    /// <summary>Quests resetting this week.</summary>
+    public IReadOnlyList<ObjectiveDto> Weekly { get; init; } = [];
+
+    /// <summary>Objectives that never reset, and their badges once those exist.</summary>
+    public IReadOnlyList<ObjectiveDto> Achievements { get; init; } = [];
 
     /// <summary>The server's clock, so the client never compares against the device's.</summary>
     public DateTime ServerTimeUtc { get; init; }

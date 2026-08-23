@@ -10,6 +10,7 @@ using Share7.Domain.Leaderboards;
 using Share7.Domain.LookUps;
 using Share7.Domain.Multiplayer;
 using Share7.Domain.Progress;
+using Share7.Domain.Objectives;
 using Share7.Domain.Progression;
 using Share7.Domain.Rewards;
 using Share7.Domain.Runs;
@@ -124,6 +125,20 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, Applicati
     /// it and their XP balance, and is deliberately not stored anywhere.
     /// </summary>
     public DbSet<LevelThreshold> LevelThresholds => Set<LevelThreshold>();
+
+    // Objectives: quests, achievements and everything shaped like them. One definition table and
+    // one counter table for all of it — a daily quest and an achievement differ by how often the
+    // counter resets and by nothing else, and modelling them apart is how a platform ends up with
+    // several counters that drift.
+    public DbSet<Objective> Objectives => Set<Objective>();
+    public DbSet<ObjectiveTranslation> ObjectiveTranslations => Set<ObjectiveTranslation>();
+    public DbSet<UserObjectiveProgress> UserObjectiveProgress => Set<UserObjectiveProgress>();
+
+    /// <summary>
+    /// How far each non-leaderboard consumer has read the GameResult stream. Separate from
+    /// <c>GameResult.ProjectedAtUtc</c>, which is the leaderboard projector's own single mark.
+    /// </summary>
+    public DbSet<ProjectionCheckpoint> ProjectionCheckpoints => Set<ProjectionCheckpoint>();
 
     // Leaderboards. GameResults is the source of truth and everything else in this block is a
     // projection of it: entries, ranks and settlements are all reproducible by replaying that

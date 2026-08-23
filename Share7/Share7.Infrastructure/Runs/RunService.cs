@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using Share7.Application.Common.Models;
 using Share7.Application.Curriculum.Interfaces;
 using Share7.Application.Leaderboards.Interfaces;
+using Share7.Application.Objectives.Interfaces;
 using Share7.Application.Leaderboards.Models;
 using Share7.Domain.Leaderboards;
 using Share7.Application.Economy.Interfaces;
@@ -46,6 +47,7 @@ public class RunService : IRunService
     private readonly IEarnCeilingService _ceiling;
     private readonly IRunLayoutVerifier _layouts;
     private readonly IGameResultRecorder _gameResults;
+    private readonly IObjectiveProjector _objectives;
     private readonly ILanguageService _languageService;
     private readonly RunOptions _options;
 
@@ -56,6 +58,7 @@ public class RunService : IRunService
         IEarnCeilingService ceiling,
         IRunLayoutVerifier layouts,
         IGameResultRecorder gameResults,
+        IObjectiveProjector objectives,
         ILanguageService languageService,
         IOptions<RunOptions> options)
     {
@@ -65,6 +68,7 @@ public class RunService : IRunService
         _ceiling = ceiling;
         _layouts = layouts;
         _gameResults = gameResults;
+        _objectives = objectives;
         _languageService = languageService;
         _options = options.Value;
     }
@@ -778,6 +782,10 @@ public class RunService : IRunService
                 Metrics = RunMetricsFor(run, durationMs, outcome, collected, lines, earnedByCurrency)
             },
             cancellationToken);
+
+        // Same inline fold as the attempt path, for the same reason — a "play three runs" daily
+        // must tick over the moment the third run ends, not on the next batch pass.
+        await _objectives.ProjectForUserAsync(userId, cancellationToken);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);

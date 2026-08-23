@@ -86,5 +86,22 @@ public enum RewardEventType
     /// pays for a run of any game, which is the normal case.
     /// </para>
     /// </summary>
-    RunSettled
+    RunSettled,
+
+    /// <summary>
+    /// A player claimed a completed objective — a daily quest, a weekly quest, an achievement.
+    /// Raised by the claim path, never by the projector: completing is bookkeeping, and only a
+    /// deliberate claim moves currency.
+    /// <para>
+    /// Scoped by <c>ReferenceKey</c> = the objective's key, so what each quest pays is authored in
+    /// the existing admin UI and retuning a reward needs no deploy. A rule with a null reference
+    /// pays on *every* objective, which is how a flat "any quest is worth 5 coins" is expressed.
+    /// </para>
+    /// <para>
+    /// One claim is one payout whatever the repeat policy says: the key is the objective and its
+    /// cycle, so a retried claim finds it already spent and replays rather than paying twice, while
+    /// next week's cycle of the same quest is a genuinely different key.
+    /// </para>
+    /// </summary>
+    ObjectiveCompleted
 }

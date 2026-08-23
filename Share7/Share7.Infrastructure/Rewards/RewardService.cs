@@ -84,6 +84,48 @@ public class RewardService : IRewardService
         return await PayWithLevelUpsAsync(rules, target, transaction, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<RewardDto>> EvaluateObjectiveAsync(
+        ObjectiveRewardContext context,
+        CancellationToken cancellationToken = default)
+    {
+        var transaction = _dbContext.Database.CurrentTransaction
+            ?? throw new InvalidOperationException(
+                "Objective rewards must be evaluated inside an open transaction so the payout and the claim commit together.");
+
+        // Unlike settlement, an unscoped rule *is* matched: "any completed quest is worth 5 coins"
+        // is a reasonable thing for an operator to author, and a specific rule composes with it
+        // exactly as the lesson rules compose.
+        var rules = await _dbContext.RewardRules
+            .AsNoTracking()
+            .Include(r => r.Grants)
+            .ThenInclude(g => g.Currency)
+            .Where(r => r.Enabled
+                        && r.EventType == RewardEventType.ObjectiveCompleted
+                        && (r.ReferenceKey == null || r.ReferenceKey == context.ObjectiveKey))
+            .OrderBy(r => r.Id)
+            .ToListAsync(cancellationToken);
+
+        // The objective in its cycle *is* the payout identity: one claim, ever. Both repeat
+        // policies collapse onto it, so a retried claim collides with the first rather than paying
+        // a second time, while next week's cycle is a genuinely different key.
+        var claim = $"{context.ObjectiveKey}:{context.CycleKey}";
+
+        var target = new PayoutTarget(
+            UserId: context.UserId,
+            SourceType: LedgerSourceType.System,
+            SourceId: context.ObjectiveKey,
+            OnceKey: claim,
+            SubmissionKey: claim,
+            Metadata: JsonSerializer.Serialize(new
+            {
+                objective = context.ObjectiveKey,
+                cycle = context.CycleKey,
+                requestId = context.RequestId
+            }));
+
+        return await PayWithLevelUpsAsync(rules, target, transaction, cancellationToken);
+    }
+
     public async Task<IReadOnlyList<RewardDto>> EvaluateSettlementAsync(
         SettlementRewardContext context,
         CancellationToken cancellationToken = default)

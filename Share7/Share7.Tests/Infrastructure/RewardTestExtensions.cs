@@ -1,3 +1,4 @@
+using Share7.Infrastructure.Objectives;
 using Microsoft.Extensions.Logging.Abstractions;
 using Share7.Infrastructure.Leaderboards;
 using Microsoft.EntityFrameworkCore;
@@ -120,7 +121,8 @@ public static class RewardTestExtensions
                 context,
                 new PlausibilityGuard(context),
                 NullLogger<GameResultRecorder>.Instance),
-            new LevelService(context));
+            new LevelService(context),
+            new ObjectiveProjector(context, NullLogger<ObjectiveProjector>.Instance));
     }
 
     /// <summary>

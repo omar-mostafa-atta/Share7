@@ -7,6 +7,7 @@ using Share7.Application.Leaderboards.Interfaces;
 using Share7.Application.Leaderboards.Models;
 using Share7.Application.Progress.Interfaces;
 using Share7.Application.Progress.Models;
+using Share7.Application.Objectives.Interfaces;
 using Share7.Application.Progression.Interfaces;
 using Share7.Application.Rewards.Interfaces;
 using Share7.Application.Rewards.Models;
@@ -51,6 +52,7 @@ public class ProgressService : IProgressService
     private readonly IWalletService _walletService;
     private readonly IGameResultRecorder _gameResults;
     private readonly ILevelService _levels;
+    private readonly IObjectiveProjector _objectives;
 
     public ProgressService(
         ApplicationDbContext dbContext,
@@ -59,7 +61,8 @@ public class ProgressService : IProgressService
         IRewardService rewardService,
         IWalletService walletService,
         IGameResultRecorder gameResults,
-        ILevelService levels)
+        ILevelService levels,
+        IObjectiveProjector objectives)
     {
         _dbContext = dbContext;
         _languageService = languageService;
@@ -68,6 +71,7 @@ public class ProgressService : IProgressService
         _walletService = walletService;
         _gameResults = gameResults;
         _levels = levels;
+        _objectives = objectives;
     }
 
     // ------------------------------------------------------------- writing
@@ -322,6 +326,11 @@ public class ProgressService : IProgressService
         // Read inside the transaction rather than after it. The reward grants above are only
         // visible from in here, and the response about to be stored for replay has to be the same
         // one returned — a balance read on the other side of the commit could differ from it.
+        // Objectives are a second projection of the results just recorded, folded inline so a child
+        // who finishes their third lesson sees the quest complete now rather than whenever a job
+        // next runs. Same code the batch pass uses, same transaction as the progress it counts.
+        await _objectives.ProjectForUserAsync(userId, cancellationToken);
+
         var balances = await _walletService.GetBalancesAsync(userId, cancellationToken);
 
         // Read here rather than derived from the rewards: absolute, like the balances beside it,

@@ -1,3 +1,4 @@
+using Share7.Infrastructure.Objectives;
 using Share7.Infrastructure.Leaderboards;
 using Share7.Domain.Constants;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -52,6 +53,7 @@ public static class RunTestExtensions
                 context,
                 new PlausibilityGuard(context),
                 NullLogger<GameResultRecorder>.Instance),
+            new ObjectiveProjector(context, NullLogger<ObjectiveProjector>.Instance),
             new StubLanguageService(langId ?? LanguageIds.English),
             Options.Create(options ?? Permissive()));
     }
