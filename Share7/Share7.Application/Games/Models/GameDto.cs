@@ -17,8 +17,18 @@ public class GameDto
     public string Description { get; set; } = string.Empty;
     public Guid LangId { get; set; }
 
+    /// <summary>Unity build indices. Superseded by the scene addresses below; still served so
+    /// existing clients keep working.</summary>
     public int LobbyScene { get; set; }
     public int GameplayScene { get; set; }
+
+    /// <summary>
+    /// Addressables scene addresses. <b>Null means this game still uses the build indices
+    /// above</b> — that is what a client switches on. A downloadable mini-game has no build
+    /// index to give, so scene identity has to be a key the content system can resolve.
+    /// </summary>
+    public string? LobbySceneAddress { get; set; }
+    public string? GameplaySceneAddress { get; set; }
 
     public int MinPlayers { get; set; }
     public int MaxPlayers { get; set; }

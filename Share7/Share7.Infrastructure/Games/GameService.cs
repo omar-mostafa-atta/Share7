@@ -61,6 +61,8 @@ public class GameService : IGameService
         LangId = langId,
         LobbyScene = g.LobbyScene,
         GameplayScene = g.GameplayScene,
+        LobbySceneAddress = g.LobbySceneAddress,
+        GameplaySceneAddress = g.GameplaySceneAddress,
         MinPlayers = g.MinPlayers,
         MaxPlayers = g.MaxPlayers,
         ReadyTimeoutSeconds = g.ReadyTimeoutSeconds,

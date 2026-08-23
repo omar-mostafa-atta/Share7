@@ -14,6 +14,11 @@ public class GameConfiguration : IEntityTypeConfiguration<Game>
         builder.Property(g => g.GameKey).IsRequired().HasMaxLength(64);
         builder.HasIndex(g => g.GameKey).IsUnique();
 
+        // Nullable by design: null means "still on the build indices", which is the flag a
+        // client switches on while games are migrated one at a time.
+        builder.Property(g => g.LobbySceneAddress).HasMaxLength(256);
+        builder.Property(g => g.GameplaySceneAddress).HasMaxLength(256);
+
         builder.Property(g => g.MinPlayers).HasDefaultValue(1);
         builder.Property(g => g.MaxPlayers).HasDefaultValue(2);
         builder.Property(g => g.ReadyTimeoutSeconds).HasDefaultValue(20f);

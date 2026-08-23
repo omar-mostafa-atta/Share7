@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Share7.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using Share7.Infrastructure.Persistence;
 namespace Share7.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260823115333_ProgressionLevelsAndXpCurrency")]
+    partial class ProgressionLevelsAndXpCurrency
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1151,10 +1154,6 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.Property<int>("GameplayScene")
                         .HasColumnType("int");
 
-                    b.Property<string>("GameplaySceneAddress")
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
@@ -1162,10 +1161,6 @@ namespace Share7.Infrastructure.Persistence.Migrations
 
                     b.Property<int>("LobbyScene")
                         .HasColumnType("int");
-
-                    b.Property<string>("LobbySceneAddress")
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
 
                     b.Property<int>("MaxPlayers")
                         .ValueGeneratedOnAdd()

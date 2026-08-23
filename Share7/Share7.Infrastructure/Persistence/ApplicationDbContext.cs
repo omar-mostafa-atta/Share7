@@ -10,6 +10,7 @@ using Share7.Domain.Leaderboards;
 using Share7.Domain.LookUps;
 using Share7.Domain.Multiplayer;
 using Share7.Domain.Progress;
+using Share7.Domain.Progression;
 using Share7.Domain.Rewards;
 using Share7.Infrastructure.Identity;
 
@@ -116,6 +117,12 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, Applicati
 
     /// <summary>Idempotency keys for attempt submissions. **Successes only** — see the entity.</summary>
     public DbSet<ProgressRequestLog> ProgressRequestLogs => Set<ProgressRequestLog>();
+
+    /// <summary>
+    /// The level curve. Authored data, read on every attempt — the player's level is derived from
+    /// it and their XP balance, and is deliberately not stored anywhere.
+    /// </summary>
+    public DbSet<LevelThreshold> LevelThresholds => Set<LevelThreshold>();
 
     // Leaderboards. GameResults is the source of truth and everything else in this block is a
     // projection of it: entries, ranks and settlements are all reproducible by replaying that

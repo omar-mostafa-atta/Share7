@@ -96,6 +96,8 @@ public class GameAdminService : IGameAdminService
         game.GameKey = request.GameKey.Trim();
         game.LobbyScene = request.LobbyScene;
         game.GameplayScene = request.GameplayScene;
+        game.LobbySceneAddress = Normalize(request.LobbySceneAddress);
+        game.GameplaySceneAddress = Normalize(request.GameplaySceneAddress);
         game.MinPlayers = request.MinPlayers;
         game.MaxPlayers = request.MaxPlayers;
         game.ReadyTimeoutSeconds = request.ReadyTimeoutSeconds;
@@ -148,6 +150,24 @@ public class GameAdminService : IGameAdminService
         if (!request.SupportsSinglePlayer && request.MinPlayers < 2)
             errors.Add("minPlayers must be at least 2 when the game does not support single-player.");
 
+        // Scene addresses. The server cannot check that an address resolves — it cannot see the
+        // client's content catalogue — so it checks the only thing it can: that the pair is
+        // coherent. A half-authored pair fails at session start on a child's device, which is
+        // the worst place to discover it.
+        var lobbyAddress = Normalize(request.LobbySceneAddress);
+        var gameplayAddress = Normalize(request.GameplaySceneAddress);
+
+        if (gameplayAddress is null && lobbyAddress is not null)
+            errors.Add(
+                "gameplaySceneAddress is required when lobbySceneAddress is set. A lobby address " +
+                "on its own is never read — the gameplay address is what puts a game on " +
+                "addressable scenes.");
+
+        if (gameplayAddress is not null && request.UseLobby && lobbyAddress is null)
+            errors.Add(
+                "lobbySceneAddress is required when the game uses a lobby and is on addressable " +
+                "scenes. Set useLobby to false, or give the lobby an address.");
+
         var supplied = request.Translations ?? [];
         var names = new List<GameName>();
 
@@ -175,6 +195,21 @@ public class GameAdminService : IGameAdminService
         return errors.Count > 0
             ? ServiceResult<List<GameName>>.Invalid([.. errors])
             : ServiceResult<List<GameName>>.Success(names);
+    }
+
+    /// <summary>
+    /// Trims a scene address and collapses blank to null.
+    /// <para>
+    /// Null and <c>""</c> must not both reach the database: null is the discriminator meaning
+    /// "this game still uses the build indices", and an empty string would read as an authored
+    /// address that resolves to nothing. One of those is a state; the other is a bug that only
+    /// shows up when a child launches the game.
+    /// </para>
+    /// </summary>
+    private static string? Normalize(string? address)
+    {
+        var trimmed = address?.Trim();
+        return string.IsNullOrEmpty(trimmed) ? null : trimmed;
     }
 
     private static ServiceResult<T> Propagate<T>(ServiceResult source) =>

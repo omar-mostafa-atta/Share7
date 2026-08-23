@@ -16,6 +16,22 @@ public class SaveGameRequest
     public int LobbyScene { get; set; }
     public int GameplayScene { get; set; }
 
+    /// <summary>
+    /// Addressables scene addresses, e.g. <c>Assets/Games/Runner/Scenes/GameRunner.unity</c>.
+    /// Leave both null to keep using the build indices above.
+    /// <para>
+    /// <see cref="GameplaySceneAddress"/> is the anchor: supplying it puts the game on
+    /// addressable scenes, and <see cref="LobbySceneAddress"/> is then required whenever
+    /// <see cref="UseLobby"/> is set. A lobby address on its own is rejected — nothing would
+    /// read it.
+    /// </para>
+    /// </summary>
+    [MaxLength(256)]
+    public string? LobbySceneAddress { get; set; }
+
+    [MaxLength(256)]
+    public string? GameplaySceneAddress { get; set; }
+
     [Range(1, 64)]
     public int MinPlayers { get; set; } = 1;
 

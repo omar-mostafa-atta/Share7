@@ -21,9 +21,32 @@ public class Game
     /// <summary>
     /// Unity build indices. Stored here by request, but they are client build artifacts — a
     /// rebuild that renumbers scenes will silently disagree with these values.
+    /// <para>
+    /// Superseded by <see cref="LobbySceneAddress"/> / <see cref="GameplaySceneAddress"/>, and
+    /// kept only so clients still reading them do not break. Retire them once no shipped build
+    /// depends on them.
+    /// </para>
     /// </summary>
     public int LobbyScene { get; set; }
     public int GameplayScene { get; set; }
+
+    /// <summary>
+    /// Addressables scene addresses, e.g. <c>Assets/Games/Runner/Scenes/GameRunner.unity</c>.
+    /// <para>
+    /// These exist because a build index cannot name a scene that is not in the build. A
+    /// mini-game whose scenes are downloaded on demand has no index to give, so scene identity
+    /// has to be a key the content system can resolve. The server never resolves one — it cannot
+    /// see the client's content catalogue — it stores and serves what the catalogue was authored
+    /// with.
+    /// </para>
+    /// <para>
+    /// <b>Null means this game still uses the build indices above.</b> That is the discriminator
+    /// clients switch on, which is why these are nullable rather than empty strings: "not
+    /// authored yet" and "authored as blank" must not look the same during the migration.
+    /// </para>
+    /// </summary>
+    public string? LobbySceneAddress { get; set; }
+    public string? GameplaySceneAddress { get; set; }
 
     public int MinPlayers { get; set; } = 1;
     public int MaxPlayers { get; set; } = 2;

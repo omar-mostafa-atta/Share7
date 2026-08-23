@@ -7,6 +7,7 @@ using Share7.Application.Leaderboards.Interfaces;
 using Share7.Application.Leaderboards.Models;
 using Share7.Application.Progress.Interfaces;
 using Share7.Application.Progress.Models;
+using Share7.Application.Progression.Interfaces;
 using Share7.Application.Rewards.Interfaces;
 using Share7.Application.Rewards.Models;
 using Share7.Domain.Leaderboards;
@@ -49,6 +50,7 @@ public class ProgressService : IProgressService
     private readonly IRewardService _rewardService;
     private readonly IWalletService _walletService;
     private readonly IGameResultRecorder _gameResults;
+    private readonly ILevelService _levels;
 
     public ProgressService(
         ApplicationDbContext dbContext,
@@ -56,7 +58,8 @@ public class ProgressService : IProgressService
         IUnlockService unlockService,
         IRewardService rewardService,
         IWalletService walletService,
-        IGameResultRecorder gameResults)
+        IGameResultRecorder gameResults,
+        ILevelService levels)
     {
         _dbContext = dbContext;
         _languageService = languageService;
@@ -64,6 +67,7 @@ public class ProgressService : IProgressService
         _rewardService = rewardService;
         _walletService = walletService;
         _gameResults = gameResults;
+        _levels = levels;
     }
 
     // ------------------------------------------------------------- writing
@@ -275,6 +279,11 @@ public class ProgressService : IProgressService
         var unlocked = await _unlockService.EvaluateAfterAttemptAsync(
             userId, request.GameId, request.LessonId, langId, cancellationToken);
 
+        // Captured before the payout for the same reason the ranked metrics were: the level is a
+        // transition, and reading it afterwards would report where the player is rather than how
+        // far they moved.
+        var levelBefore = (await _levels.GetForUserAsync(userId, cancellationToken)).Level;
+
         // The client sent choice ids and nothing else that touches money. Everything the reward
         // engine reads below is the server's own recomputation.
         var rewards = await _rewardService.EvaluateProgressAttemptAsync(
@@ -315,6 +324,11 @@ public class ProgressService : IProgressService
         // one returned — a balance read on the other side of the commit could differ from it.
         var balances = await _walletService.GetBalancesAsync(userId, cancellationToken);
 
+        // Read here rather than derived from the rewards: absolute, like the balances beside it,
+        // and correct even when the XP that moved the level came from a rule this attempt did not
+        // fire. Inside the transaction for the same reason the balances are.
+        var level = await _levels.GetForUserAsync(userId, cancellationToken);
+
         var response = new AttemptResultDto
         {
             GameId = request.GameId,
@@ -332,7 +346,11 @@ public class ProgressService : IProgressService
             UnrecognisedAnswers = unrecognised,
             Unlocked = unlocked,
             Rewards = rewards,
-            Balances = balances
+            Balances = balances,
+            Level = level,
+            LevelsGained = level.Level > levelBefore
+                ? [.. Enumerable.Range(levelBefore + 1, level.Level - levelBefore)]
+                : []
         };
 
         if (!string.IsNullOrWhiteSpace(request.RequestId))

@@ -48,5 +48,27 @@ public enum RewardEventType
     /// the chain at which a player asserted anything.
     /// </para>
     /// </summary>
-    LeaderboardSettled
+    LeaderboardSettled,
+
+    /// <summary>
+    /// The player's XP balance crossed a <c>LevelThreshold</c>. Raised **once per level crossed**,
+    /// so a grant large enough to skip two levels fires twice and both rules pay.
+    /// <para>
+    /// Scoped by <c>ReferenceKey</c> as the level reached — <c>"5"</c>, <c>"10"</c> — so the whole
+    /// level-reward table is authored in the existing admin UI and changing what level 10 pays
+    /// needs no deploy. A rule with a null reference pays on *every* level-up, which is how a
+    /// flat "20 coins per level" is expressed.
+    /// </para>
+    /// <para>
+    /// Like the rest of this enum it is derived from a server-side fact: the level comes from a
+    /// balance that only the reward engine and the purchase path can move, and the client neither
+    /// computes nor reports it.
+    /// </para>
+    /// <para>
+    /// **A rule on this event must not grant XP.** Doing so is a payout that causes the event that
+    /// triggers it. Authoring refuses it, and evaluation pays level-ups in a single pass that
+    /// cannot re-enter — see <c>RewardService</c>.
+    /// </para>
+    /// </summary>
+    PlayerLevelUp
 }
