@@ -218,6 +218,43 @@ public class LeaderboardAdminService : ILeaderboardAdminService
         return ServiceResult.Success();
     }
 
+    /// <summary>
+    /// A board's windows, newest first, capped the same way the player-facing read caps itself.
+    ///
+    /// <para>Unlike that read, this one does <b>not</b> consult <c>Leaderboards:Enabled</c>. Nothing
+    /// on this service does: authoring happens before the switch is flipped, and an admin surface
+    /// that went dark exactly while the feature was off could never be used to prepare it.</para>
+    ///
+    /// <para>An endless cycle reports a null end rather than the year 9999, matching the player
+    /// read, so a console renders "no end" instead of four thousand years.</para>
+    /// </summary>
+    public async Task<ServiceResult<IReadOnlyList<LeaderboardCycleDto>>> GetCyclesAsync(
+        Guid boardId, int limit = 20, CancellationToken cancellationToken = default)
+    {
+        if (!await _dbContext.LeaderboardBoards.AnyAsync(b => b.Id == boardId, cancellationToken))
+        {
+            return ServiceResult<IReadOnlyList<LeaderboardCycleDto>>.Failure(
+                ApiErrors.LeaderboardBoardNotFound, ServiceErrorKind.NotFound, "No such leaderboard.");
+        }
+
+        var cycles = await _dbContext.LeaderboardCycles
+            .AsNoTracking()
+            .Where(c => c.BoardId == boardId)
+            .OrderByDescending(c => c.StartsAtUtc)
+            .Take(Math.Clamp(limit, 1, 50))
+            .ToListAsync(cancellationToken);
+
+        return ServiceResult<IReadOnlyList<LeaderboardCycleDto>>.Success(
+            cycles.Select(c => new LeaderboardCycleDto
+            {
+                CycleId = c.Id,
+                StartsAtUtc = c.StartsAtUtc,
+                EndsAtUtc = c.EndsAtUtc >= DateTime.MaxValue.AddDays(-1) ? null : c.EndsAtUtc,
+                State = c.State.ToString(),
+                TotalRanked = c.TotalRanked
+            }).ToList());
+    }
+
     public async Task<ServiceResult> RebuildCycleAsync(
         Guid cycleId, CancellationToken cancellationToken = default)
     {

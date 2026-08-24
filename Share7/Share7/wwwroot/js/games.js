@@ -23,7 +23,7 @@ async function loadGames() {
     ? `<div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
          <thead><tr>
            <th>Name</th><th>Key</th><th class="text-center">Players</th>
-           <th class="text-center">Modes</th><th class="text-center">Scenes</th>
+           <th class="text-center">Modes</th><th class="text-center">Ready</th>
            <th class="text-center">Active</th><th></th>
          </tr></thead>
          <tbody>${games.map(g => `<tr>
@@ -35,9 +35,7 @@ async function loadGames() {
              ${g.supportsSinglePlayer ? 'solo' : ''}${g.supportsSinglePlayer && g.supportsMultiplayer ? ' · ' : ''}${g.supportsMultiplayer ? 'multi' : ''}
              ${!g.supportsSinglePlayer && !g.supportsMultiplayer ? '<span class="text-danger">none</span>' : ''}
            </td>
-           <td class="text-center muted-sm mono">${g.gameplaySceneAddress
-                ? 'addressable'
-                : `${g.lobbyScene}/${g.gameplayScene}`}</td>
+           <td class="text-center muted-sm">${g.readyTimeoutSeconds}s</td>
            <td class="text-center">${g.isActive
                 ? '<span class="badge text-bg-success">yes</span>'
                 : '<span class="badge text-bg-secondary">no</span>'}</td>
@@ -54,6 +52,9 @@ async function loadGames() {
          the authoring read, which returns every language — rather than from this listing, which
          only carries the name in your current one. Retire a game with <em>Active</em> off; Delete
          destroys every student's progress for it.
+         <br />Scenes are no longer authored here — a client resolves them from its own
+         <code>MiniGameDefinitionSO</code>, which ships through the same Addressables catalogue as
+         the scenes themselves.
        </div>`
     : '<div class="empty"><i class="bi bi-controller"></i>No games yet. Add one — progress and multiplayer sessions are both keyed by game.</div>';
 }
@@ -94,10 +95,6 @@ async function openGameModal(gameId) {
   keyInput.value = game ? game.gameKey : '';
   keyInput.disabled = !!game;
 
-  document.getElementById('gameLobbyScene').value      = game ? game.lobbyScene : 0;
-  document.getElementById('gameGameplayScene').value   = game ? game.gameplayScene : 0;
-  document.getElementById('gameLobbyAddress').value    = (game && game.lobbySceneAddress) || '';
-  document.getElementById('gameGameplayAddress').value = (game && game.gameplaySceneAddress) || '';
   document.getElementById('gameMinPlayers').value      = game ? game.minPlayers : 1;
   document.getElementById('gameMaxPlayers').value      = game ? game.maxPlayers : 2;
   document.getElementById('gameReadyTimeout').value    = game ? game.readyTimeoutSeconds : 20;
@@ -127,8 +124,6 @@ async function submitGame() {
   const supportsSinglePlayer = document.getElementById('gameSingle').checked;
   const supportsMultiplayer = document.getElementById('gameMulti').checked;
   const useLobby = document.getElementById('gameLobby').checked;
-  const lobbySceneAddress = document.getElementById('gameLobbyAddress').value.trim();
-  const gameplaySceneAddress = document.getElementById('gameGameplayAddress').value.trim();
   const translations = collectTranslations('gameTranslations');
   const missing = missingLanguages(translations);
 
@@ -152,24 +147,8 @@ async function submitGame() {
     return;
   }
 
-  // The same pair rules the server enforces, said before the round trip rather than after it.
-  if (!gameplaySceneAddress && lobbySceneAddress) {
-    toast('A lobby address on its own is never read',
-      'The gameplay address is what puts a game on addressable scenes. Give it one, or clear both.');
-    return;
-  }
-  if (gameplaySceneAddress && useLobby && !lobbySceneAddress) {
-    toast('A lobby needs an address on addressable scenes',
-      'Give the lobby an address, or turn Lobby off.');
-    return;
-  }
-
   const body = {
     gameKey,
-    lobbyScene:           Number(document.getElementById('gameLobbyScene').value),
-    gameplayScene:        Number(document.getElementById('gameGameplayScene').value),
-    lobbySceneAddress:    lobbySceneAddress || null,
-    gameplaySceneAddress: gameplaySceneAddress || null,
     minPlayers,
     maxPlayers,
     readyTimeoutSeconds:  Number(document.getElementById('gameReadyTimeout').value),

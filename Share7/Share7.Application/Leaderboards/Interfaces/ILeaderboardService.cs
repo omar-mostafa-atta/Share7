@@ -79,6 +79,19 @@ public interface ILeaderboardAdminService
     Task<ServiceResult<LeaderboardBoardAdminDto>> UpdateBoardAsync(
         Guid boardId, SaveLeaderboardBoardRequest request, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// A board's windows, newest first.
+    /// <para>
+    /// <b>Deliberately not the player-facing read.</b> <c>ILeaderboardService.GetCyclesAsync</c>
+    /// answers the same question but refuses while <c>Leaderboards:Enabled</c> is off — which is
+    /// precisely when an operator is authoring boards, before the feature is switched on for
+    /// anyone. Rebuild and settle are addressed by cycle id, so without this read the two recovery
+    /// operations on this interface have no way to name their argument.
+    /// </para>
+    /// </summary>
+    Task<ServiceResult<IReadOnlyList<LeaderboardCycleDto>>> GetCyclesAsync(
+        Guid boardId, int limit = 20, CancellationToken cancellationToken = default);
+
     /// <summary>Authors a window by hand, for event boards whose bounds are not derived.</summary>
     Task<ServiceResult> CreateEventCycleAsync(
         Guid boardId, CreateLeaderboardCycleRequest request, CancellationToken cancellationToken = default);

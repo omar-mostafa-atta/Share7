@@ -122,6 +122,18 @@
   box-shadow: 0 2px 8px -2px rgba(79, 70, 229, 0.4);
 }
 
+/* The panes those tabs switch between.
+   This rule was missing: the markup and the switching JS have always said `.sub-pane` /
+   `.sub-pane.active`, but nothing ever hid an inactive one, so the curriculum page rendered its
+   Tree, Questions and Recovery panes stacked on top of each other and a tab click only moved the
+   highlight. */
+.sub-pane {
+  display: none;
+}
+.sub-pane.active {
+  display: block;
+}
+
 /* ── page loading spinner ── */
 .page-spinner {
   display: flex;

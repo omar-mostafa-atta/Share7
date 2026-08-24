@@ -1,4 +1,4 @@
-﻿// ===========================================================================
+// ===========================================================================
 // Share7 Admin Console — Games page logic
 // ===========================================================================
 
@@ -35,7 +35,7 @@ async function loadGames() {
              ${g.supportsSinglePlayer ? 'solo' : ''}${g.supportsSinglePlayer && g.supportsMultiplayer ? ' · ' : ''}${g.supportsMultiplayer ? 'multi' : ''}
              ${!g.supportsSinglePlayer && !g.supportsMultiplayer ? '<span class="text-danger">none</span>' : ''}
            </td>
-           <td class="text-center muted-sm mono">${g.readyTimeoutSeconds}s</td>
+           <td class="text-center muted-sm">${g.readyTimeoutSeconds}s</td>
            <td class="text-center">${g.isActive
                 ? '<span class="badge text-bg-success">yes</span>'
                 : '<span class="badge text-bg-secondary">no</span>'}</td>
@@ -52,6 +52,9 @@ async function loadGames() {
          the authoring read, which returns every language — rather than from this listing, which
          only carries the name in your current one. Retire a game with <em>Active</em> off; Delete
          destroys every student's progress for it.
+         <br />Scenes are no longer authored here — a client resolves them from its own
+         <code>MiniGameDefinitionSO</code>, which ships through the same Addressables catalogue as
+         the scenes themselves.
        </div>`
     : '<div class="empty"><i class="bi bi-controller"></i>No games yet. Add one — progress and multiplayer sessions are both keyed by game.</div>';
 }

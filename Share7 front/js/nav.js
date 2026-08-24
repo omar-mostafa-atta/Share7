@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { id: 'curriculum', label: 'Curriculum',  icon: 'bi-diagram-3',               href: 'curriculum.html' },
   { section: 'Engagement' },
   { id: 'objectives', label: 'Objectives',  icon: 'bi-trophy',                  href: 'objectives.html' },
+  { id: 'leaderboards', label: 'Leaderboards', icon: 'bi-bar-chart-line',       href: 'leaderboards.html' },
   { section: 'Commerce' },
   { id: 'games',      label: 'Games',       icon: 'bi-controller',              href: 'games.html' },
   { id: 'shop',       label: 'Shop',        icon: 'bi-bag',                     href: 'shop.html' },
