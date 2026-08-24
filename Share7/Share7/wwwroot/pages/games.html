@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Games — Share7 Admin Console</title>
-  <meta name="description" content="Manage the game catalog: define games, player counts, modes, and scene mappings." />
+  <meta name="description" content="Manage the game catalog: define games, player counts and modes." />
 
   <!-- Bootstrap -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
@@ -30,8 +30,14 @@
       <!-- Info -->
       <div class="alert alert-secondary s7-fade-in mb-3">
         <i class="bi bi-info-circle me-1"></i>
-        <strong>This table is the authority, not the ScriptableObject.</strong> If <code>MiniGameDefinitionSO</code>
-        and this row disagree, this one wins. <code>gameKey</code> is the stable machine name.
+        <strong>This table is the authority for availability and matchmaking, not the ScriptableObject.</strong>
+        If <code>MiniGameDefinitionSO</code> and this row disagree about player counts, modes or whether
+        a game is live, this one wins. <code>gameKey</code> is the stable machine name that joins them.
+        <br />
+        <strong>Scenes are the ScriptableObject&rsquo;s, and are not authored here.</strong> A client
+        resolves them from its own <code>MiniGameDefinitionSO</code>, which arrives through the same
+        Addressables catalogue as the scenes themselves — so there is never a moment where a client
+        knows a game exists, can download its content, but needs this row to tell it what to load.
       </div>
 
       <!-- Games card -->
@@ -76,39 +82,15 @@
           </div>
 
           <div class="row g-2">
-            <div class="col-md-6">
+            <div class="col-md-12">
               <label class="form-label lvl-label">Game key (permanent)</label>
               <input id="gameKey" class="form-control mono" placeholder="subway_runner" />
-              <div class="form-text">Unique and machine-facing. Lowercase letters, digits and underscores.</div>
+              <div class="form-text">
+                Unique and machine-facing. Lowercase letters, digits and underscores. It must equal
+                <code>MiniGameDefinitionSO.gameId</code> — that equality is the whole join between
+                this catalogue and the Unity one.
+              </div>
             </div>
-            <div class="col-md-3">
-              <label class="form-label lvl-label">Lobby scene</label>
-              <input id="gameLobbyScene" type="number" class="form-control" value="0" />
-            </div>
-            <div class="col-md-3">
-              <label class="form-label lvl-label">Gameplay scene</label>
-              <input id="gameGameplayScene" type="number" class="form-control" value="0" />
-            </div>
-          </div>
-          <div class="form-text mt-1">Scene numbers are Unity <em>build indices</em>.</div>
-
-          <div class="row g-2 mt-2">
-            <div class="col-md-6">
-              <label class="form-label lvl-label">Lobby scene address</label>
-              <input id="gameLobbyAddress" class="form-control mono"
-                     placeholder="Assets/Games/Runner/Scenes/Lobby.unity" />
-            </div>
-            <div class="col-md-6">
-              <label class="form-label lvl-label">Gameplay scene address</label>
-              <input id="gameGameplayAddress" class="form-control mono"
-                     placeholder="Assets/Games/Runner/Scenes/GameRunner.unity" />
-            </div>
-          </div>
-          <div class="form-text mt-1">
-            Addressables addresses, which supersede the build indices. <strong>Leave both blank to
-            keep using the indices</strong> — that is the flag the client switches on. The gameplay
-            address is the anchor: a lobby address on its own is refused, and a game that uses a
-            lobby needs both.
           </div>
 
           <hr />

@@ -60,6 +60,22 @@ public class AdminLeaderboardsController : ControllerBase
         return result.Succeeded ? Ok(result.Value) : result.ToApiErrorResult();
     }
 
+    /// <summary>
+    /// A board's windows, newest first.
+    /// <para>
+    /// The player-facing listing answers this too, but refuses while <c>Leaderboards:Enabled</c> is
+    /// off — exactly the window in which boards are authored. Rebuild and settle below are
+    /// addressed by cycle id, so without this an operator has no way to name the cycle they mean.
+    /// </para>
+    /// </summary>
+    [HttpGet("boards/{boardId:guid}/cycles")]
+    public async Task<IActionResult> GetCycles(
+        Guid boardId, [FromQuery] int limit = 20, CancellationToken cancellationToken = default)
+    {
+        var result = await _admin.GetCyclesAsync(boardId, limit, cancellationToken);
+        return result.Succeeded ? Ok(result.Value) : result.ToApiErrorResult();
+    }
+
     /// <summary>Authors an event window by hand.</summary>
     [HttpPost("boards/{boardId:guid}/cycles")]
     public async Task<IActionResult> CreateCycle(

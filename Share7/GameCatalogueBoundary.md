@@ -150,11 +150,18 @@ Every step below is in this repo.
     from the read-back-then-resave round trip. The round trip now asserts `MinPlayers` in place of
     the addresses, so the test still covers a field of every kind it did before.
 
-12. **Admin console** (`Share7 front/pages/games.html`, `Share7 front/js/games.js`) — the four scene
-    inputs and their help text removed; the form fill and the save body no longer read them; the
-    two client-side scene-pair pre-flight checks removed with the fields they guarded; the list's
-    "Scenes" column replaced with the ready timeout. The form now explains where scenes actually
-    come from.
+12. **Admin console** (`pages/games.html`, `js/games.js`, in both `wwwroot/` and `Share7 front/`) —
+    the four scene inputs and their help text removed; the form fill and the save body no longer
+    read them; the two client-side scene-pair pre-flight checks removed with the fields they
+    guarded; the list's "Scenes" column replaced with the ready timeout. The form now explains where
+    scenes actually come from.
+
+    > **This step did not land with the rest of the change.** It was written up here in the past
+    > tense on 2026-08-24 but not applied to either copy of the console, so the catalogue table went
+    > on rendering `undefined/undefined` in its Scenes column and the save body went on sending four
+    > properties `SaveGameRequest` no longer declares — ignored silently by the model binder, which
+    > is why nothing complained. Applied later the same day; see `AdminConsole.md` §1. The two
+    > mirrored copies of the console are what let the gap go unnoticed — see `AdminConsole.md` §4.
 
 13. **Docs** — `ApiReference.md` (§6 Games and the admin section), `ResponseSchemas.md` (§7 field
     table, sample, and the C# mirror), `Progress.md` (the `Games` schema block and its prose). Each
@@ -246,5 +253,6 @@ until then, no lesson attempt from that mini-game is being recorded.
 - **The Unity EditMode tests did not run.** They need `ScriptableObject.CreateInstance` and
   `SerializedObject`, so they only run inside the Editor Test Runner. They compile.
 - **The admin console was not exercised in a browser.** The changes there are field removals in one
-  form and one table column; worth a click through Add and Edit before relying on it.
+  form and one table column; worth a click through Add and Edit before relying on it. (They were
+  also not *made* until later the same day — see item 12 above.)
 - **No live request was made against the deployed backend** after the change.

@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Leaderboards — Share7 Admin Console</title>
+  <meta name="description" content="Author leaderboard boards and cycles, set anti-cheat bounds, and review flagged results." />
+
+  <!-- Bootstrap -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+
+  <!-- App styles -->
+  <link rel="stylesheet" href="../css/variables.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/layout.css" />
+  <link rel="stylesheet" href="../css/pages.css" />
+</head>
+<body>
+
+  <div class="dashboard">
+    <main class="main-content">
+      <!-- Page header -->
+      <div class="page-header s7-fade-in">
+        <h1><i class="bi bi-bar-chart-line text-brand me-2"></i>Leaderboards</h1>
+        <p>Author boards, run the recovery operations on a cycle, and decide what counts as a believable score.</p>
+      </div>
+
+      <!-- Info -->
+      <div class="alert alert-secondary s7-fade-in mb-3">
+        <i class="bi bi-info-circle me-1"></i>
+        <strong>Adding a leaderboard is an INSERT, not a release.</strong> Boards are data, so a
+        seasonal event needs no migration, no deploy and no client update.
+        <br />
+        <strong>Nothing here accepts a score.</strong> Ranking is projected server-side from results
+        the server itself graded — there is no route by which a client can state one, which is why a
+        modified build cannot author its own rank.
+        <br />
+        <strong>Boards stay invisible to players until <code>Leaderboards:Enabled</code> is on.</strong>
+        Every player-facing read answers <code>409 LB_DISABLED</code> while the switch is off. This
+        console is deliberately not gated by it, so boards can be prepared before the feature opens.
+      </div>
+
+      <!-- Sub-tabs -->
+      <div class="sub-tabs s7-fade-in">
+        <button class="sub-tab active" data-target="pane-boards">
+          <i class="bi bi-trophy me-1"></i>Boards
+        </button>
+        <button class="sub-tab" data-target="pane-bounds">
+          <i class="bi bi-shield-check me-1"></i>Bounds
+        </button>
+        <button class="sub-tab" data-target="pane-flagged">
+          <i class="bi bi-flag me-1"></i>Review queue
+        </button>
+      </div>
+
+      <!-- ═══════ Pane: Boards ═══════ -->
+      <div class="sub-pane active" id="pane-boards">
+        <div class="card s7-fade-in">
+          <div class="card-header">
+            <span><i class="bi bi-trophy me-2"></i>Boards</span>
+            <div>
+              <button class="btn btn-sm btn-outline-secondary me-1" onclick="loadBoards()" title="Refresh">
+                <i class="bi bi-arrow-clockwise"></i>
+              </button>
+              <button class="btn btn-sm btn-primary" onclick="openBoardModal()">
+                <i class="bi bi-plus-lg me-1"></i>Add board
+              </button>
+            </div>
+          </div>
+          <div class="card-body p-0">
+            <div id="boardList" class="small">
+              <div class="page-spinner">
+                <div class="spinner-border" role="status"><span class="visually-hidden">Loading…</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cycles for the selected board -->
+        <div class="card s7-fade-in mt-3 d-none" id="cycleCard">
+          <div class="card-header">
+            <span><i class="bi bi-clock-history me-2"></i><span id="cycleCardTitle">Cycles</span></span>
+            <div>
+              <button class="btn btn-sm btn-primary d-none" id="btnAddCycle" onclick="openCycleModal()">
+                <i class="bi bi-plus-lg me-1"></i>Add event window
+              </button>
+            </div>
+          </div>
+          <div class="card-body p-0">
+            <div id="cycleList" class="small"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════ Pane: Bounds ═══════ -->
+      <div class="sub-pane" id="pane-bounds">
+        <div class="alert alert-warning s7-fade-in mb-3">
+          <i class="bi bi-exclamation-triangle me-1"></i>
+          A result above a bound is <strong>held out of ranking and queued for review</strong>, not
+          thrown away and not deducted. Nothing is destroyed by a bound being wrong — the worst case
+          is a real score waiting in the queue below.
+        </div>
+
+        <div class="card s7-fade-in">
+          <div class="card-header">
+            <span><i class="bi bi-shield-check me-2"></i>Believability bounds</span>
+            <div>
+              <button class="btn btn-sm btn-outline-secondary me-1" onclick="loadBounds()" title="Refresh">
+                <i class="bi bi-arrow-clockwise"></i>
+              </button>
+              <button class="btn btn-sm btn-primary" onclick="openBoundModal()">
+                <i class="bi bi-plus-lg me-1"></i>Add bound
+              </button>
+            </div>
+          </div>
+          <div class="card-body p-0">
+            <div id="boundList" class="small">
+              <div class="page-spinner">
+                <div class="spinner-border" role="status"><span class="visually-hidden">Loading…</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════ Pane: Review queue ═══════ -->
+      <div class="sub-pane" id="pane-flagged">
+        <div class="card s7-fade-in">
+          <div class="card-header">
+            <span><i class="bi bi-flag me-2"></i>Results awaiting a decision</span>
+            <button class="btn btn-sm btn-outline-secondary" onclick="loadFlagged()" title="Refresh">
+              <i class="bi bi-arrow-clockwise"></i>
+            </button>
+          </div>
+          <div class="card-body p-0">
+            <div id="flaggedList" class="small">
+              <div class="page-spinner">
+                <div class="spinner-border" role="status"><span class="visually-hidden">Loading…</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ═══════ Board modal ═══════ -->
+  <div class="modal fade" id="boardModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="boardTitle">Add board</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="alert alert-warning d-none" id="boardFixedNote">
+            <i class="bi bi-lock me-1"></i>
+            <strong>Key, metric, aggregation, period and scope are fixed once a board exists.</strong>
+            Every one of them would silently change what the board&rsquo;s existing numbers mean —
+            settlements already reference the key, and a board that summed yesterday and takes the
+            best today has a column that no single rule explains. They are shown greyed out for
+            context; to change one, retire this board and author a replacement.
+          </div>
+
+          <div class="row g-2">
+            <div class="col-md-12">
+              <label class="form-label lvl-label">Board key (permanent)</label>
+              <input id="boardKey" class="form-control mono"
+                     placeholder="platform.all.lessons_completed.weekly" />
+              <div class="form-text">
+                <code>{scope}.{subject}.{metric}.{period}</code>, lowercase and dot-separated. Analytics
+                and prizes key on it, so a rename is a new board with no history.
+              </div>
+            </div>
+          </div>
+
+          <div class="row g-2 mt-2">
+            <div class="col-md-6">
+              <label class="form-label lvl-label">Metric</label>
+              <select id="boardMetric" class="form-select mono"></select>
+              <div class="form-text">What the board ranks. The server refuses a metric nothing raises.</div>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label lvl-label">Aggregation</label>
+              <select id="boardAggregation" class="form-select"></select>
+              <div class="form-text">How repeated results combine.</div>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label lvl-label">Sort</label>
+              <select id="boardSort" class="form-select"></select>
+              <div class="form-text"><code>Asc</code> where lower wins, e.g. times.</div>
+            </div>
+          </div>
+
+          <div class="row g-2 mt-2">
+            <div class="col-md-4">
+              <label class="form-label lvl-label">Period</label>
+              <select id="boardPeriod" class="form-select"></select>
+              <div class="form-text">
+                Anything but <code>Event</code> opens its own window automatically.
+              </div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label lvl-label">Game</label>
+              <select id="boardGame" class="form-select"></select>
+              <div class="form-text">Or platform-wide, spanning every game.</div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label lvl-label">Grade</label>
+              <select id="boardGrade" class="form-select"></select>
+              <div class="form-text">Keeps a KG1 child and a Grade 6 child off one ladder.</div>
+            </div>
+          </div>
+
+          <hr />
+
+          <div class="lvl-label mb-2">Cohorts this board offers</div>
+          <div class="row g-2" id="boardCohorts"></div>
+          <div class="form-text mt-1">
+            School, class, friends and country are declared on the server but refused until the schema
+            can resolve them, so they are not offered here.
+          </div>
+
+          <div class="row g-2 mt-3">
+            <div class="col-md-4">
+              <label class="form-label lvl-label">Visible rank limit</label>
+              <input id="boardRankLimit" type="number" class="form-control" min="1" placeholder="no limit" />
+              <div class="form-text">
+                Visibility only — it must never change anyone&rsquo;s value or rank.
+              </div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label lvl-label">Grace seconds</label>
+              <input id="boardGrace" type="number" class="form-control" value="60" min="0" max="3600" />
+              <div class="form-text">A late result still counts. A poor connection is not cheating.</div>
+            </div>
+            <div class="col-md-4 d-flex align-items-center">
+              <div class="form-check mt-4">
+                <input class="form-check-input" type="checkbox" id="boardActive" checked />
+                <label class="form-check-label lvl-label" for="boardActive">Active</label>
+              </div>
+            </div>
+          </div>
+
+          <hr />
+          <div class="lvl-label mb-2">Board name — at least one language</div>
+          <div id="boardTranslations" class="row g-3"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-primary" id="boardSaveBtn" onclick="submitBoard()">Create</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ Event cycle modal ═══════ -->
+  <div class="modal fade" id="cycleModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Add event window</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="alert alert-secondary">
+            <i class="bi bi-info-circle me-1"></i>
+            Only an <code>Event</code> board needs this. Daily, weekly, monthly and all-time boards
+            have their windows opened for them by the rollover service.
+          </div>
+          <div class="row g-2">
+            <div class="col-md-6">
+              <label class="form-label lvl-label">Starts (UTC)</label>
+              <input id="cycleStart" type="datetime-local" class="form-control" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label lvl-label">Ends (UTC)</label>
+              <input id="cycleEnd" type="datetime-local" class="form-control" />
+            </div>
+          </div>
+          <div class="form-text mt-2">
+            Both are read as <strong>UTC</strong>, not your local time — a window authored an hour off
+            is one that opens and settles an hour off.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-primary" onclick="submitCycle()">Create</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ Bound modal ═══════ -->
+  <div class="modal fade" id="boundModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="boundTitle">Add bound</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-2">
+            <div class="col-md-6">
+              <label class="form-label lvl-label">Metric</label>
+              <select id="boundMetric" class="form-select mono"></select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label lvl-label">Game</label>
+              <select id="boundGame" class="form-select"></select>
+            </div>
+          </div>
+          <div class="form-text mt-1">
+            Metric and game together identify the bound, so they are fixed once it exists — saving the
+            same pair replaces the row rather than adding a second.
+          </div>
+
+          <hr />
+
+          <div class="row g-2">
+            <div class="col-md-4">
+              <label class="form-label lvl-label">Max value</label>
+              <input id="boundMaxValue" type="number" class="form-control" placeholder="none" />
+              <div class="form-text">Largest believable single result.</div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label lvl-label">Max results / day</label>
+              <input id="boundMaxPerDay" type="number" class="form-control" placeholder="none" />
+              <div class="form-text">Catches what a ceiling cannot.</div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label lvl-label">Max value / day</label>
+              <input id="boundMaxValuePerDay" type="number" class="form-control" placeholder="none" />
+              <div class="form-text">The one that matters for <code>Sum</code> boards.</div>
+            </div>
+          </div>
+
+          <div class="form-check mt-3">
+            <input class="form-check-input" type="checkbox" id="boundEnabled" checked />
+            <label class="form-check-label lvl-label" for="boundEnabled">Enabled</label>
+          </div>
+          <div class="form-text">
+            At least one of the three limits has to be set — a bound that limits nothing is a row that
+            looks like protection and is not.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-primary" onclick="submitBound()">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toasts"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script type="module">
+    import { initLeaderboards } from '../js/leaderboards.js';
+    document.addEventListener('DOMContentLoaded', initLeaderboards);
+  </script>
+</body>
+</html>
