@@ -14,6 +14,12 @@ namespace Share7.Infrastructure.Progress;
 /// That asymmetry is also why unlocks are stored rather than derived. Current state cannot tell
 /// you what was true at the moment a lesson was passed.
 /// </para>
+/// <para>
+/// <b>Subjects do not gate.</b> Every subject of an unlocked term opens with the term, so a
+/// student may start Science without having finished Maths. Subjects are a parallel split of a
+/// term's content, not a sequence through it — <c>Order</c> on a subject is a display order.
+/// Terms, chapters and lessons remain sequential.
+/// </para>
 /// </summary>
 public class UnlockService : IUnlockService
 {
@@ -27,23 +33,31 @@ public class UnlockService : IUnlockService
     public async Task<IReadOnlyList<UnlockedNodeDto>> EnsureSeededAsync(
         Guid userId, Guid gameId, Guid gradeId, CancellationToken cancellationToken = default)
     {
-        // Any unlock at all means this student has already started this game.
-        if (await _dbContext.UserNodeUnlocks.AnyAsync(u => u.UserId == userId && u.GameId == gameId, cancellationToken))
-            return [];
+        var pass = await BeginPassAsync(userId, gameId, cancellationToken);
+        var termIds = pass.HeldOfType(CurriculumNodeType.Term);
 
-        var firstTerm = await _dbContext.Terms
-            .Where(t => t.GradeId == gradeId)
-            .OrderBy(t => t.Order)
-            .Select(t => t.Id)
-            .FirstOrDefaultAsync(cancellationToken);
+        if (termIds.Count == 0)
+        {
+            var firstTerm = await _dbContext.Terms
+                .Where(t => t.GradeId == gradeId)
+                .OrderBy(t => t.Order)
+                .Select(t => t.Id)
+                .FirstOrDefaultAsync(cancellationToken);
 
-        if (firstTerm == Guid.Empty)
-            return [];
+            if (firstTerm == Guid.Empty)
+                return [];
 
-        var granted = new List<UnlockedNodeDto>();
-        await UnlockTermChainAsync(userId, gameId, firstTerm, granted, cancellationToken);
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        return granted;
+            termIds = [firstTerm];
+        }
+
+        // Re-walking the terms this student already holds is what makes this a top-up rather than
+        // a one-shot seed. It costs one extra id query in the steady state, and it is how two
+        // things heal themselves: a student who started while subjects were still sequential and
+        // holds a term with only its first subject open, and a subject an author adds to a term
+        // that students are already inside. Both simply appear on the next game-open.
+        await GrantTermsAsync(pass, termIds, cancellationToken);
+
+        return await CommitAsync(pass, cancellationToken);
     }
 
     public async Task<IReadOnlyList<UnlockedNodeDto>> EvaluateAfterAttemptAsync(
@@ -57,7 +71,6 @@ public class UnlockService : IUnlockService
                 l.ChapterId,
                 ChapterOrder = l.Chapter!.Order,
                 SubjectId = l.Chapter!.SubjectId,
-                SubjectOrder = l.Chapter!.Subject!.Order,
                 TermId = l.Chapter!.Subject!.TermId,
                 TermOrder = l.Chapter!.Subject!.Term!.Order,
                 GradeId = l.Chapter!.Subject!.Term!.GradeId
@@ -67,8 +80,9 @@ public class UnlockService : IUnlockService
         if (location is null)
             return [];
 
-        // Every lesson under the same term, with whether it is playable in this language.
-        // One query covers the chapter, subject and term checks below.
+        // Every lesson under the same term, with whether it is playable in this language. One
+        // query covers the chapter and term checks below, and supplies the first lesson of
+        // whatever chapter opens without a second round trip.
         var lessons = await _dbContext.Lessons
             .Where(l => l.Chapter!.Subject!.TermId == location.TermId)
             .Select(l => new
@@ -76,7 +90,6 @@ public class UnlockService : IUnlockService
                 l.Id,
                 l.Order,
                 l.ChapterId,
-                SubjectId = l.Chapter!.SubjectId,
                 Playable = l.QuestionSets.Any(s => s.LangId == langId && s.Version > 0)
             })
             .ToListAsync(cancellationToken);
@@ -95,7 +108,7 @@ public class UnlockService : IUnlockService
             (states.TryGetValue(id, out var state) &&
              state is CompletionState.Completed or CompletionState.Aced);
 
-        var granted = new List<UnlockedNodeDto>();
+        var pass = await BeginPassAsync(userId, gameId, cancellationToken);
 
         // The next lesson opens as soon as this one is passed.
         var attempted = lessons.FirstOrDefault(l => l.Id == lessonId);
@@ -107,7 +120,7 @@ public class UnlockService : IUnlockService
                 .FirstOrDefault();
 
             if (nextLesson is not null)
-                await GrantAsync(userId, gameId, CurriculumNodeType.Lesson, nextLesson.Id, granted, cancellationToken);
+                pass.Grant(CurriculumNodeType.Lesson, nextLesson.Id);
         }
 
         // Each level is checked independently rather than only when the level below runs out of
@@ -122,22 +135,23 @@ public class UnlockService : IUnlockService
                 .Select(c => c.Id)
                 .FirstOrDefaultAsync(cancellationToken);
 
-            if (nextChapter != Guid.Empty)
-                await UnlockChapterChainAsync(userId, gameId, nextChapter, granted, cancellationToken);
+            if (nextChapter != Guid.Empty && pass.Grant(CurriculumNodeType.Chapter, nextChapter))
+            {
+                var firstLesson = lessons
+                    .Where(l => l.ChapterId == nextChapter)
+                    .OrderBy(l => l.Order)
+                    .FirstOrDefault();
+
+                if (firstLesson is not null)
+                    pass.Grant(CurriculumNodeType.Lesson, firstLesson.Id);
+            }
         }
 
-        if (lessons.Where(l => l.SubjectId == location.SubjectId).All(l => Satisfied(l.Id, l.Playable)))
-        {
-            var nextSubject = await _dbContext.Subjects
-                .Where(s => s.TermId == location.TermId && s.Order > location.SubjectOrder)
-                .OrderBy(s => s.Order)
-                .Select(s => s.Id)
-                .FirstOrDefaultAsync(cancellationToken);
+        // There is deliberately no subject rule here: the sibling subjects of this one were
+        // opened by the term that contains them. See the class remarks.
 
-            if (nextSubject != Guid.Empty)
-                await UnlockSubjectChainAsync(userId, gameId, nextSubject, granted, cancellationToken);
-        }
-
+        // A term is complete when every lesson under it is. With subjects ungated that means the
+        // student has cleared all of them, not merely the one branch they were sent down.
         if (lessons.All(l => Satisfied(l.Id, l.Playable)))
         {
             var nextTerm = await _dbContext.Terms
@@ -147,13 +161,10 @@ public class UnlockService : IUnlockService
                 .FirstOrDefaultAsync(cancellationToken);
 
             if (nextTerm != Guid.Empty)
-                await UnlockTermChainAsync(userId, gameId, nextTerm, granted, cancellationToken);
+                await GrantTermsAsync(pass, [nextTerm], cancellationToken);
         }
 
-        if (granted.Count > 0)
-            await _dbContext.SaveChangesAsync(cancellationToken);
-
-        return granted;
+        return await CommitAsync(pass, cancellationToken);
     }
 
     public async Task<HashSet<Guid>> GetUnlockedNodeIdsAsync(
@@ -167,86 +178,138 @@ public class UnlockService : IUnlockService
         return [.. ids];
     }
 
-    // ------------------------------------------------------------- chains
-    //
-    // Opening a container is useless on its own — a student handed an unlocked chapter with no
-    // unlocked lesson inside it has nowhere to go. Each grant walks down to the first playable
-    // entry point by Order.
+    // ------------------------------------------------------------- grants
 
-    private async Task UnlockTermChainAsync(
-        Guid userId, Guid gameId, Guid termId, List<UnlockedNodeDto> granted, CancellationToken cancellationToken)
+    /// <summary>
+    /// Opens the given terms and <b>every</b> subject inside them, each walked down to its first
+    /// chapter and that chapter's first lesson by <c>Order</c>. A container on its own is useless
+    /// — a student handed an unlocked subject with no unlocked lesson in it has nowhere to go.
+    /// <para>
+    /// Three queries regardless of how many terms or subjects are involved, and the last two are
+    /// skipped entirely when no subject was newly opened, which is the common case.
+    /// </para>
+    /// </summary>
+    private async Task GrantTermsAsync(
+        GrantPass pass, IReadOnlyCollection<Guid> termIds, CancellationToken cancellationToken)
     {
-        await GrantAsync(userId, gameId, CurriculumNodeType.Term, termId, granted, cancellationToken);
+        foreach (var termId in termIds)
+            pass.Grant(CurriculumNodeType.Term, termId);
 
-        var firstSubject = await _dbContext.Subjects
-            .Where(s => s.TermId == termId)
+        var subjectIds = await _dbContext.Subjects
+            .Where(s => termIds.Contains(s.TermId))
             .OrderBy(s => s.Order)
             .Select(s => s.Id)
-            .FirstOrDefaultAsync(cancellationToken);
+            .ToListAsync(cancellationToken);
 
-        if (firstSubject != Guid.Empty)
-            await UnlockSubjectChainAsync(userId, gameId, firstSubject, granted, cancellationToken);
+        var opened = subjectIds.Where(id => pass.Grant(CurriculumNodeType.Subject, id)).ToList();
+
+        if (opened.Count == 0)
+            return;
+
+        var chapters = await _dbContext.Chapters
+            .Where(c => opened.Contains(c.SubjectId))
+            .Select(c => new { c.Id, c.SubjectId, c.Order })
+            .ToListAsync(cancellationToken);
+
+        var firstChapterIds = opened
+            .Select(subjectId => chapters
+                .Where(c => c.SubjectId == subjectId)
+                .OrderBy(c => c.Order)
+                .Select(c => c.Id)
+                .FirstOrDefault())
+            .Where(id => id != Guid.Empty)
+            .ToList();
+
+        if (firstChapterIds.Count == 0)
+            return;
+
+        var lessons = await _dbContext.Lessons
+            .Where(l => firstChapterIds.Contains(l.ChapterId))
+            .Select(l => new { l.Id, l.ChapterId, l.Order })
+            .ToListAsync(cancellationToken);
+
+        foreach (var chapterId in firstChapterIds)
+        {
+            pass.Grant(CurriculumNodeType.Chapter, chapterId);
+
+            var firstLesson = lessons
+                .Where(l => l.ChapterId == chapterId)
+                .OrderBy(l => l.Order)
+                .FirstOrDefault();
+
+            if (firstLesson is not null)
+                pass.Grant(CurriculumNodeType.Lesson, firstLesson.Id);
+        }
     }
 
-    private async Task UnlockSubjectChainAsync(
-        Guid userId, Guid gameId, Guid subjectId, List<UnlockedNodeDto> granted, CancellationToken cancellationToken)
+    private async Task<GrantPass> BeginPassAsync(Guid userId, Guid gameId, CancellationToken cancellationToken)
     {
-        await GrantAsync(userId, gameId, CurriculumNodeType.Subject, subjectId, granted, cancellationToken);
+        var held = await _dbContext.UserNodeUnlocks
+            .Where(u => u.UserId == userId && u.GameId == gameId)
+            .Select(u => new { u.NodeType, u.NodeId })
+            .ToListAsync(cancellationToken);
 
-        var firstChapter = await _dbContext.Chapters
-            .Where(c => c.SubjectId == subjectId)
-            .OrderBy(c => c.Order)
-            .Select(c => c.Id)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (firstChapter != Guid.Empty)
-            await UnlockChapterChainAsync(userId, gameId, firstChapter, granted, cancellationToken);
+        return new GrantPass(userId, gameId, held.Select(h => (h.NodeType, h.NodeId)));
     }
 
-    private async Task UnlockChapterChainAsync(
-        Guid userId, Guid gameId, Guid chapterId, List<UnlockedNodeDto> granted, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<UnlockedNodeDto>> CommitAsync(
+        GrantPass pass, CancellationToken cancellationToken)
     {
-        await GrantAsync(userId, gameId, CurriculumNodeType.Chapter, chapterId, granted, cancellationToken);
+        if (pass.Rows.Count == 0)
+            return [];
 
-        var firstLesson = await _dbContext.Lessons
-            .Where(l => l.ChapterId == chapterId)
-            .OrderBy(l => l.Order)
-            .Select(l => l.Id)
-            .FirstOrDefaultAsync(cancellationToken);
+        _dbContext.UserNodeUnlocks.AddRange(pass.Rows);
+        await _dbContext.SaveChangesAsync(cancellationToken);
 
-        if (firstLesson != Guid.Empty)
-            await GrantAsync(userId, gameId, CurriculumNodeType.Lesson, firstLesson, granted, cancellationToken);
+        return pass.Granted;
     }
 
     /// <summary>
-    /// Adds an unlock unless it is already held or already queued in this call. Never removes —
-    /// see the class remarks.
+    /// One grant pass. The student's existing unlocks are read once up front, so walking the tree
+    /// costs no round trip per node, and a node already held — or already added earlier in the
+    /// same pass — is silently skipped. Nothing here ever removes; see the class remarks.
     /// </summary>
-    private async Task GrantAsync(
-        Guid userId, Guid gameId, CurriculumNodeType nodeType, Guid nodeId,
-        List<UnlockedNodeDto> granted, CancellationToken cancellationToken)
+    private sealed class GrantPass
     {
-        var typeName = nodeType.ToString();
+        private readonly Guid _userId;
+        private readonly Guid _gameId;
+        private readonly HashSet<(CurriculumNodeType Type, Guid Id)> _held;
+        private readonly List<UserNodeUnlock> _rows = [];
+        private readonly List<UnlockedNodeDto> _granted = [];
 
-        if (granted.Any(g => g.NodeId == nodeId && g.NodeType == typeName))
-            return;
-
-        var alreadyHeld = await _dbContext.UserNodeUnlocks.AnyAsync(
-            u => u.UserId == userId && u.GameId == gameId && u.NodeType == nodeType && u.NodeId == nodeId,
-            cancellationToken);
-
-        if (alreadyHeld)
-            return;
-
-        _dbContext.UserNodeUnlocks.Add(new UserNodeUnlock
+        public GrantPass(Guid userId, Guid gameId, IEnumerable<(CurriculumNodeType Type, Guid Id)> held)
         {
-            UserId = userId,
-            GameId = gameId,
-            NodeType = nodeType,
-            NodeId = nodeId,
-            UnlockedAt = DateTime.UtcNow
-        });
+            _userId = userId;
+            _gameId = gameId;
+            _held = [.. held];
+        }
 
-        granted.Add(new UnlockedNodeDto { NodeType = typeName, NodeId = nodeId });
+        /// <summary>Rows to insert, in the order they were opened.</summary>
+        public IReadOnlyList<UserNodeUnlock> Rows => _rows;
+
+        /// <summary>What this pass opened, for the client's unlock animation.</summary>
+        public IReadOnlyList<UnlockedNodeDto> Granted => _granted;
+
+        public List<Guid> HeldOfType(CurriculumNodeType type) =>
+            _held.Where(h => h.Type == type).Select(h => h.Id).ToList();
+
+        /// <returns><c>true</c> when this pass newly opened the node, <c>false</c> when it was already held.</returns>
+        public bool Grant(CurriculumNodeType type, Guid id)
+        {
+            if (!_held.Add((type, id)))
+                return false;
+
+            _rows.Add(new UserNodeUnlock
+            {
+                UserId = _userId,
+                GameId = _gameId,
+                NodeType = type,
+                NodeId = id,
+                UnlockedAt = DateTime.UtcNow
+            });
+
+            _granted.Add(new UnlockedNodeDto { NodeType = type.ToString(), NodeId = id });
+            return true;
+        }
     }
 }

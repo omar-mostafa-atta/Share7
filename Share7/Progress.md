@@ -292,8 +292,8 @@ from `AspNetUsers`, and user delete is a hard delete. Omitting them orphans rows
 ## Progress is per game
 
 A student's tree in the runner game is independent of every other game. To see progress for a
-lesson, you pick a game first. Unlocks are per game too — a new game starts locked at lesson 1
-regardless of what the student achieved elsewhere.
+lesson, you pick a game first. Unlocks are per game too — a new game starts at the seed state
+of Part 4 regardless of what the student achieved elsewhere.
 
 ## Completion state
 
@@ -375,8 +375,24 @@ after a re-upload until the student plays it again.
 All unlocks are **permanent once earned**, scoped to `(User, Game)`. Nothing ever re-locks —
 a student who aces lesson 1, unlocks lesson 2, then replays lesson 1 badly keeps lesson 2.
 
-Seed state for a new `(user, game)` pair: **only the first lesson of the first chapter of the
-first subject of the first term** of the student's grade, by `Order`. Everything else locked.
+## Subjects are not a rung
+
+**A term opens all of its subjects at once.** A student may start Science without having
+finished Maths, and the sibling subject they ignore never blocks them. `Order` on a subject is
+a display order and nothing more.
+
+This is the one exception in the ladder, and it is a content-shape decision rather than a
+progression one: a term's subjects are a *parallel split* of that term's material — the same
+weeks of school, taught in different rooms — where its chapters really are a sequence through
+one subject. Gating them serialised something that was never sequential, and forced a student
+stuck on one subject to stop using the app rather than switch to another.
+
+The rung above still holds: a term is complete when every lesson under it is, across all of
+its subjects, so ungating them makes the next term harder to reach rather than easier.
+
+Seed state for a new `(user, game)` pair: **the first term of the student's grade by `Order`,
+every subject in it, and each of those subjects opened down to its first chapter and that
+chapter's first lesson.** Everything else locked.
 
 Rules, evaluated after every attempt submission and idempotent:
 
@@ -384,13 +400,18 @@ Rules, evaluated after every attempt submission and idempotent:
 |---|---|
 | Lesson N+1 | Lesson N in the same chapter is `Completed` or `Aced` |
 | Chapter N+1 *(and its first lesson)* | Every lesson in chapter N is `Completed` or `Aced` |
-| Subject N+1 *(and its first chapter, and that chapter's first lesson)* | Every chapter in subject N is complete |
-| Term N+1 | Every subject in term N is complete |
+| Subject | *never gated* — it opens with its term |
+| Term N+1 *(and all of its subjects, each to its first lesson)* | Every lesson in term N is `Completed` or `Aced` |
 
-A node is "complete" when all of its children are. This is the one rule at every level —
-it subsumes the special case of "the last lesson of chapter 1 opens chapter 2", which was
-ambiguous on its own: because completion follows the last attempt and can drop, finishing the
-last lesson does not guarantee the earlier ones are still complete.
+A gated node is "complete" when all of its children are. This is the one rule at every level
+that has one — it subsumes the special case of "the last lesson of chapter 1 opens chapter 2",
+which was ambiguous on its own: because completion follows the last attempt and can drop,
+finishing the last lesson does not guarantee the earlier ones are still complete.
+
+**Existing students are repaired in place, not migrated.** The seed call runs on every
+game-open, and it now tops up the terms a student already holds instead of returning early.
+Anyone who started while subjects still gated each other picks up the missing ones on their
+next snapshot — as does everyone in a term an author adds a subject to later.
 
 The practical effect: a student who completes lessons 1–3 of a chapter, then replays lesson 2
 and scores 20%, is blocked from the next chapter until they redo lesson 2. Lessons 1–3
