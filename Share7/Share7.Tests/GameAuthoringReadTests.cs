@@ -1,4 +1,4 @@
-using Share7.Application.Games.Models;
+﻿using Share7.Application.Games.Models;
 using Share7.Domain.Constants;
 using Share7.Infrastructure.Games;
 using Share7.Infrastructure.Persistence;
@@ -29,8 +29,6 @@ public class GameAuthoringReadTests
     private static SaveGameRequest Request(string key) => new()
     {
         GameKey = key,
-        LobbyScene = 1,
-        GameplayScene = 2,
         MinPlayers = 1,
         MaxPlayers = 4,
         ReadyTimeoutSeconds = 30f,
@@ -64,8 +62,6 @@ public class GameAuthoringReadTests
         // The round trip the Edit button performs: fill the form from this read, save it unchanged,
         // and nothing may move. A field missing from this DTO would be cleared by that save.
         var request = Request($"roundtrip_{Guid.NewGuid():N}"[..24]);
-        request.GameplaySceneAddress = "Assets/Games/Runner/Scenes/GameRunner.unity";
-        request.LobbySceneAddress = "Assets/Games/Runner/Scenes/RunnerLobby.unity";
         request.UseMatchmaking = false;
 
         await using var context = _fixture.CreateContext();
@@ -78,10 +74,6 @@ public class GameAuthoringReadTests
         var resave = new SaveGameRequest
         {
             GameKey = authoring!.GameKey,
-            LobbyScene = authoring.LobbyScene,
-            GameplayScene = authoring.GameplayScene,
-            LobbySceneAddress = authoring.LobbySceneAddress,
-            GameplaySceneAddress = authoring.GameplaySceneAddress,
             MinPlayers = authoring.MinPlayers,
             MaxPlayers = authoring.MaxPlayers,
             ReadyTimeoutSeconds = authoring.ReadyTimeoutSeconds,
@@ -101,8 +93,7 @@ public class GameAuthoringReadTests
         Assert.NotNull(after);
         Assert.Equal(2, after!.Translations.Count);
         Assert.Equal(authoring.GameKey, after.GameKey);
-        Assert.Equal(authoring.GameplaySceneAddress, after.GameplaySceneAddress);
-        Assert.Equal(authoring.LobbySceneAddress, after.LobbySceneAddress);
+        Assert.Equal(authoring.MinPlayers, after.MinPlayers);
         Assert.Equal(authoring.MaxPlayers, after.MaxPlayers);
         Assert.Equal(authoring.ReadyTimeoutSeconds, after.ReadyTimeoutSeconds);
         Assert.False(after.UseMatchmaking);

@@ -10,19 +10,17 @@ namespace Share7.Application.Games.Models;
 /// back on its own and silently delete every other one. Two readers because there are two
 /// audiences, not because the shape drifted.
 /// </para>
+/// <para>
+/// Like the read model, it carries no scenes. An author cannot usefully edit a value the server
+/// cannot resolve and no client reads — offering the field would only invite someone to author a
+/// scene identity that disagrees with the content catalogue.
+/// </para>
 /// </summary>
 public class GameAdminDto
 {
     public Guid GameId { get; init; }
 
     public string GameKey { get; init; } = string.Empty;
-
-    public int LobbyScene { get; init; }
-    public int GameplayScene { get; init; }
-
-    /// <summary>Null means this game still uses the build indices — the same discriminator the client switches on.</summary>
-    public string? LobbySceneAddress { get; init; }
-    public string? GameplaySceneAddress { get; init; }
 
     public int MinPlayers { get; init; }
     public int MaxPlayers { get; init; }

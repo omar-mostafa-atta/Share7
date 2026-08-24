@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -81,34 +81,12 @@
               <input id="gameKey" class="form-control mono" placeholder="subway_runner" />
               <div class="form-text">Unique and machine-facing. Lowercase letters, digits and underscores.</div>
             </div>
-            <div class="col-md-3">
-              <label class="form-label lvl-label">Lobby scene</label>
-              <input id="gameLobbyScene" type="number" class="form-control" value="0" />
-            </div>
-            <div class="col-md-3">
-              <label class="form-label lvl-label">Gameplay scene</label>
-              <input id="gameGameplayScene" type="number" class="form-control" value="0" />
-            </div>
-          </div>
-          <div class="form-text mt-1">Scene numbers are Unity <em>build indices</em>.</div>
-
-          <div class="row g-2 mt-2">
-            <div class="col-md-6">
-              <label class="form-label lvl-label">Lobby scene address</label>
-              <input id="gameLobbyAddress" class="form-control mono"
-                     placeholder="Assets/Games/Runner/Scenes/Lobby.unity" />
-            </div>
-            <div class="col-md-6">
-              <label class="form-label lvl-label">Gameplay scene address</label>
-              <input id="gameGameplayAddress" class="form-control mono"
-                     placeholder="Assets/Games/Runner/Scenes/GameRunner.unity" />
-            </div>
           </div>
           <div class="form-text mt-1">
-            Addressables addresses, which supersede the build indices. <strong>Leave both blank to
-            keep using the indices</strong> — that is the flag the client switches on. The gameplay
-            address is the anchor: a lobby address on its own is refused, and a game that uses a
-            lobby needs both.
+            Scenes are not authored here. The Unity <code>MiniGameDefinitionSO</code> names them,
+            and Addressables delivers it alongside the scenes themselves — so the client already
+            has the answer by the time it can load anything. A scene typed into this form would be
+            a second source of truth the server cannot resolve or check.
           </div>
 
           <hr />

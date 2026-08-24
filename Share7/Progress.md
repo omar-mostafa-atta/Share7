@@ -1,4 +1,4 @@
-# Progress.md
+﻿# Progress.md
 
 # EduPlatform — Games, Progress & Unlocks
 
@@ -195,17 +195,15 @@ manual step. Everything destructive in this migration should be reviewed on that
 
 # Part 2 — Game catalog
 
-Mirrors Unity's `MiniGameDefinitionSO`. **The backend is authoritative** — matchmaking has to
-enforce player counts server-side, so the DB wins over the ScriptableObject.
+Pairs with Unity's `MiniGameDefinitionSO`. **The backend is authoritative over what it covers** —
+matchmaking has to enforce player counts server-side, so the DB wins over the ScriptableObject.
+What it covers is identity, availability and policy; content — scenes, prefabs, environments —
+stays on the client side of the line.
 
 ```
 Games
   Id                    uniqueidentifier PK     -- Unity's gameId, sent as a string
-  GameKey               nvarchar(64) unique     -- readable slug, e.g. "subway_runner"
-  LobbyScene            int
-  GameplayScene         int
-  LobbySceneAddress     nvarchar(256) null      -- Addressables scene address
-  GameplaySceneAddress  nvarchar(256) null      -- null = still on the build indices
+  GameKey               nvarchar(64) unique     -- readable slug; == MiniGameDefinitionSO.gameId
   MinPlayers            int  default 1
   MaxPlayers            int  default 2
   ReadyTimeoutSeconds   float default 20
@@ -222,16 +220,16 @@ GameTranslations
 One game row with N translations — **not** one row per language. Two rows would give the same
 game two ids and split its progress in half.
 
-`LobbyScene`/`GameplayScene` are Unity build indices, stored here by request. They are client
-build artifacts, so a client rebuild that renumbers scenes desyncs them from the DB.
+**No scene columns.** They existed until 2026-08-24 — two build indices and two Addressables
+addresses — and `DropGameSceneColumns` removed them. Nothing read them: no backend code outside
+the game read/write services, and no Unity code at all, which resolves every scene from
+`MiniGameDefinitionSO`. The server could not have validated one either, because it cannot see the
+client's content catalogue.
 
-`LobbySceneAddress`/`GameplaySceneAddress` supersede them. A build index cannot name a scene that
-is not in the build, so a mini-game whose scenes are downloaded on demand has no index to give —
-scene identity has to be a key the client's content system can resolve. **Null means the game
-still uses the indices**, which is the flag clients switch on while games are migrated one at a
-time; both columns are served until no shipped build reads the indices. Nullable rather than
-`NOT NULL DEFAULT ''` for exactly that reason: "not authored yet" and "authored as blank" must not
-look the same.
+Scene identity lives on the Unity definition, and Addressables delivers that definition alongside
+the scenes it names — so a downloadable mini-game still identifies its scenes, in the one place
+that can load them. This table answers *which games exist, is this one offered, what are its
+rules*; it never answers *how does Unity run one*.
 
 No availability matrix (game restricted to certain grades/subjects) in this pass — every active
 game is available everywhere.

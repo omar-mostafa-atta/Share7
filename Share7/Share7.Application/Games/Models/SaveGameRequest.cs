@@ -6,31 +6,21 @@ namespace Share7.Application.Games.Models;
 /// Body for creating or replacing a game. Like the curriculum nodes, a display name and
 /// description are required for <b>every</b> configured language — a game with a missing
 /// translation would show up blank for those students.
+/// <para>
+/// Scenes are not authored here. They are client content, named by the Unity
+/// <c>MiniGameDefinitionSO</c> that Addressables delivers alongside them; a scene identity typed
+/// into an admin form is a second source of truth the server can neither resolve nor check.
+/// </para>
 /// </summary>
 public class SaveGameRequest
 {
-    /// <summary>Readable stable key, e.g. "subway_runner". Must be unique across games.</summary>
+    /// <summary>
+    /// Readable stable key, e.g. "game.runner". Must be unique across games, and must equal the
+    /// <c>gameId</c> on the Unity definition — that equality is the whole join between the two
+    /// catalogues.
+    /// </summary>
     [Required, MaxLength(64)]
     public string GameKey { get; set; } = string.Empty;
-
-    public int LobbyScene { get; set; }
-    public int GameplayScene { get; set; }
-
-    /// <summary>
-    /// Addressables scene addresses, e.g. <c>Assets/Games/Runner/Scenes/GameRunner.unity</c>.
-    /// Leave both null to keep using the build indices above.
-    /// <para>
-    /// <see cref="GameplaySceneAddress"/> is the anchor: supplying it puts the game on
-    /// addressable scenes, and <see cref="LobbySceneAddress"/> is then required whenever
-    /// <see cref="UseLobby"/> is set. A lobby address on its own is rejected — nothing would
-    /// read it.
-    /// </para>
-    /// </summary>
-    [MaxLength(256)]
-    public string? LobbySceneAddress { get; set; }
-
-    [MaxLength(256)]
-    public string? GameplaySceneAddress { get; set; }
 
     [Range(1, 64)]
     public int MinPlayers { get; set; } = 1;
@@ -45,6 +35,11 @@ public class SaveGameRequest
     public bool SupportsMultiplayer { get; set; } = true;
     public bool UseLobby { get; set; } = true;
     public bool UseMatchmaking { get; set; } = true;
+
+    /// <summary>
+    /// Clear to pull the game from every client without a store release. Prefer this over deleting
+    /// a game that has progress against it.
+    /// </summary>
     public bool IsActive { get; set; } = true;
 
     [Required, MinLength(1, ErrorMessage = "At least one translation is required.")]
