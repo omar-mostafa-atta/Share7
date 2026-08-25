@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -89,7 +89,8 @@ public class RewardService : IRewardService
                 lessonId = context.LessonId,
                 percent = context.Percent,
                 attempt = context.AttemptNumber
-            }));
+            }),
+            XpBaseline: context.XpBaseline);
 
         return await PayWithLevelUpsAsync(rules, target, transaction, cancellationToken);
     }
@@ -225,7 +226,8 @@ public class RewardService : IRewardService
                 runId = context.RunId,
                 durationMs = context.DurationMs,
                 outcome = WireEnum.ToWire(context.Outcome)
-            }));
+            }),
+            XpBaseline: context.XpBaseline);
 
         return await PayWithLevelUpsAsync(rules, target, transaction, cancellationToken);
     }
@@ -285,14 +287,21 @@ public class RewardService : IRewardService
             .Where(grant => string.Equals(grant.Currency, _levels.XpCurrencyKey, StringComparison.Ordinal))
             .Sum(grant => grant.Amount);
 
-        if (xpGranted <= 0) return paid;
+        // Nothing moved the balance at all: no rule paid XP, and the caller did not grant any either.
+        // Skipping the read here is what keeps the common payout — coins for a finished lesson — from
+        // costing an extra query for a level that cannot have changed.
+        if (xpGranted <= 0 && target.XpBaseline is null) return paid;
 
         // Read the balance rather than tracking it through the payout: it is authoritative, it is
         // one query, and it stays correct no matter which rule paid the XP or in what order.
         var after = await _levels.GetForUserAsync(target.UserId, cancellationToken);
 
-        var crossed = await _levels.LevelsCrossedAsync(
-            after.Xp - xpGranted, after.Xp, cancellationToken);
+        // The caller's own starting point when it has one, because it granted before calling here and
+        // only it knows where the player actually began. Subtraction is the fallback for a caller that
+        // grants nothing — see ProgressRewardContext.XpBaseline for why it is not enough on its own.
+        var before = target.XpBaseline ?? after.Xp - xpGranted;
+
+        var crossed = await _levels.LevelsCrossedAsync(before, after.Xp, cancellationToken);
 
         if (crossed.Count == 0) return paid;
 
@@ -365,7 +374,8 @@ public class RewardService : IRewardService
         string SourceId,
         string OnceKey,
         string SubmissionKey,
-        string Metadata);
+        string Metadata,
+        long? XpBaseline = null);
 
     private async Task<RewardDto?> TryPayAsync(
         RewardRule rule,

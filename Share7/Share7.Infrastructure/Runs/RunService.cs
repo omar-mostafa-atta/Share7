@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -13,6 +13,7 @@ using Share7.Application.Economy.Interfaces;
 using Share7.Application.Economy.Models;
 using Share7.Application.Rewards.Interfaces;
 using Share7.Application.Rewards.Models;
+using Share7.Application.Progression.Interfaces;
 using Share7.Application.Runs.Interfaces;
 using Share7.Application.Runs.Models;
 using Share7.Domain.Economy;
@@ -26,7 +27,7 @@ namespace Share7.Infrastructure.Runs;
 /// Opens runs and re-values them. **This is where a 3D coin stops being currency and becomes a
 /// gameplay signal.**
 /// <para>
-/// The client reports counts; every amount in this file comes from <see cref="PickupValuation"/> or a
+/// The client reports counts; every amount in this file comes from <see cref="ISignalPricer"/> or a
 /// <c>RUN_SETTLED</c> reward rule, and every balance move goes through <see cref="IWalletService"/>
 /// inside one transaction with the rows explaining it. There is no path from a mini-game to a
 /// balance, and no request shape in which a client could assert one.
@@ -45,6 +46,8 @@ public class RunService : IRunService
     private readonly IWalletService _wallet;
     private readonly IRewardService _rewards;
     private readonly IEarnCeilingService _ceiling;
+    private readonly ISignalPricer _pricer;
+    private readonly ILevelService _levels;
     private readonly IRunLayoutVerifier _layouts;
     private readonly IGameResultRecorder _gameResults;
     private readonly IObjectiveProjector _objectives;
@@ -56,6 +59,8 @@ public class RunService : IRunService
         IWalletService wallet,
         IRewardService rewards,
         IEarnCeilingService ceiling,
+        ISignalPricer pricer,
+        ILevelService levels,
         IRunLayoutVerifier layouts,
         IGameResultRecorder gameResults,
         IObjectiveProjector objectives,
@@ -66,6 +71,8 @@ public class RunService : IRunService
         _wallet = wallet;
         _rewards = rewards;
         _ceiling = ceiling;
+        _pricer = pricer;
+        _levels = levels;
         _layouts = layouts;
         _gameResults = gameResults;
         _objectives = objectives;
@@ -328,7 +335,7 @@ public class RunService : IRunService
             // question, not this one's.
             flags.Add("run_too_short");
 
-        var collected = Aggregate(request.Pickups);
+        var collected = Aggregate(request.AllSignals);
 
         WireEnum.TryFromWire<RunOutcome>(request.Outcome, out var outcome);
 
@@ -366,178 +373,35 @@ public class RunService : IRunService
             flags.Add("daily_run_limit");
         }
 
-        var valuations = await ResolveValuationsAsync(run.GameId, collected.Keys, cancellationToken);
         var multiplier = ResolveMultiplier(request.Modifiers, durationMs, flags);
 
-        var lines = overRunLimit
-            ? []
-            : await PriceAsync(userId, run, collected, valuations, durationMs, multiplier, now, caps, flags, cancellationToken);
+        // Pricing is not this file's job any more. The cap ladder, the valuation table and the daily
+        // counters are shared with the attempt surface, so they live in one place that both call —
+        // see ISignalPricer. What stays here is everything that is a fact about *runs*: the duration
+        // clamp above, the layout check, the account's runs-per-day, and the modifier.
+        var pricing = overRunLimit
+            ? SignalPricing.Empty
+            : await _pricer.PriceAsync(
+                new SignalPricingRequest
+                {
+                    UserId = userId,
+                    GameId = run.GameId,
+                    Surface = SignalSurface.Run,
+                    Counts = collected,
+                    NowUtc = now,
+                    DurationMs = durationMs,
+                    Multiplier = multiplier
+                },
+                cancellationToken);
+
+        foreach (var message in pricing.CapMessages)
+            caps.Reached(message);
+
+        flags.AddRange(pricing.Flags);
 
         return await CommitSettlementAsync(
             run, userId, request, resultRequestId, durationMs, outcome,
-            collected, lines, caps, flags, overRunLimit, cancellationToken);
-    }
-
-    // ------------------------------------------------------------- pricing
-
-    /// <summary>
-    /// Turns counts into amounts. Every clamp here is applied to a *count* before it becomes currency,
-    /// which is what keeps the arithmetic auditable: the payout row records what was claimed, what was
-    /// paid for, and the difference.
-    /// <para>
-    /// Order matters and it is narrowest-last: the per-run cap, then what is left of the kind's daily
-    /// allowance, then what the run's own duration makes physically possible, then the modifier, then
-    /// what is left of the account's daily ceiling for that currency.
-    /// </para>
-    /// </summary>
-    private async Task<List<SettlementLine>> PriceAsync(
-        Guid userId,
-        Run run,
-        IReadOnlyDictionary<string, int> collected,
-        IReadOnlyDictionary<string, ResolvedValuation> valuations,
-        int durationMs,
-        long multiplier,
-        DateTime now,
-        CapTracker caps,
-        List<string> flags,
-        CancellationToken cancellationToken)
-    {
-        var priced = collected
-            .Where(c => valuations.ContainsKey(c.Key))
-            .ToDictionary(c => c.Key, c => c.Value, StringComparer.Ordinal);
-
-        if (priced.Count == 0)
-            return [];
-
-        var paidTodayByKind = await PaidTodayByKindAsync(userId, priced.Keys, now, cancellationToken);
-
-        // A floor of one second, so a legitimate run shorter than that is not paid zero for arithmetic
-        // reasons rather than for a reason anybody would defend.
-        var seconds = Math.Max(1.0, durationMs / 1000.0);
-        var perSecondCeiling = (int)Math.Min(int.MaxValue, Math.Ceiling(seconds * _options.MaxPickupsPerSecond));
-
-        var lines = new List<SettlementLine>();
-
-        foreach (var (kind, count) in priced)
-        {
-            var valuation = valuations[kind];
-            var paidCount = count;
-
-            if (paidCount > valuation.MaxPerRun)
-            {
-                paidCount = valuation.MaxPerRun;
-                caps.Reached("pickup_limit");
-                flags.Add("pickup_capped");
-            }
-
-            if (valuation.MaxPerDay is { } maxPerDay)
-            {
-                var remaining = Math.Max(0, maxPerDay - paidTodayByKind.GetValueOrDefault(kind));
-
-                if (paidCount > remaining)
-                {
-                    paidCount = remaining;
-                    caps.Reached("pickup_daily_limit");
-                    flags.Add("pickup_daily_capped");
-                }
-            }
-
-            if (paidCount > perSecondCeiling)
-            {
-                // The per-second bound. Load-bearing only because the duration it divides was already
-                // clamped to real elapsed time — inflating the claimed duration to buy headroom here
-                // does not work.
-                paidCount = perSecondCeiling;
-                caps.Reached("pickup_rate_limit");
-                flags.Add("rate_capped");
-            }
-
-            var gross = count * valuation.UnitValue;
-            var paidFace = paidCount * valuation.UnitValue;
-
-            // Step 4 of the algorithm. **The server applies the multiplier.** The client declared that
-            // a modifier ran; it never declared what its own payout should be. Applied to an
-            // already-capped count, so it scales a bounded number rather than an open one.
-            var net = paidFace * multiplier;
-
-            if (net <= 0)
-                continue;
-
-            lines.Add(new SettlementLine(
-                Source: $"pickup:{kind}",
-                CurrencyId: valuation.CurrencyId,
-                CollectedCount: count,
-                PaidCount: paidCount,
-                UnitValue: valuation.UnitValue,
-                GrossAmount: gross,
-                CappedAmount: gross - paidFace,
-                NetAmount: net));
-        }
-
-        return await ApplyEarnCeilingAsync(userId, lines, caps, flags, cancellationToken);
-    }
-
-    /// <summary>
-    /// Step 6 — the account's daily ceiling for each currency, applied last because it is the only
-    /// bound denominated in currency rather than in pickups.
-    /// <para>
-    /// Lines are clamped in a stable order and share one pool, so a run collecting two kinds that pay
-    /// the same currency cannot be paid the ceiling twice.
-    /// </para>
-    /// <para>
-    /// **It bounds the pickup half only.** Reward rules grant a fixed, admin-authored amount bounded by
-    /// their own <c>DailyLimit</c>; it is the variable payout, scaling with a claim the server did not
-    /// choose, that needs a ceiling denominated in money. For a hard currency that is not enough on its
-    /// own, which is why those bounds are enforced at authoring time instead — see
-    /// <c>PickupValuationAdminService</c>.
-    /// </para>
-    /// </summary>
-    private async Task<List<SettlementLine>> ApplyEarnCeilingAsync(
-        Guid userId,
-        List<SettlementLine> lines,
-        CapTracker caps,
-        List<string> flags,
-        CancellationToken cancellationToken)
-    {
-        if (lines.Count == 0)
-            return lines;
-
-        var headroom = new Dictionary<Guid, long>(
-            await _ceiling.HeadroomAsync(userId, lines.Select(l => l.CurrencyId).Distinct().ToList(), cancellationToken));
-
-        var clamped = new List<SettlementLine>(lines.Count);
-
-        foreach (var line in lines.OrderBy(l => l.Source, StringComparer.Ordinal))
-        {
-            var available = headroom.GetValueOrDefault(line.CurrencyId, long.MaxValue);
-
-            if (available >= line.NetAmount)
-            {
-                if (available != long.MaxValue)
-                    headroom[line.CurrencyId] = available - line.NetAmount;
-
-                clamped.Add(line);
-                continue;
-            }
-
-            caps.Reached("daily_coin_limit");
-
-            if (!flags.Contains("daily_earn_capped"))
-                flags.Add("daily_earn_capped");
-
-            if (available <= 0)
-                continue;
-
-            headroom[line.CurrencyId] = 0;
-
-            clamped.Add(line with
-            {
-                CappedAmount = line.CappedAmount + (line.NetAmount - available),
-                NetAmount = available
-            });
-        }
-
-        return clamped;
+            collected, pricing.Lines, caps, flags, overRunLimit, cancellationToken);
     }
 
     /// <summary>
@@ -551,37 +415,6 @@ public class RunService : IRunService
             .CountAsync(
                 r => r.UserId == userId && r.State == RunState.Settled && r.EndedAtUtc >= now.Date,
                 cancellationToken);
-
-    /// <summary>
-    /// How many of each kind this account was already **paid for** today. Paid, not claimed — a run
-    /// capped down to 20 must not spend 47 of the day's allowance.
-    /// </summary>
-    private async Task<Dictionary<string, int>> PaidTodayByKindAsync(
-        Guid userId,
-        IEnumerable<string> kinds,
-        DateTime now,
-        CancellationToken cancellationToken)
-    {
-        var sources = kinds.Select(k => $"pickup:{k}").ToList();
-        var day = now.Date;
-
-        var totals = await (
-                from payout in _dbContext.RunPayouts.AsNoTracking()
-                join run in _dbContext.Runs.AsNoTracking() on payout.RunId equals run.Id
-                where run.UserId == userId
-                      && run.State == RunState.Settled
-                      && run.EndedAtUtc >= day
-                      && sources.Contains(payout.Source)
-                group payout by payout.Source
-                into grouped
-                select new { Source = grouped.Key, Count = grouped.Sum(p => p.PaidCount) })
-            .ToListAsync(cancellationToken);
-
-        return totals.ToDictionary(
-            t => t.Source["pickup:".Length..],
-            t => t.Count,
-            StringComparer.Ordinal);
-    }
 
     // ------------------------------------------------------------- verification
 
@@ -604,8 +437,15 @@ public class RunService : IRunService
         if (_layouts.Derive(gameKey, run.LayoutVersion, run.Seed) is not { } layout)
             return null;
 
+        // Only kinds the generator actually places can be checked against it. A dodge and a metre of
+        // ground are real signals that no layout describes — comparing them against a spawn table
+        // they were never in reads every one of them as "claimed more than existed" and rejects an
+        // entirely honest run. The generator says which kinds it is answerable for.
         foreach (var (kind, count) in collected)
         {
+            if (!layout.VerifiableKinds.Contains(kind))
+                continue;
+
             if (count > layout.PickupCounts.GetValueOrDefault(kind))
                 return $"layout_exceeded:{kind}";
         }
@@ -670,7 +510,7 @@ public class RunService : IRunService
         int durationMs,
         RunOutcome outcome,
         IReadOnlyDictionary<string, int> collected,
-        List<SettlementLine> lines,
+        IReadOnlyList<SignalLine> lines,
         CapTracker caps,
         List<string> flags,
         bool skipRules,
@@ -680,10 +520,17 @@ public class RunService : IRunService
 
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
+        // Where the player stood before this settlement granted anything. Captured here rather than
+        // derived afterwards because **a run can now grant XP two ways** — a valuation row priced in
+        // xp and a RUN_SETTLED rule — and subtracting only what the rules paid would land above where
+        // they actually started, skipping every level the signals crossed.
+        var levelBefore = await _levels.GetForUserAsync(userId, cancellationToken);
+
         var rewards = new List<RunRewardDto>();
         var earnedByCurrency = new Dictionary<Guid, long>();
+        var granted = new List<SignalLine>();
 
-        // --- the variable half: what the pickups were worth -------------------------------------
+        // --- the variable half: what the signals were worth -------------------------------------
         foreach (var line in lines)
         {
             var applied = await _wallet.ApplyAsync(
@@ -701,7 +548,7 @@ public class RunService : IRunService
                         runId = run.Id,
                         gameId = run.GameId,
                         source = line.Source,
-                        collected = line.CollectedCount,
+                        collected = line.ReportedCount,
                         paid = line.PaidCount,
                         unitValue = line.UnitValue
                     })
@@ -709,10 +556,14 @@ public class RunService : IRunService
                 cancellationToken);
 
             // A retired currency, or any other refusal, loses the line rather than the run. The
-            // pickups it could not pay for are still on the run as PickupsJson, so a corrected
+            // signals it could not pay for are still on the run as PickupsJson, so a corrected
             // valuation can be reconciled later; failing the whole settlement would lose them.
             if (!applied.Succeeded)
                 continue;
+
+            // Only what the wallet actually accepted is charged against the day's counters. Accruing
+            // for a refused grant would spend a child's daily allowance on money they never received.
+            granted.Add(line);
 
             _dbContext.RunPayouts.Add(new RunPayout
             {
@@ -720,7 +571,7 @@ public class RunService : IRunService
                 RunId = run.Id,
                 CurrencyId = line.CurrencyId,
                 Source = line.Source,
-                CollectedCount = line.CollectedCount,
+                CollectedCount = line.ReportedCount,
                 PaidCount = line.PaidCount,
                 UnitValue = line.UnitValue,
                 GrossAmount = line.GrossAmount,
@@ -748,11 +599,28 @@ public class RunService : IRunService
         // Skipped entirely past the daily run limit. A run that pays nothing for its pickups must not
         // still hand out a completion bonus, or the wall a farming script hits has a door in it.
         if (!skipRules)
-            await PayRuleRewardsAsync(run, userId, durationMs, outcome, now, rewards, earnedByCurrency, cancellationToken);
+            await PayRuleRewardsAsync(
+                run, userId, durationMs, outcome, now, levelBefore.Xp, rewards, earnedByCurrency, cancellationToken);
 
-        // --- the counter the ceiling reads --------------------------------------------------------
+        // --- the counters the caps read -----------------------------------------------------------
+        // Signal lines go through the pricer, which owns both counters it reads: how many of each kind
+        // were paid for today, and how much of each currency. Rule bonuses are a fixed amount with no
+        // kind, so only the currency half applies to them — but it *does* apply, and used to not:
+        // an attempt's rule rewards never reached the ledger at all, so the ceiling was being computed
+        // against a number that under-counted everything except runs.
+        await _pricer.AccrueAsync(userId, granted, now, cancellationToken);
+
+        var signalEarned = granted
+            .GroupBy(l => l.CurrencyId)
+            .ToDictionary(g => g.Key, g => g.Sum(l => l.NetAmount));
+
         foreach (var (currencyId, amount) in earnedByCurrency)
-            await _ceiling.AccrueAsync(userId, currencyId, amount, now, cancellationToken);
+        {
+            var ruleAmount = amount - signalEarned.GetValueOrDefault(currencyId);
+
+            if (ruleAmount > 0)
+                await _ceiling.AccrueAsync(userId, currencyId, ruleAmount, now, cancellationToken);
+        }
 
         // --- close the run -----------------------------------------------------------------------
         run.State = RunState.Settled;
@@ -793,7 +661,9 @@ public class RunService : IRunService
                 // there. The per-metric bounds cannot see that; the run already decided.
                 PreFlagged = run.IsFlagged,
                 PreFlagReason = run.FlagReason,
-                Metrics = RunMetricsFor(run, durationMs, outcome, collected, lines, earnedByCurrency)
+                Metrics = RunMetricsFor(
+                    run, durationMs, outcome, collected, granted,
+                    await KeyedAsync(earnedByCurrency, cancellationToken))
             },
             cancellationToken);
 
@@ -808,6 +678,11 @@ public class RunService : IRunService
         // held open across it.
         var balances = await _wallet.GetBalancesAsync(userId, cancellationToken);
 
+        // The level, absolute, on the same terms as the balances beside it. A run that granted XP has
+        // already moved it; saying so here is what stops the bar from sitting on yesterday's number
+        // until some later lesson happens to refresh it.
+        var levelAfter = await _levels.GetForUserAsync(userId, cancellationToken);
+
         return ServiceResult<RunSettlementDto>.Success(new RunSettlementDto
         {
             RunId = run.Id,
@@ -819,6 +694,10 @@ public class RunService : IRunService
             Balances = balances,
             CapReached = run.CapReached,
             CapMessage = run.CapMessage,
+            Level = levelAfter,
+            LevelsGained = levelAfter.Level > levelBefore.Level
+                ? [.. Enumerable.Range(levelBefore.Level + 1, levelAfter.Level - levelBefore.Level)]
+                : [],
             ServerTimeUtc = DateTime.UtcNow
         });
     }
@@ -829,6 +708,7 @@ public class RunService : IRunService
         int durationMs,
         RunOutcome outcome,
         DateTime now,
+        long xpBaseline,
         List<RunRewardDto> rewards,
         Dictionary<Guid, long> earnedByCurrency,
         CancellationToken cancellationToken)
@@ -840,7 +720,8 @@ public class RunService : IRunService
                 GameId = run.GameId,
                 RunId = run.Id,
                 DurationMs = durationMs,
-                Outcome = outcome
+                Outcome = outcome,
+                XpBaseline = xpBaseline
             },
             cancellationToken);
 
@@ -915,6 +796,10 @@ public class RunService : IRunService
         var balances = await _wallet.GetBalancesAsync(userId, cancellationToken);
         var collected = JsonSerializer.Deserialize<List<StoredPickup>>(run.PickupsJson, RunJson.Options) ?? [];
 
+        // Stated, so a client that lost the first response still ends up with the right bar. Gained is
+        // empty on purpose: a level is reached once, and a retried result must not celebrate it twice.
+        var level = await _levels.GetForUserAsync(userId, cancellationToken);
+
         return new RunSettlementDto
         {
             RunId = run.Id,
@@ -933,25 +818,39 @@ public class RunService : IRunService
             Balances = balances,
             CapReached = run.CapReached,
             CapMessage = run.CapMessage,
+            Level = level,
+            LevelsGained = [],
             ServerTimeUtc = DateTime.UtcNow
         };
     }
 
-    // ------------------------------------------------------------- valuation
-
-    private sealed record ResolvedValuation(Guid CurrencyId, long UnitValue, int MaxPerRun, int? MaxPerDay);
-
-    private sealed record SettlementLine(
-        string Source,
-        Guid CurrencyId,
-        int CollectedCount,
-        int PaidCount,
-        long UnitValue,
-        long GrossAmount,
-        long CappedAmount,
-        long NetAmount);
-
     private sealed record StoredPickup(string Kind, int Count);
+
+    /// <summary>
+    /// Re-keys currency totals from row id to wire key, for the metrics that are scoped by currency.
+    /// <para>
+    /// A scope is a **stable key**, never a row id: it is written into an append-only result row that
+    /// has to stay resolvable after the currency table is re-seeded in a fresh environment, which is
+    /// exactly what an id would not survive.
+    /// </para>
+    /// </summary>
+    private async Task<Dictionary<string, long>> KeyedAsync(
+        IReadOnlyDictionary<Guid, long> byId,
+        CancellationToken cancellationToken)
+    {
+        if (byId.Count == 0)
+            return [];
+
+        var ids = byId.Keys.ToList();
+
+        var keys = await _dbContext.Currencies
+            .AsNoTracking()
+            .Where(c => ids.Contains(c.Id))
+            .Select(c => new { c.Id, c.Key })
+            .ToListAsync(cancellationToken);
+
+        return keys.ToDictionary(c => c.Key, c => byId[c.Id], StringComparer.Ordinal);
+    }
 
     /// <summary>
     /// Which cap actually cost the player the most, so the results screen explains the shortfall it
@@ -964,8 +863,17 @@ public class RunService : IRunService
     /// </summary>
     private sealed class CapTracker
     {
+        // The run's own cap first — paying nothing because the day's runs are exhausted needs a
+        // different sentence from being clipped at a per-signal limit. The rest mirror
+        // SignalPricer.CapLadder, which produces them.
         private static readonly string[] Precedence =
-            ["daily_run_limit", "daily_coin_limit", "pickup_daily_limit", "pickup_rate_limit", "pickup_limit"];
+        [
+            "daily_run_limit",
+            "signal_rate_limit",
+            "signal_daily_limit",
+            "daily_coin_limit",
+            "signal_limit"
+        ];
 
         private int _best = int.MaxValue;
 
@@ -981,61 +889,19 @@ public class RunService : IRunService
                 _best = rank;
         }
     }
-
-    /// <summary>
-    /// Resolution order: an exact <c>(gameId, kind)</c> row, then the <c>GameId IS NULL</c> platform
-    /// default, then nothing — which means the kind pays zero.
-    /// <para>
-    /// Rows for a retired currency are excluded here rather than failing later, so a currency being
-    /// retired quietly stops paying instead of producing a settlement full of refused lines.
-    /// </para>
-    /// </summary>
-    private async Task<Dictionary<string, ResolvedValuation>> ResolveValuationsAsync(
-        Guid gameId,
-        IEnumerable<string> kinds,
-        CancellationToken cancellationToken)
-    {
-        var wanted = kinds.ToList();
-
-        if (wanted.Count == 0)
-            return [];
-
-        var rows = await _dbContext.PickupValuations
-            .AsNoTracking()
-            .Include(v => v.Currency)
-            .Where(v => v.Enabled
-                        && wanted.Contains(v.PickupKind)
-                        && (v.GameId == gameId || v.GameId == null))
-            .ToListAsync(cancellationToken);
-
-        var resolved = new Dictionary<string, ResolvedValuation>(StringComparer.Ordinal);
-
-        // Game-specific last so it overwrites the default it shares a kind with. Ordering here rather
-        // than filtering in SQL keeps it to one round trip and one obvious precedence rule.
-        foreach (var row in rows.OrderBy(v => v.GameId.HasValue))
-        {
-            if (row.Currency is null || !row.Currency.Enabled)
-                continue;
-
-            resolved[row.PickupKind] = new ResolvedValuation(
-                row.CurrencyId, row.UnitValue, row.MaxPerRun, row.MaxPerDay);
-        }
-
-        return resolved;
-    }
-
     /// <summary>
     /// Sums duplicate entries for one kind and drops anything that is not a legal token. A kind
-    /// reported twice is one total that meets one cap — splitting it across entries must not buy a
-    /// second helping of <see cref="PickupValuation.MaxPerRun"/>.
+    /// reported twice is one total that meets one cap — splitting it across entries, or across the
+    /// <c>signals</c> and legacy <c>pickups</c> lists, must not buy a second helping of
+    /// <see cref="SignalValuation.MaxPerRun"/>.
     /// </summary>
-    private static Dictionary<string, int> Aggregate(IEnumerable<RunPickupReport> pickups)
+    private static Dictionary<string, int> Aggregate(IEnumerable<RunSignalReport> pickups)
     {
         var totals = new Dictionary<string, int>(StringComparer.Ordinal);
 
         foreach (var pickup in pickups)
         {
-            var kind = PickupKinds.Normalise(pickup.Kind);
+            var kind = SignalKinds.Normalise(pickup.Kind);
 
             if (kind is null || pickup.Count <= 0)
                 continue;
@@ -1148,8 +1014,8 @@ public class RunService : IRunService
         int durationMs,
         RunOutcome outcome,
         IReadOnlyDictionary<string, int> collected,
-        List<SettlementLine> lines,
-        Dictionary<Guid, long> earnedByCurrency)
+        IReadOnlyList<SignalLine> lines,
+        IReadOnlyDictionary<string, long> earnedByCurrency)
     {
         var metrics = new List<GameResultDraft>(6 + lines.Count);
 
@@ -1168,12 +1034,28 @@ public class RunService : IRunService
             metrics.Add(new GameResultDraft(LeaderboardMetrics.BestRunSeconds, seconds));
         }
 
-        // Paid counts, scoped by kind — one metric for every pickup kind any mini-game ever adds.
+        // Paid counts, scoped by kind — one metric for every signal kind any mini-game ever adds.
+        //
+        // The scope is the bare kind (`coin`, `near_miss`), not the `signal:` source prefix. It used
+        // to be the prefixed source, which meant an objective authored against the kind an operator
+        // can actually see in the admin console never matched anything.
         foreach (var line in lines)
         {
             if (line.PaidCount > 0)
                 metrics.Add(new GameResultDraft(
-                    LeaderboardMetrics.PickupsCollected, line.PaidCount, line.Source));
+                    LeaderboardMetrics.PickupsCollected, line.PaidCount, line.Kind));
+        }
+
+        // What was actually credited, scoped by currency key.
+        //
+        // **CURRENCY_EARNED had no producer until here.** It was declared, listed as authorable, and
+        // raised by nothing — so an operator could author "earn 100 XP today" as a quest or a board,
+        // see no error, and watch it sit at zero forever. This method already received the totals and
+        // dropped them on the floor. Net of every cap, like everything else on this list.
+        foreach (var (currencyKey, amount) in earnedByCurrency)
+        {
+            if (amount > 0)
+                metrics.Add(new GameResultDraft(LeaderboardMetrics.CurrencyEarned, amount, currencyKey));
         }
 
         return metrics;

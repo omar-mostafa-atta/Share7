@@ -1,4 +1,4 @@
-using Share7.Infrastructure.Objectives;
+﻿using Share7.Infrastructure.Objectives;
 using Share7.Infrastructure.Leaderboards;
 using Share7.Domain.Constants;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -45,6 +45,10 @@ public static class RunTestExtensions
             resolved,
             new RewardService(context, resolved, new LevelService(context), new Share7.Infrastructure.Commerce.EntitlementService(context)),
             new EarnCeilingService(context),
+            // The real pricer, for the same reason the recorder below is real: it reads and writes the
+            // counters the settlement's caps depend on, inside the same transaction.
+            new SignalPricer(context, new EarnCeilingService(context), Options.Create(options ?? new RunOptions())),
+            new LevelService(context),
             new RunLayoutVerifier(generators),
             // The real recorder, not a stub: it writes into the same DbContext and therefore the
             // same transaction as the settlement, which is the property worth testing — a result
@@ -121,10 +125,10 @@ public static class RunTestExtensions
     }
 
     /// <summary>A price for one pickup kind. <paramref name="gameId"/> null makes it the platform default.</summary>
-    public static async Task<PickupValuation> CreateValuationAsync(
+    public static async Task<SignalValuation> CreateValuationAsync(
         this ApplicationDbContext context,
         Guid currencyId,
-        string kind = PickupKinds.Coin,
+        string kind = SignalKinds.Coin,
         Guid? gameId = null,
         long unitValue = 1,
         int maxPerRun = 500,
@@ -134,11 +138,11 @@ public static class RunTestExtensions
     {
         var now = DateTime.UtcNow;
 
-        var valuation = new PickupValuation
+        var valuation = new SignalValuation
         {
             Id = Guid.NewGuid(),
             GameId = gameId,
-            PickupKind = kind,
+            SignalKind = kind,
             CurrencyId = currencyId,
             UnitValue = unitValue,
             MaxPerRun = maxPerRun,
@@ -148,7 +152,7 @@ public static class RunTestExtensions
             UpdatedAtUtc = now
         };
 
-        context.PickupValuations.Add(valuation);
+        context.SignalValuations.Add(valuation);
         await context.SaveChangesAsync(cancellationToken);
         return valuation;
     }
@@ -178,13 +182,13 @@ public static class RunTestExtensions
 
     public static SubmitRunResultRequest Result(
         int coins = 0,
-        string kind = PickupKinds.Coin,
+        string kind = SignalKinds.Coin,
         int durationMs = 60_000,
         string outcome = nameof(RunOutcome.Completed),
         string? requestId = null,
         params RunModifierReport[] modifiers) => new()
     {
-        Pickups = coins > 0 ? [new RunPickupReport { Kind = kind, Count = coins }] : [],
+        Pickups = coins > 0 ? [new RunSignalReport { Kind = kind, Count = coins }] : [],
         Modifiers = [.. modifiers],
         DurationMs = durationMs,
         Outcome = outcome,

@@ -18,24 +18,24 @@ namespace Share7.Application.Runs.Interfaces;
 /// </summary>
 public interface IRunAdminService
 {
-    Task<IReadOnlyList<PickupValuationDto>> GetValuationsAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<SignalValuationDto>> GetValuationsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Adds a price. Refuses a row that could never price safely — an illegal kind token, a missing
     /// per-run bound, or a **hard currency without a per-day cap**. Refused at creation rather than
     /// clamped at runtime, because a missing bound discovered later is currency already spent.
     /// </summary>
-    Task<ServiceResult<PickupValuationDto>> CreateValuationAsync(
-        CreatePickupValuationRequest request,
+    Task<ServiceResult<SignalValuationDto>> CreateValuationAsync(
+        CreateSignalValuationRequest request,
         CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Retunes a price. What the row *prices* cannot move — see
-    /// <see cref="UpdatePickupValuationRequest"/>.
+    /// <see cref="UpdateSignalValuationRequest"/>.
     /// </summary>
-    Task<ServiceResult<PickupValuationDto>> UpdateValuationAsync(
+    Task<ServiceResult<SignalValuationDto>> UpdateValuationAsync(
         Guid valuationId,
-        UpdatePickupValuationRequest request,
+        UpdateSignalValuationRequest request,
         CancellationToken cancellationToken = default);
 
     /// <summary>

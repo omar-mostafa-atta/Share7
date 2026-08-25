@@ -1,5 +1,7 @@
-using Share7.Infrastructure.Objectives;
+﻿using Share7.Infrastructure.Objectives;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using Share7.Application.Runs.Models;
 using Share7.Infrastructure.Leaderboards;
 using Microsoft.EntityFrameworkCore;
 using Share7.Application.Common.Interfaces;
@@ -122,6 +124,9 @@ public static class RewardTestExtensions
                 new PlausibilityGuard(context),
                 NullLogger<GameResultRecorder>.Instance),
             new LevelService(context),
+            // The real pricer: an attempt's variable XP is granted through it, inside the attempt's
+            // own transaction, and a stub would hide the only part of that worth testing.
+            new SignalPricer(context, new EarnCeilingService(context), Options.Create(new RunOptions())),
             new ObjectiveProjector(context, NullLogger<ObjectiveProjector>.Instance));
     }
 

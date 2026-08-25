@@ -1,6 +1,6 @@
-using Share7.Domain.Economy;
 
-namespace Share7.Domain.Runs;
+
+namespace Share7.Domain.Economy;
 
 /// <summary>
 /// How much of one currency one user has <b>earned</b> in one UTC day, and over how many runs.

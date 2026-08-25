@@ -1,4 +1,4 @@
-namespace Share7.Application.Leaderboards.Models;
+﻿namespace Share7.Application.Leaderboards.Models;
 
 /// <summary>
 /// Operational knobs for ranking, bound from the <c>Leaderboards</c> configuration section.
@@ -52,6 +52,35 @@ public class LeaderboardOptions
     /// enough that the table does not grow without bound.
     /// </summary>
     public int RequestLogRetentionHours { get; set; } = 720;
+
+    /// <summary>
+    /// How many days of <c>GameResults</c> to keep. **Zero switches retention off**, which is a
+    /// supported configuration — a deployment small enough not to need it should not be quietly
+    /// deleting its own history.
+    /// <para>
+    /// Ninety days is comfortably longer than any cycle this platform runs, so nothing is ever
+    /// deleted while it could still change a live rank. What it does cost is reach: a rebuild from
+    /// source can only go back this far. That is the deliberate trade — entries are durable, cycles
+    /// settle long before the window closes, and the alternative is keeping every row a five-year-old
+    /// platform ever wrote for a rebuild nobody will run.
+    /// </para>
+    /// </summary>
+    public int ResultRetentionDays { get; set; } = 90;
+
+    /// <summary>
+    /// Rows deleted per pass. Bounded because an unbounded delete on a table of this size takes lock
+    /// escalation, and a production incident, with it.
+    /// </summary>
+    public int RetentionBatchSize { get; set; } = 5_000;
+
+    /// <summary>How often the retention sweeper wakes. Floored at five minutes.</summary>
+    public int RetentionIntervalMinutes { get; set; } = 60;
+
+    /// <summary>
+    /// Most batches one tick will run. Lets a backlog drain over a single tick rather than a batch an
+    /// hour, while stopping a first run against years of history from holding the table all night.
+    /// </summary>
+    public int MaxRetentionPassesPerTick { get; set; } = 20;
 
     /// <summary>Default page size for a board read, and the cap on what a caller may ask for.</summary>
     public int DefaultPageSize { get; set; } = 25;

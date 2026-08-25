@@ -1,8 +1,10 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Share7.Application.Common.Models;
 using Share7.Application.Curriculum.Interfaces;
 using Share7.Application.Economy.Interfaces;
+using Share7.Application.Economy.Models;
+using Share7.Domain.Economy;
 using Share7.Application.Leaderboards.Interfaces;
 using Share7.Application.Leaderboards.Models;
 using Share7.Application.Progress.Interfaces;
@@ -52,6 +54,7 @@ public class ProgressService : IProgressService
     private readonly IWalletService _walletService;
     private readonly IGameResultRecorder _gameResults;
     private readonly ILevelService _levels;
+    private readonly ISignalPricer _pricer;
     private readonly IObjectiveProjector _objectives;
 
     public ProgressService(
@@ -62,6 +65,7 @@ public class ProgressService : IProgressService
         IWalletService walletService,
         IGameResultRecorder gameResults,
         ILevelService levels,
+        ISignalPricer pricer,
         IObjectiveProjector objectives)
     {
         _dbContext = dbContext;
@@ -71,6 +75,7 @@ public class ProgressService : IProgressService
         _walletService = walletService;
         _gameResults = gameResults;
         _levels = levels;
+        _pricer = pricer;
         _objectives = objectives;
     }
 
@@ -263,6 +268,11 @@ public class ProgressService : IProgressService
         var previousState = lessonRow.CompletionState;
         var previousBest = lessonRow.BestPercent;
 
+        // How many *more* questions this attempt got right than the player has ever managed on this
+        // lesson. The unit variable XP is paid in — see UserLessonProgress.BestCorrectCount for why
+        // it is improvement rather than the raw count.
+        var correctImprovement = Math.Max(0, correctCount - lessonRow.BestCorrectCount);
+
         // Last-attempt figures: what the student just scored, which is what the results screen shows.
         lessonRow.CorrectCount = correctCount;
         lessonRow.TotalCount = totalCount;
@@ -274,6 +284,7 @@ public class ProgressService : IProgressService
         // Record figures: monotonic, and the only thing unlocks and rankings read. A worse replay
         // updates the figures above and deliberately leaves these alone.
         lessonRow.BestPercent = Math.Max(lessonRow.BestPercent, percent);
+        lessonRow.BestCorrectCount = Math.Max(lessonRow.BestCorrectCount, correctCount);
 
         var recordState = StateFor(lessonRow.BestPercent);
         lessonRow.CompletionState = recordState;
@@ -285,8 +296,18 @@ public class ProgressService : IProgressService
 
         // Captured before the payout for the same reason the ranked metrics were: the level is a
         // transition, and reading it afterwards would report where the player is rather than how
-        // far they moved.
-        var levelBefore = (await _levels.GetForUserAsync(userId, cancellationToken)).Level;
+        // far they moved. The XP figure goes to the reward engine as its baseline, because the
+        // variable grant below moves the balance before any rule runs.
+        var levelSnapshot = await _levels.GetForUserAsync(userId, cancellationToken);
+        var levelBefore = levelSnapshot.Level;
+
+        // --- the variable half: what the questions were worth -------------------------------------
+        // Priced by the same service, from the same table, under the same cap ladder as a run's
+        // coins. **The count is the server's own** — it comes from re-grading against the answer key,
+        // never from anything the client said — which is why `correct_answer` is an attempt-owned
+        // signal that a run reporting it can never be paid for.
+        var signalRewards = await PaySignalsAsync(
+            userId, request.GameId, correctImprovement, now, cancellationToken);
 
         // The client sent choice ids and nothing else that touches money. Everything the reward
         // engine reads below is the server's own recomputation.
@@ -301,9 +322,14 @@ public class ProgressService : IProgressService
                 // This run's state, not the record's. A replay of an already-aced lesson must not
                 // re-fire LessonAced simply because the stored state is still Aced.
                 CompletionState = attemptState,
-                RequestId = request.RequestId
+                RequestId = request.RequestId,
+                XpBaseline = levelSnapshot.Xp
             },
             cancellationToken);
+
+        // One list, ordered variable-first, so a results screen reads "45 XP for 9 right answers"
+        // above "20 XP for finishing" rather than in whatever order two mechanisms happened to run.
+        rewards = [.. signalRewards, .. rewards];
 
         // Ranking's only seam into gameplay. Inside the transaction on purpose: the result is the
         // source of truth for every board, so an attempt that committed without it would be a rank
@@ -319,7 +345,8 @@ public class ProgressService : IProgressService
                 GradeId = gradeId,
                 LangId = langId,
                 RequestId = request.RequestId,
-                Metrics = RankedMetricsFor(previousState, recordState, previousBest, lessonRow.BestPercent, percent)
+                Metrics = RankedMetricsFor(
+                    previousState, recordState, previousBest, lessonRow.BestPercent, percent, rewards)
             },
             cancellationToken);
 
@@ -419,14 +446,110 @@ public class ProgressService : IProgressService
     /// nothing returns an empty list and records nothing at all.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// Prices and grants the attempt's variable half: what the questions this player got right were
+    /// worth, at whatever an operator has priced <c>correct_answer</c> at.
+    /// <para>
+    /// **The same mechanism a run's coins go through, deliberately.** One valuation table, one cap
+    /// ladder, one set of daily counters, one granting path into the wallet. The alternative — a
+    /// second proportional-payout mechanism living on the attempt path — is how an economy ends up
+    /// with two answers to "how much can a child earn in a day".
+    /// </para>
+    /// <para>
+    /// Returns reward lines shaped exactly like a rule's, so the client renders one list and does not
+    /// need to know which of the two mechanisms paid. <c>RuleId</c> is empty because no rule fired:
+    /// the provenance is on <c>EventType</c> as <c>signal:{kind}</c>.
+    /// </para>
+    /// </summary>
+    private async Task<List<RewardDto>> PaySignalsAsync(
+        Guid userId,
+        Guid gameId,
+        int correctImprovement,
+        DateTime now,
+        CancellationToken cancellationToken)
+    {
+        if (correctImprovement <= 0)
+            return [];
+
+        var pricing = await _pricer.PriceAsync(
+            new SignalPricingRequest
+            {
+                UserId = userId,
+                GameId = gameId,
+                Surface = SignalSurface.Attempt,
+                Counts = new Dictionary<string, int>(StringComparer.Ordinal)
+                {
+                    [SignalKinds.CorrectAnswer] = correctImprovement
+                },
+                NowUtc = now
+                // No duration: an attempt is bounded by how many questions the lesson has, which is a
+                // far tighter bound than any rate a clock could give.
+            },
+            cancellationToken);
+
+        if (!pricing.Any)
+            return [];
+
+        var paid = new List<RewardDto>();
+        List<SignalLine> granted = [];
+
+        foreach (var line in pricing.Lines)
+        {
+            var applied = await _walletService.ApplyAsync(
+                new WalletMutation
+                {
+                    UserId = userId,
+                    CurrencyId = line.CurrencyId,
+                    Delta = line.NetAmount,
+                    TransactionType = CurrencyTransactionType.LessonReward,
+                    SourceType = LedgerSourceType.ProgressAttempt,
+                    SourceId = gameId.ToString(),
+                    // The lesson and the improvement are both in the key. A retried submission
+                    // recomputes the same improvement and collides; a genuinely better later attempt
+                    // improves by a different amount and is a different payout.
+                    IdempotencyKey = $"attempt:{userId}:{gameId}:{line.Kind}:{line.PaidCount}:{now:yyyyMMddHHmmssfff}",
+                    Metadata = JsonSerializer.Serialize(new
+                    {
+                        gameId,
+                        source = line.Source,
+                        improved = line.ReportedCount,
+                        paid = line.PaidCount,
+                        unitValue = line.UnitValue
+                    })
+                },
+                cancellationToken);
+
+            // A retired currency loses the line rather than the attempt. The progress itself is
+            // already recorded; failing here would throw away a lesson the child actually finished.
+            if (!applied.Succeeded)
+                continue;
+
+            granted.Add(line);
+
+            paid.Add(new RewardDto
+            {
+                RuleId = Guid.Empty,
+                RuleName = line.Source,
+                EventType = line.Source,
+                TransactionId = Guid.Empty,
+                Grants = [new RewardGrantDto { Currency = line.CurrencyKey, Amount = line.NetAmount }]
+            });
+        }
+
+        await _pricer.AccrueAsync(userId, granted, now, cancellationToken);
+
+        return paid;
+    }
+
     private static IReadOnlyList<GameResultDraft> RankedMetricsFor(
         CompletionState previousState,
         CompletionState recordState,
         int previousBest,
         int currentBest,
-        int attemptPercent)
+        int attemptPercent,
+        IReadOnlyList<RewardDto> rewards)
     {
-        var metrics = new List<GameResultDraft>(4);
+        var metrics = new List<GameResultDraft>(6);
 
         var passed = recordState is CompletionState.Completed or CompletionState.Aced;
         var wasPassed = previousState is CompletionState.Completed or CompletionState.Aced;
@@ -446,6 +569,19 @@ public class ProgressService : IProgressService
         // than the player's record — the projector keeps the higher of the two.
         if (attemptPercent > 0)
             metrics.Add(new GameResultDraft(LeaderboardMetrics.LessonBestPercent, attemptPercent));
+
+        // What this attempt actually paid, scoped by currency key — both mechanisms, since the caller
+        // hands over one combined list. The run path emits the same metric from its own totals; until
+        // both did, "earn 100 XP today" was a quest that could only ever count half of a child's day.
+        foreach (var earned in rewards
+                     .SelectMany(reward => reward.Grants)
+                     .GroupBy(grant => grant.Currency, StringComparer.Ordinal))
+        {
+            var amount = earned.Sum(grant => grant.Amount);
+
+            if (amount > 0)
+                metrics.Add(new GameResultDraft(LeaderboardMetrics.CurrencyEarned, amount, earned.Key));
+        }
 
         return metrics;
     }

@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Share7.Domain.Commerce;
 using Share7.Domain.Curriculum;
@@ -187,14 +187,26 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, Applicati
     // IWalletService, inside the same transaction that records why.
     public DbSet<Run> Runs => Set<Run>();
 
-    /// <summary>The whole economy-tuning surface. Rebalancing is an UPDATE here, not a client release.</summary>
-    public DbSet<PickupValuation> PickupValuations => Set<PickupValuation>();
+    /// <summary>
+    /// The whole economy-tuning surface. Rebalancing is an UPDATE here, not a client release.
+    /// <para>
+    /// Read by both surfaces that pay a variable amount — a settled run and a graded attempt — through
+    /// the one <c>ISignalPricer</c> that owns the cap ladder.
+    /// </para>
+    /// </summary>
+    public DbSet<SignalValuation> SignalValuations => Set<SignalValuation>();
 
     /// <summary>Why a run paid what it paid, gross and net. Immutable audit, one row per source.</summary>
     public DbSet<RunPayout> RunPayouts => Set<RunPayout>();
 
     /// <summary>Gameplay-earned currency per user per UTC day — the counter the earning ceiling reads.</summary>
     public DbSet<DailyCurrencyLedger> DailyCurrencyLedger => Set<DailyCurrencyLedger>();
+
+    /// <summary>
+    /// Signals paid for per user per kind per UTC day — the counter <c>SignalValuation.MaxPerDay</c>
+    /// is checked against. One keyed row, rather than a group-by over every payout ever written.
+    /// </summary>
+    public DbSet<DailySignalLedger> DailySignalLedger => Set<DailySignalLedger>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

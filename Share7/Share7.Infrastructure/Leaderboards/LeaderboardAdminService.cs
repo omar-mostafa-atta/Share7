@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Share7.Application.Common.Models;
 using Share7.Application.Leaderboards.Interfaces;
 using Share7.Application.Leaderboards.Models;
@@ -451,6 +451,27 @@ public class LeaderboardAdminService : ILeaderboardAdminService
             return Invalid(
                 $"Nothing raises the metric '{request.Metric}'. Known metrics: " +
                 $"{string.Join(", ", LeaderboardMetrics.Known)}.");
+        }
+
+        // **A board cannot rank currency, and XP is the reason it must not try.**
+        //
+        // Boards deliberately ignore GameResult.Scope and aggregate across every one of them, so a
+        // board on CURRENCY_EARNED does not rank coins — it ranks coins *plus XP* added together,
+        // which is not a quantity. And the XP half must not be ranked at all: it measures time spent
+        // rather than skill, and it is compared across every age on the platform, so the ladder puts
+        // a six-year-old below a sixteen-year-old for being younger and every child below whoever
+        // plays the most hours.
+        //
+        // Refused at authoring because a live board cannot be withdrawn without taking a prize away
+        // from whoever is holding first place. An objective *can* scope to one currency, so "earn 100
+        // XP today" remains expressible as a quest — which is where a personal target belongs.
+        if (string.Equals(metric, LeaderboardMetrics.CurrencyEarned, StringComparison.Ordinal))
+        {
+            return Invalid(
+                "CURRENCY_EARNED cannot be ranked. A board aggregates across every currency, so it "
+                + "would add coins to XP — and XP measures time spent rather than skill, compared "
+                + "across every age on the platform. Rank what a player did (lessons aced, a best "
+                + "time), or set this as an objective, which can scope to one currency.");
         }
 
         if (!Enum.TryParse<LeaderboardSortDirection>(request.SortDirection, true, out _))

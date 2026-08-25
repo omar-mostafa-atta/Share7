@@ -1,5 +1,6 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Share7.Domain.Economy;
 using Share7.Domain.Games;
 using Share7.Domain.Runs;
 using Share7.Infrastructure.Identity;
@@ -106,14 +107,17 @@ public class RunConfiguration : IEntityTypeConfiguration<Run>
     }
 }
 
-public class PickupValuationConfiguration : IEntityTypeConfiguration<PickupValuation>
+public class SignalValuationConfiguration : IEntityTypeConfiguration<SignalValuation>
 {
-    public void Configure(EntityTypeBuilder<PickupValuation> builder)
+    public void Configure(EntityTypeBuilder<SignalValuation> builder)
     {
-        builder.ToTable("PickupValuations");
+        // Renamed from PickupValuations (2026-08-25) when the table stopped being about pickups.
+        // The migration renames rather than recreates: these rows are the live economy, and dropping
+        // them would silently zero every payout until an operator re-authored the lot.
+        builder.ToTable("SignalValuations");
         builder.HasKey(v => v.Id);
 
-        builder.Property(v => v.PickupKind).IsRequired().HasMaxLength(PickupKinds.MaxLength);
+        builder.Property(v => v.SignalKind).IsRequired().HasMaxLength(SignalKinds.MaxLength);
         builder.Property(v => v.Enabled).HasDefaultValue(true);
 
         // One price per (game, kind, currency). Two rows for the same triple is a config typo that
@@ -126,14 +130,14 @@ public class PickupValuationConfiguration : IEntityTypeConfiguration<PickupValua
         // and silently double a payout. SQL Server treats NULLs as equal in a unique index, so
         // clearing the filter is what makes "one default per kind per currency" a constraint rather
         // than a convention.
-        builder.HasIndex(v => new { v.GameId, v.PickupKind, v.CurrencyId })
+        builder.HasIndex(v => new { v.GameId, v.SignalKind, v.CurrencyId })
             .IsUnique()
             .HasFilter(null)
             .HasDatabaseName("UX_Valuation");
 
         // Settlement's read: every enabled price for this game plus the platform defaults, in one
         // query rather than one per kind.
-        builder.HasIndex(v => new { v.PickupKind, v.Enabled })
+        builder.HasIndex(v => new { v.SignalKind, v.Enabled })
             .HasDatabaseName("IX_Valuation_Kind");
 
         builder.HasOne<Game>()
@@ -148,6 +152,30 @@ public class PickupValuationConfiguration : IEntityTypeConfiguration<PickupValua
             .WithMany()
             .HasForeignKey(v => v.CurrencyId)
             .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class DailySignalLedgerConfiguration : IEntityTypeConfiguration<DailySignalLedger>
+{
+    public void Configure(EntityTypeBuilder<DailySignalLedger> builder)
+    {
+        builder.ToTable("DailySignalLedger");
+
+        // Composite natural key, for the same reason DailyCurrencyLedger has one: every read is a
+        // primary-key lookup and the row's existence *is* the counter. This is what replaced a
+        // group-by over every RunPayout the platform had ever written.
+        builder.HasKey(l => new { l.UserId, l.SignalKind, l.DayUtc });
+
+        builder.Property(l => l.SignalKind).IsRequired().HasMaxLength(SignalKinds.MaxLength);
+
+        // Date-only, so a stray time-of-day cannot split one day across two rows.
+        builder.Property(l => l.DayUtc).HasColumnType("date");
+
+        // Goes with the account. A deleted child's daily counters are not somebody else's business.
+        builder.HasOne<ApplicationUser>()
+            .WithMany()
+            .HasForeignKey(l => l.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }
 

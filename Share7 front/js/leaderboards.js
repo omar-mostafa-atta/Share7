@@ -21,10 +21,13 @@ import { initNav } from './nav.js';
 // metric nothing raises does not fail: it stays empty forever, which is
 // indistinguishable from an unpopular one.
 // ---------------------------------------------------------------------------
+// CURRENCY_EARNED is deliberately absent. It is a real metric and objectives can use it, but a
+// board aggregates across every currency scope, so a board on it would add coins to XP — and XP
+// must not be ranked at all. The API refuses it; offering it here would only produce an error.
 const METRICS = [
   'LESSONS_COMPLETED', 'LESSONS_ACED', 'TOTAL_LESSON_SCORE', 'LESSON_BEST_PERCENT',
   'RUNS_SETTLED', 'RUNS_COMPLETED', 'RUN_SECONDS', 'BEST_RUN_SECONDS',
-  'PICKUPS_COLLECTED', 'CURRENCY_EARNED'
+  'PICKUPS_COLLECTED'
 ];
 
 const PERIODS      = ['AllTime', 'Daily', 'Weekly', 'Monthly', 'Event'];

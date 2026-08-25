@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Share7.API.Extensions;
 using Share7.Application.Common.Interfaces;
@@ -39,6 +39,7 @@ public class AdminRunsController : ControllerBase
     /// Every price, retired ones included. <c>currencyEnabled</c> is worth checking when a kind has
     /// stopped paying: a row referencing a retired currency is skipped whole at settlement.
     /// </summary>
+    [HttpGet("signal-valuations")]
     [HttpGet("pickup-valuations")]
     public async Task<IActionResult> GetValuations(CancellationToken cancellationToken)
     {
@@ -47,10 +48,21 @@ public class AdminRunsController : ControllerBase
     }
 
     /// <summary>
-    /// Prices a pickup kind.
+    /// Prices a gameplay signal kind — a coin collected, an obstacle dodged, a question answered
+    /// right.
     /// <code>
-    /// { "gameId": null, "pickupKind": "coin", "currencyId": "…", "unitValue": 1, "maxPerRun": 500 }
+    /// { "gameId": null, "signalKind": "coin", "currencyId": "…", "unitValue": 1, "maxPerRun": 500 }
     /// </code>
+    /// <para>
+    /// <c>pickupKind</c> is still accepted in place of <c>signalKind</c>, and both routes reach this
+    /// action, so a console shipped before the rename keeps authoring.
+    /// </para>
+    /// <para>
+    /// <b>Which surface may report a kind is not a choice made here.</b> <c>correct_answer</c> is
+    /// derived by the server from a graded attempt and <c>coin</c> is reported by a run; pricing one
+    /// on the other's surface pays nothing rather than paying twice. The listing shows each row's
+    /// surface so a row that will never fire is visible instead of merely quiet.
+    /// </para>
     /// <para>
     /// Leave <c>gameId</c> null for the platform default every unconfigured mini-game resolves
     /// through, or set it to price the same kind differently in one harder game. Exact match wins
@@ -67,9 +79,10 @@ public class AdminRunsController : ControllerBase
     /// <response code="400">Illegal kind token, or a hard currency without <c>maxPerDay</c>.</response>
     /// <response code="404">No such currency, or no such game.</response>
     /// <response code="409">That game already prices that kind in that currency.</response>
+    [HttpPost("signal-valuations")]
     [HttpPost("pickup-valuations")]
     public async Task<IActionResult> CreateValuation(
-        CreatePickupValuationRequest request,
+        CreateSignalValuationRequest request,
         CancellationToken cancellationToken)
     {
         var result = await _runAdmin.CreateValuationAsync(request, cancellationToken);
@@ -81,15 +94,16 @@ public class AdminRunsController : ControllerBase
     /// economy-tuning surface**, and it takes effect on the next run with no deploy and no client
     /// release.
     /// <para>
-    /// What the row *prices* cannot move: <c>gameId</c>, <c>pickupKind</c> and <c>currencyId</c> are
+    /// What the row *prices* cannot move: <c>gameId</c>, <c>signalKind</c> and <c>currencyId</c> are
     /// not accepted, because changing them would strand the payout rows recorded against it. Retire
     /// it with <c>enabled: false</c> and author a replacement.
     /// </para>
     /// </summary>
+    [HttpPut("signal-valuations/{valuationId:guid}")]
     [HttpPut("pickup-valuations/{valuationId:guid}")]
     public async Task<IActionResult> UpdateValuation(
         Guid valuationId,
-        UpdatePickupValuationRequest request,
+        UpdateSignalValuationRequest request,
         CancellationToken cancellationToken)
     {
         var result = await _runAdmin.UpdateValuationAsync(valuationId, request, cancellationToken);
