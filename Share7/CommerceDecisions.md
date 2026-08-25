@@ -20,7 +20,10 @@ absent.
 | Account deletion | **Immediate hard delete.** No grace period, no pending state, no cancel. |
 | Currency authority | **Server.** The client never states an amount. |
 | Reward amounts | From configurable `RewardRule` rows, evaluated against validated progress. |
-| Reward trigger | `POST /api/progress/attempts` only — no generic "client can earn" endpoint. |
+| Reward trigger | `POST /api/progress/attempts` and `POST /api/runs/{runId}/result` — both server-opened, neither a generic "client can earn" endpoint. |
+| Variable payouts | From `SignalValuation` rows: the client reports **counts of things that happened**, the server prices them. Never a score, and never an amount. |
+| Signal ownership | `SignalKinds.OwnerOf` fixes which surface may claim a kind, so one right answer cannot be paid by both the attempt that graded it and the run around it. |
+| XP | A `Currency` row, **non-spendable**, so lifetime-earned equals the balance and the level is a pure function of one number. Never ranked on a leaderboard. |
 | Region eligibility | **Deferred.** No reliable region source exists on the account. |
 | Localized text | Unity owns it. The backend returns stable keys only. |
 | Cosmetics | Opaque stable client references. No backend cosmetic catalogue. |
