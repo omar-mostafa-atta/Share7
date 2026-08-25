@@ -760,9 +760,25 @@ public class ProgressService : IProgressService
                             ContentUpdated = row is not null && row.QuestionsVersion != lesson.CurrentVersion
                         });
 
-                        // Unplayable lessons contribute nothing either way, so a chapter waiting
-                        // on an Arabic sheet is not dragged toward 0% by lessons no one can play.
-                        if (lesson.LiveTotal == 0)
+                        // **A lesson counts against the questions it can be measured by, and the
+                        // language being read is not one of them.** LiveTotal is scoped to langId,
+                        // so a lesson authored only in Arabic vanished from every rollup the moment
+                        // an English reader asked for the snapshot — numerator and denominator both.
+                        // The tile beside it kept showing the child's real score, because that comes
+                        // from their stored row and is language-independent, so a subject bar froze
+                        // at whatever the lessons that *did* have live text added up to and never
+                        // moved again however much the child finished.
+                        //
+                        // Content ids are stable across languages and only the text is localized, so
+                        // progress is not language-scoped either. An attempted lesson falls back to
+                        // the question count the child actually answered, which is the set their
+                        // BestPercent was measured against and therefore the honest denominator.
+                        var lessonTotal = lesson.LiveTotal > 0 ? lesson.LiveTotal : row?.TotalCount ?? 0;
+
+                        // Never attempted and nothing live to play: genuinely nothing to measure, so
+                        // it stays out of the rollup rather than dragging a chapter toward 0% while
+                        // it waits on an Arabic sheet.
+                        if (lessonTotal == 0)
                             continue;
 
                         // **The child's best, not their latest.** This summed CorrectCount — the
@@ -775,8 +791,8 @@ public class ProgressService : IProgressService
                         // Derived from BestPercent rather than a stored best count so this needs no
                         // migration, and it is the same number the lesson's own state is decided
                         // from — which is the property that makes the rollup and the tiles agree.
-                        chapterCorrect += BestCorrectFor(row, lesson.LiveTotal);
-                        chapterTotal += lesson.LiveTotal;
+                        chapterCorrect += BestCorrectFor(row, lessonTotal);
+                        chapterTotal += lessonTotal;
                     }
 
                     chapterDto.Percent = ToPercent(chapterCorrect, chapterTotal);
