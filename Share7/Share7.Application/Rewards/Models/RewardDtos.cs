@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using Share7.Domain.Progress;
 using Share7.Domain.Runs;
 
@@ -34,6 +34,23 @@ public class ProgressRewardContext
     /// twice. Absent on older clients — see <c>SubmitAttemptRequest.RequestId</c>.
     /// </summary>
     public string? RequestId { get; init; }
+
+    /// <summary>
+    /// The account's XP balance **before anything this operation granted**, when the caller has
+    /// already moved it.
+    /// <para>
+    /// **Level-up detection needs a true starting point, and deriving one by subtraction stopped
+    /// working.** The engine used to compute it as <c>balanceNow - xpTheRulesPaid</c>, which is only
+    /// right while rules are the sole source of XP. Now that a variable payout can grant XP too — five
+    /// a right answer, one a dodge — that subtraction lands *above* where the player actually started
+    /// and silently skips every level the variable half crossed. The child sees no popup for a level
+    /// they reached, and any reward authored on it never pays.
+    /// </para>
+    /// <para>
+    /// Null keeps the old derivation, which stays correct for a caller that grants nothing of its own.
+    /// </para>
+    /// </summary>
+    public long? XpBaseline { get; init; }
 }
 
 /// <summary>
@@ -292,4 +309,21 @@ public class RunRewardContext
 
     /// <summary>How the run ended. Metadata for now; a future rule may branch on it.</summary>
     public required RunOutcome Outcome { get; init; }
+
+    /// <summary>
+    /// The account's XP balance **before anything this operation granted**, when the caller has
+    /// already moved it.
+    /// <para>
+    /// **Level-up detection needs a true starting point, and deriving one by subtraction stopped
+    /// working.** The engine used to compute it as <c>balanceNow - xpTheRulesPaid</c>, which is only
+    /// right while rules are the sole source of XP. Now that a variable payout can grant XP too — five
+    /// a right answer, one a dodge — that subtraction lands *above* where the player actually started
+    /// and silently skips every level the variable half crossed. The child sees no popup for a level
+    /// they reached, and any reward authored on it never pays.
+    /// </para>
+    /// <para>
+    /// Null keeps the old derivation, which stays correct for a caller that grants nothing of its own.
+    /// </para>
+    /// </summary>
+    public long? XpBaseline { get; init; }
 }

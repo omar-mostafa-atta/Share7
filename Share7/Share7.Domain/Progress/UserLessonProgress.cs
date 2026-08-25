@@ -1,4 +1,4 @@
-namespace Share7.Domain.Progress;
+﻿namespace Share7.Domain.Progress;
 
 /// <summary>
 /// Rollup of one lesson for one student in one game. Stored rather than derived because the
@@ -37,6 +37,24 @@ public class UserLessonProgress
     /// </para>
     /// </summary>
     public int BestPercent { get; set; }
+
+    /// <summary>
+    /// The most questions ever answered correctly on this lesson. Monotonic, like
+    /// <see cref="BestPercent"/> beside it, and the reason replaying a lesson cannot farm XP.
+    /// <para>
+    /// **Variable XP is paid on improvement, not on attempts.** A rule can be scoped <c>Once</c> per
+    /// lesson and is therefore replay-proof for free, but a payout of "five XP a right answer" is not:
+    /// without this, a child — or a script — replays one finished lesson a hundred times and is paid
+    /// in full every time. Paying the difference instead means acing a lesson pays once, improving
+    /// from six to nine pays for three, and a worse replay pays nothing.
+    /// </para>
+    /// <para>
+    /// Deliberately a stored count rather than <c>BestPercent × TotalCount</c>: rounding a percentage
+    /// back into a count is off by one often enough to pay for a question nobody answered, and a
+    /// lesson's question count changes when its content is revised.
+    /// </para>
+    /// </summary>
+    public int BestCorrectCount { get; set; }
 
     /// <summary>
     /// **Monotonic** — <c>Uncompleted → Completed → Aced</c>, never backwards. Derived from

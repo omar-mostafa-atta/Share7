@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Share7.Application.Runs.Models;
 using Share7.Domain.Leaderboards;
+using Share7.Domain.Economy;
 using Share7.Domain.Runs;
 using Share7.Tests.Infrastructure;
 using Xunit;
@@ -91,7 +92,7 @@ public class RunGameResultEmissionTests
             .Single(r => r.Metric == LeaderboardMetrics.PickupsCollected);
 
         Assert.Equal(50, pickups.Value);
-        Assert.Equal(PickupKinds.Coin, pickups.Scope);
+        Assert.Equal(SignalKinds.Coin, pickups.Scope);
     }
 
     [Fact]

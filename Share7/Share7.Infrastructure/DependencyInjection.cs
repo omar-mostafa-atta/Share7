@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -123,6 +123,20 @@ public static class DependencyInjection
 
         services.Configure<RunOptions>(configuration.GetSection(RunOptions.SectionName));
         services.AddScoped<IEarnCeilingService, EarnCeilingService>();
+
+        // The one place counts become currency. Scoped, because it reads and writes counters inside
+        // whichever transaction its caller opened — a singleton could not participate in one.
+        services.AddScoped<ISignalPricer, SignalPricer>();
+
+        // Retention for the append-only result stream. The service is scoped so one pass is testable;
+        // the sweeper is only a timer around it.
+        services.AddScoped<IGameResultRetentionService, GameResultRetentionService>();
+        services.AddHostedService<GameResultRetentionSweeper>();
+
+        // The level curve, cached for the process rather than for the request. It is at most a few
+        // dozen authored rows that change roughly never, and it was being re-read three times per
+        // attempt: once for the baseline, once inside the reward engine, once for the response.
+        services.AddSingleton<ILevelCurveCache, LevelCurveCache>();
         services.AddScoped<IRunService, RunService>();
         services.AddScoped<IRunAdminService, RunAdminService>();
 

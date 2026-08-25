@@ -230,8 +230,8 @@ public class RunSettlementTests
         {
             Pickups =
             [
-                new RunPickupReport { Kind = "coin", Count = 5 },
-                new RunPickupReport { Kind = "mg147_starfish", Count = 99 }
+                new RunSignalReport { Kind = "coin", Count = 5 },
+                new RunSignalReport { Kind = "mg147_starfish", Count = 99 }
             ],
             DurationMs = 30_000
         });
@@ -302,8 +302,8 @@ public class RunSettlementTests
         {
             Pickups =
             [
-                new RunPickupReport { Kind = "coin", Count = 19 },
-                new RunPickupReport { Kind = "coin", Count = 19 }
+                new RunSignalReport { Kind = "coin", Count = 19 },
+                new RunSignalReport { Kind = "coin", Count = 19 }
             ],
             DurationMs = 30_000
         });
@@ -384,7 +384,7 @@ public class RunSettlementTests
 
         var settled = await runs.SettleAsync(userId, started.Value!.RunId, new SubmitRunResultRequest
         {
-            Pickups = [new RunPickupReport { Kind = "coin", Count = 10 }],
+            Pickups = [new RunSignalReport { Kind = "coin", Count = 10 }],
             Modifiers = [new RunModifierReport { Kind = "quintuple_everything", DurationSeconds = 30 }],
             DurationMs = 60_000
         });
@@ -624,8 +624,8 @@ public class RunSettlementTests
             {
                 Pickups =
                 [
-                    new RunPickupReport { Kind = "coin", Count = 10 },
-                    new RunPickupReport { Kind = "gem", Count = 2 }
+                    new RunSignalReport { Kind = "coin", Count = 10 },
+                    new RunSignalReport { Kind = "gem", Count = 2 }
                 ],
                 DurationMs = 30_000
             }));

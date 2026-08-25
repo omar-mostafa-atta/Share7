@@ -1,4 +1,4 @@
-namespace Share7.Application.Runs.Interfaces;
+﻿namespace Share7.Application.Runs.Interfaces;
 
 /// <summary>
 /// What a seed actually generated, re-derived server-side.
@@ -8,7 +8,27 @@ namespace Share7.Application.Runs.Interfaces;
 /// Every pickup id the layout placed. A claim naming an id outside this set is collecting something
 /// that was never spawned.
 /// </param>
-public sealed record RunLayout(IReadOnlyDictionary<string, int> PickupCounts, IReadOnlySet<int> PickupIds);
+public sealed record RunLayout(
+    IReadOnlyDictionary<string, int> PickupCounts,
+    IReadOnlySet<int> PickupIds,
+    IReadOnlySet<string>? SpawnedKinds = null)
+{
+    /// <summary>
+    /// The kinds this layout is answerable for. Defaults to the kinds it placed.
+    /// <para>
+    /// **Not every reported signal is a spawned object.** A run reports what it collected *and* what
+    /// it did — obstacles dodged, ground covered — and a layout has no opinion about those. Checking
+    /// them against a spawn table they were never in reads every one as "claimed more than existed"
+    /// and rejects an honest run, which is the one outcome exact verification must never produce.
+    /// </para>
+    /// <para>
+    /// Name a kind here that this seed placed **zero** of to keep it checkable: without that, a claim
+    /// for a kind the track happened not to spawn would go unverified rather than being refused.
+    /// </para>
+    /// </summary>
+    public IReadOnlySet<string> VerifiableKinds { get; } =
+        SpawnedKinds ?? PickupCounts.Keys.ToHashSet(StringComparer.Ordinal);
+}
 
 /// <summary>
 /// Re-derives a run's layout from the seed the server issued, so a claim can be checked **exactly**

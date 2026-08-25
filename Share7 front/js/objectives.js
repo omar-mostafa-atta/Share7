@@ -35,8 +35,8 @@ const METRICS = [
     hint: 'Seconds played, summed. Taken from the server-bounded duration, never the reported one.' },
   { value: 'BEST_RUN_SECONDS',    agg: 'BEST', scope: null,
     hint: 'The longest single run, in seconds. Pair it with BEST, not SUM.' },
-  { value: 'PICKUPS_COLLECTED',   agg: 'SUM',  scope: 'pickup',
-    hint: 'Pickups as settled — after the per-run cap, never as reported.' },
+  { value: 'PICKUPS_COLLECTED',   agg: 'SUM',  scope: 'signal',
+    hint: 'Signals as settled — after the per-run cap, never as reported.' },
   { value: 'CURRENCY_EARNED',     agg: 'SUM',  scope: 'currency',
     hint: 'Currency actually credited, net of caps. One result per settlement.' }
 ];
@@ -72,7 +72,7 @@ let objectives = [];
 let games = [];
 let grades = [];
 let currencyKeys = [];
-let pickupKinds = [];
+let signalKinds = [];
 let serverSkewMs = 0;
 let editingId = null;
 let objectiveModalInstance = null;
@@ -149,7 +149,7 @@ async function loadGrades() {
 
 /**
  * Scope suggestions, and nothing more — the field stays free text. A scope is only ever matched
- * against what a game result carries, so a pickup kind that is not priced yet is still a legal
+ * against what a game result carries, so a signal kind that is not priced yet is still a legal
  * thing to author an objective on today.
  */
 async function loadScopeSuggestions() {
@@ -159,9 +159,12 @@ async function loadScopeSuggestions() {
   } catch { currencyKeys = []; }
 
   try {
-    const data = await api('GET', '/api/admin/pickup-valuations');
-    pickupKinds = [...new Set((data.valuations || []).map(v => v.pickupKind).filter(Boolean))];
-  } catch { pickupKinds = []; }
+    const data = await api('GET', '/api/admin/signal-valuations');
+    // signalKind is the field; pickupKind is the legacy alias the API still emits, read here so a
+    // console served against a backend mid-rollout does not lose its suggestions.
+    signalKinds = [...new Set(
+      (data.valuations || []).map(v => v.signalKind || v.pickupKind).filter(Boolean))];
+  } catch { signalKinds = []; }
 }
 
 // ---------------------------------------------------------------------------
@@ -347,13 +350,13 @@ function onMetricChange() {
     return;
   }
 
-  const options = metric.scope === 'currency' ? currencyKeys : pickupKinds;
+  const options = metric.scope === 'currency' ? currencyKeys : signalKinds;
   list.innerHTML = options.map(o => `<option value="${escapeHtml(o)}"></option>`).join('');
 
   scope.placeholder = metric.scope === 'currency' ? 'coins' : 'coin';
   hint.textContent = metric.scope === 'currency'
     ? 'A currency key. This is what makes "earn 200 coins" and "earn 20 gems" two rows over one metric.'
-    : 'A pickup kind. Blank counts every kind together.';
+    : 'A signal kind — coin, near_miss, distance_m. Blank counts every kind together.';
 }
 
 /** Selecting a metric also proposes the aggregation it is meant to be read with. */

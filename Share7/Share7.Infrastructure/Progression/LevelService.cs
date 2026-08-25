@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Share7.Application.Common.Models;
 using Share7.Application.Progression.Interfaces;
 using Share7.Application.Progression.Models;
@@ -12,8 +12,16 @@ namespace Share7.Infrastructure.Progression;
 public class LevelService : ILevelService
 {
     private readonly ApplicationDbContext _dbContext;
+    private readonly ILevelCurveCache _curve;
 
-    public LevelService(ApplicationDbContext dbContext) => _dbContext = dbContext;
+    public LevelService(ApplicationDbContext dbContext, ILevelCurveCache? curve = null)
+    {
+        _dbContext = dbContext;
+
+        // Optional so a test can construct this with a context and nothing else. A private cache is
+        // then per-instance, which is exactly the old behaviour and correct for a test.
+        _curve = curve ?? new LevelCurveCache();
+    }
 
     public Guid XpCurrencyId => CurrencyIds.Xp;
 
@@ -186,7 +194,10 @@ public class LevelService : ILevelService
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        _cache = null;
+        // The one write path, and therefore the one place invalidation belongs. Cleared after the
+        // save, never before: a reader arriving mid-replace must see the old curve rather than
+        // reload a half-written one.
+        _curve.Invalidate();
 
         return ServiceResult<IReadOnlyList<LevelThresholdDto>>.Success(
             levels
@@ -196,19 +207,24 @@ public class LevelService : ILevelService
 
     // ---- internals ---------------------------------------------------------------------------
 
-    /// <summary>
-    /// Per-request memo. The curve is read on every attempt submission and again on every
-    /// progression read, and it changes about once a quarter; this service is scoped, so the memo
-    /// lives exactly as long as the request and cannot go stale across one.
-    /// </summary>
-    private IReadOnlyList<LevelThreshold>? _cache;
+
 
     private async Task<IReadOnlyList<LevelThreshold>> CurveAsync(CancellationToken cancellationToken)
     {
-        return _cache ??= await _dbContext.LevelThresholds
+        if (_curve.Current is { } cached)
+            return cached;
+
+        var loaded = await _dbContext.LevelThresholds
             .AsNoTracking()
             .OrderBy(t => t.CumulativeXp)
             .ToListAsync(cancellationToken);
+
+        // Two requests racing here both load and both publish the same rows; the loser's list is
+        // simply dropped. A lock would serialise every cold read to save one duplicate query on a
+        // few dozen rows, which is the wrong trade.
+        _curve.Set(loaded);
+
+        return loaded;
     }
 
     /// <summary>

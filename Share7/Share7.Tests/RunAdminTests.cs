@@ -32,7 +32,7 @@ public class RunAdminTests
         var coins = await context.CreateCurrencyAsync();
         var admin = RunTestExtensions.CreateRunAdminService(context);
 
-        var created = await admin.CreateValuationAsync(new CreatePickupValuationRequest
+        var created = await admin.CreateValuationAsync(new CreateSignalValuationRequest
         {
             GameId = game.Id,
             PickupKind = "coin",
@@ -50,7 +50,7 @@ public class RunAdminTests
         Assert.Equal(30, Assert.Single(settled.Value!.Rewards).Amount);
 
         // The whole point of the table: retuning is an edit, not a deploy and not a client release.
-        await admin.UpdateValuationAsync(created.Value!.Id, new UpdatePickupValuationRequest
+        await admin.UpdateValuationAsync(created.Value!.Id, new UpdateSignalValuationRequest
         {
             UnitValue = 6,
             MaxPerRun = 100,
@@ -72,7 +72,7 @@ public class RunAdminTests
         var coins = await context.CreateCurrencyAsync();
         var admin = RunTestExtensions.CreateRunAdminService(context);
 
-        var created = await admin.CreateValuationAsync(new CreatePickupValuationRequest
+        var created = await admin.CreateValuationAsync(new CreateSignalValuationRequest
         {
             GameId = game.Id, PickupKind = "coin", CurrencyId = coins.Id, UnitValue = 2, MaxPerRun = 100
         });
@@ -81,7 +81,7 @@ public class RunAdminTests
         var paid = await runs.StartAsync(userId, new StartRunRequest { GameId = game.Id });
         await runs.SettleAsync(userId, paid.Value!.RunId, RunTestExtensions.Result(coins: 5));
 
-        await admin.UpdateValuationAsync(created.Value!.Id, new UpdatePickupValuationRequest
+        await admin.UpdateValuationAsync(created.Value!.Id, new UpdateSignalValuationRequest
         {
             UnitValue = 2, MaxPerRun = 100, Enabled = false
         });
@@ -93,7 +93,7 @@ public class RunAdminTests
 
         // The row survives, so the payout it already priced stays explicable. There is no delete.
         await using var check = _fixture.CreateContext();
-        Assert.NotNull(await check.PickupValuations.FindAsync(created.Value.Id));
+        Assert.NotNull(await check.SignalValuations.FindAsync(created.Value.Id));
         Assert.Equal(10, Assert.Single(await check.PayoutsOfAsync(paid.Value.RunId)).NetAmount);
     }
 
@@ -105,7 +105,7 @@ public class RunAdminTests
         var coins = await context.CreateCurrencyAsync();
         var admin = RunTestExtensions.CreateRunAdminService(context);
 
-        var request = new CreatePickupValuationRequest
+        var request = new CreateSignalValuationRequest
         {
             GameId = game.Id, PickupKind = "coin", CurrencyId = coins.Id, UnitValue = 1, MaxPerRun = 10
         };
@@ -125,7 +125,7 @@ public class RunAdminTests
         var coins = await context.CreateCurrencyAsync();
 
         var refused = await RunTestExtensions.CreateRunAdminService(context)
-            .CreateValuationAsync(new CreatePickupValuationRequest
+            .CreateValuationAsync(new CreateSignalValuationRequest
             {
                 PickupKind = "Coin-Large", CurrencyId = coins.Id, UnitValue = 1, MaxPerRun = 10
             });
@@ -144,7 +144,7 @@ public class RunAdminTests
         var gems = await context.CreateCappedCurrencyAsync(isHard: true, dailyEarnCap: 10);
         var admin = RunTestExtensions.CreateRunAdminService(context);
 
-        var unbounded = await admin.CreateValuationAsync(new CreatePickupValuationRequest
+        var unbounded = await admin.CreateValuationAsync(new CreateSignalValuationRequest
         {
             PickupKind = "gem", CurrencyId = gems.Id, UnitValue = 1, MaxPerRun = 5
         });
@@ -155,7 +155,7 @@ public class RunAdminTests
         Assert.False(unbounded.Succeeded);
         Assert.Equal("VALUATION_INVALID", unbounded.Error?.Code);
 
-        var bounded = await admin.CreateValuationAsync(new CreatePickupValuationRequest
+        var bounded = await admin.CreateValuationAsync(new CreateSignalValuationRequest
         {
             PickupKind = "gem", CurrencyId = gems.Id, UnitValue = 1, MaxPerRun = 5, MaxPerDay = 5
         });
@@ -170,13 +170,13 @@ public class RunAdminTests
         var gems = await context.CreateCappedCurrencyAsync(isHard: true, dailyEarnCap: 10);
         var admin = RunTestExtensions.CreateRunAdminService(context);
 
-        var created = await admin.CreateValuationAsync(new CreatePickupValuationRequest
+        var created = await admin.CreateValuationAsync(new CreateSignalValuationRequest
         {
             PickupKind = "gem", CurrencyId = gems.Id, UnitValue = 1, MaxPerRun = 5, MaxPerDay = 5
         });
 
         // Clearing it later is exactly as unbounded as never setting it.
-        var cleared = await admin.UpdateValuationAsync(created.Value!.Id, new UpdatePickupValuationRequest
+        var cleared = await admin.UpdateValuationAsync(created.Value!.Id, new UpdateSignalValuationRequest
         {
             UnitValue = 1, MaxPerRun = 5, MaxPerDay = null, Enabled = true
         });

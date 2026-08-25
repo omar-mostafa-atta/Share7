@@ -1,6 +1,7 @@
 using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Share7.Application.Runs.Models;
+using Share7.Domain.Economy;
 using Share7.Domain.Runs;
 using Share7.Tests.Infrastructure;
 using Xunit;
@@ -52,7 +53,7 @@ public class RunContractTests
         // shapes it claims to police.
         Assert.Contains(typeof(StartRunRequest), requestTypes);
         Assert.Contains(typeof(SubmitRunResultRequest), requestTypes);
-        Assert.Contains(typeof(RunPickupReport), requestTypes);
+        Assert.Contains(typeof(RunSignalReport), requestTypes);
         Assert.Contains(typeof(RunModifierReport), requestTypes);
 
         var offenders = requestTypes
@@ -101,7 +102,7 @@ public class RunContractTests
         await context.CreateValuationAsync(coins.Id, kind: kind, gameId: null, unitValue: 1);
         await context.CreateValuationAsync(coins.Id, kind: kind, gameId: game.Id, unitValue: 10);
 
-        Assert.Equal(2, await context.PickupValuations.CountAsync(v => v.PickupKind == kind));
+        Assert.Equal(2, await context.SignalValuations.CountAsync(v => v.SignalKind == kind));
     }
 
     [Theory]
@@ -114,9 +115,9 @@ public class RunContractTests
     [InlineData("", false)]
     [InlineData(null, false)]
     public void A_pickup_kind_is_shaped_like_a_currency_key(string? kind, bool valid) =>
-        Assert.Equal(valid, PickupKinds.IsValid(kind));
+        Assert.Equal(valid, SignalKinds.IsValid(kind));
 
     [Fact]
     public void A_pickup_kind_normalises_case_so_one_prefab_resolves_one_row() =>
-        Assert.Equal("coin", PickupKinds.Normalise("  Coin "));
+        Assert.Equal("coin", SignalKinds.Normalise("  Coin "));
 }

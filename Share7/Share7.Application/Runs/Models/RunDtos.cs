@@ -1,5 +1,7 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using Share7.Application.Economy.Models;
+using Share7.Application.Progression.Models;
+using Share7.Domain.Economy;
 using Share7.Domain.Runs;
 
 namespace Share7.Application.Runs.Models;
@@ -54,15 +56,18 @@ public class StartRunResponse
 
 // ---- settling a run --------------------------------------------------------------------------
 
-/// <summary>How many of one kind of pickup were collected. A count of things, <b>not</b> a balance.</summary>
-public class RunPickupReport
+/// <summary>
+/// How many of one gameplay signal the run observed. A count of things that happened, <b>not</b> a
+/// balance and <b>not</b> a score.
+/// </summary>
+public class RunSignalReport
 {
     /// <summary>
-    /// A <see cref="PickupKinds"/> token, e.g. <c>coin</c>. An unknown kind pays zero rather than
-    /// failing the run.
+    /// A <see cref="SignalKinds"/> token — <c>coin</c>, <c>near_miss</c>, <c>distance_m</c>. An
+    /// unknown kind, and a kind this surface does not own, both pay zero rather than failing the run.
     /// </summary>
     [Required]
-    [MaxLength(PickupKinds.MaxLength)]
+    [MaxLength(SignalKinds.MaxLength)]
     public string Kind { get; set; } = string.Empty;
 
     [Range(0, 1_000_000)]
@@ -87,13 +92,36 @@ public class RunModifierReport
 
 /// <summary>
 /// What a finished run reports. **There is no field here in which a client can assert a currency, an
-/// amount or a balance** — that absence is the feature, and a test enforces it by reflection so it
-/// cannot be eroded by a later convenience.
+/// amount, a balance or a score** — that absence is the feature, and a test enforces it by reflection
+/// so it cannot be eroded by a later convenience.
+/// <para>
+/// A mini-game's own score is deliberately not here and never will be. A score is a number the client
+/// computes for the player to look at; what the server pays for is a count of things that happened,
+/// each priced by a row an operator controls. Accepting a score would be accepting the client's
+/// arithmetic as the input to a payout.
+/// </para>
 /// </summary>
 public class SubmitRunResultRequest
 {
-    /// <summary>One entry per kind. A kind repeated across entries is summed, then capped as one total.</summary>
-    public List<RunPickupReport> Pickups { get; set; } = [];
+    /// <summary>
+    /// One entry per kind. A kind repeated across entries is summed, then capped as one total.
+    /// </summary>
+    public List<RunSignalReport> Signals { get; set; } = [];
+
+    /// <summary>
+    /// Legacy name for <see cref="Signals"/>, kept so a client shipped before the rename still
+    /// settles. Merged with them rather than replaced by them — a build sending both is summed once,
+    /// under the same caps.
+    /// <para>
+    /// Removable once no build older than 2026-08 is in the wild. Until then, deleting it silently
+    /// stops paying for every coin an installed client collects, which is the failure a deprecation
+    /// window exists to avoid.
+    /// </para>
+    /// </summary>
+    public List<RunSignalReport> Pickups { get; set; } = [];
+
+    /// <summary>Both lists as one sequence. The only thing settlement reads.</summary>
+    public IEnumerable<RunSignalReport> AllSignals => Signals.Concat(Pickups);
 
     public List<RunModifierReport> Modifiers { get; set; } = [];
 
@@ -109,8 +137,8 @@ public class SubmitRunResultRequest
     public string Outcome { get; set; } = nameof(RunOutcome.Completed);
 
     /// <summary>
-    /// Which individual pickups were taken. Optional and unused in phase 1 — stored verbatim so that
-    /// when layout re-derivation lands there is a claim on file to check, rather than only a total.
+    /// Which individual pickups were taken. Optional — stored verbatim so that when layout
+    /// re-derivation lands there is a claim on file to check, rather than only a total.
     /// </summary>
     public List<int>? PickupIds { get; set; }
 
@@ -146,7 +174,7 @@ public class RunRewardDto
     public long Amount { get; init; }
 
     /// <summary>
-    /// <c>pickup:{kind}</c> or <c>rule:{ruleId}</c>. Two mechanisms pay a run — a variable payout
+    /// <c>signal:{kind}</c> or <c>rule:{ruleId}</c>. Two mechanisms pay a run — a variable payout
     /// scaling with what was collected, and a fixed reward rule — and the results screen reads
     /// better when it can tell "47 coins collected" apart from "run completed bonus".
     /// </summary>
@@ -186,10 +214,29 @@ public class RunSettlementDto
     public bool CapReached { get; init; }
 
     /// <summary>
-    /// Machine token the client localises: <c>pickup_limit</c> today, <c>daily_coin_limit</c> once
-    /// the account ceiling lands. Null when nothing capped.
+    /// The narrowest machine token the client localises — <c>signal_rate_limit</c>,
+    /// <c>signal_daily_limit</c>, <c>daily_coin_limit</c>, <c>signal_limit</c>. Null when nothing
+    /// capped.
     /// </summary>
     public string? CapMessage { get; init; }
+
+    /// <summary>
+    /// Where the player stands on the level curve **after** this settlement, computed by the server
+    /// from a balance only the reward engine can move.
+    /// <para>
+    /// **Here because a run can move it.** A valuation row priced in <c>xp</c>, or a
+    /// <c>RUN_SETTLED</c> rule that grants XP, crosses levels exactly like a lesson does — and until
+    /// this field existed the client had no way to know, so the bar stayed on yesterday's number
+    /// until the next lesson happened to refresh it. Null only on a deployment with no level curve.
+    /// </para>
+    /// </summary>
+    public PlayerLevelDto? Level { get; init; }
+
+    /// <summary>
+    /// Levels gained by this settlement, ascending. Empty is the normal case, and empty on a replay:
+    /// a level is reached once, and a retried result must not celebrate it again.
+    /// </summary>
+    public IReadOnlyList<int> LevelsGained { get; init; } = [];
 
     public DateTime ServerTimeUtc { get; init; }
 }

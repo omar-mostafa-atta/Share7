@@ -104,7 +104,7 @@ public class RunLayoutVerificationTests
 
         var forged = await runs.SettleAsync(userId, started.Value!.RunId, new SubmitRunResultRequest
         {
-            Pickups = [new RunPickupReport { Kind = "coin", Count = 3 }],
+            Pickups = [new RunSignalReport { Kind = "coin", Count = 3 }],
             PickupIds = [0, 1, 4_000],
             DurationMs = 30_000
         });
@@ -133,7 +133,7 @@ public class RunLayoutVerificationTests
 
         var forged = await runs.SettleAsync(userId, started.Value!.RunId, new SubmitRunResultRequest
         {
-            Pickups = [new RunPickupReport { Kind = "coin", Count = 3 }],
+            Pickups = [new RunSignalReport { Kind = "coin", Count = 3 }],
             PickupIds = [2, 2, 5],
             DurationMs = 30_000
         });

@@ -1,10 +1,11 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Share7.Application.Common.Models;
 using Share7.Application.Runs.Interfaces;
 using Share7.Application.Runs.Models;
 using Share7.Application.Runs.Models.Admin;
+using Share7.Domain.Economy;
 using Share7.Domain.Runs;
 using Share7.Infrastructure.Persistence;
 
@@ -25,13 +26,13 @@ public class RunAdminService : IRunAdminService
 
     // ------------------------------------------------------------- valuations
 
-    public async Task<IReadOnlyList<PickupValuationDto>> GetValuationsAsync(
+    public async Task<IReadOnlyList<SignalValuationDto>> GetValuationsAsync(
         CancellationToken cancellationToken = default)
     {
-        var rows = await _dbContext.PickupValuations
+        var rows = await _dbContext.SignalValuations
             .AsNoTracking()
             .Include(v => v.Currency)
-            .OrderBy(v => v.PickupKind)
+            .OrderBy(v => v.SignalKind)
             .ThenBy(v => v.GameId.HasValue)
             .ToListAsync(cancellationToken);
 
@@ -45,22 +46,22 @@ public class RunAdminService : IRunAdminService
         return rows.Select(row => ToDto(row, row.GameId is { } id ? gameKeys.GetValueOrDefault(id) : null)).ToList();
     }
 
-    public async Task<ServiceResult<PickupValuationDto>> CreateValuationAsync(
-        CreatePickupValuationRequest request,
+    public async Task<ServiceResult<SignalValuationDto>> CreateValuationAsync(
+        CreateSignalValuationRequest request,
         CancellationToken cancellationToken = default)
     {
-        var kind = PickupKinds.Normalise(request.PickupKind);
+        var kind = SignalKinds.Normalise(request.ResolvedKind);
 
         if (kind is null)
             return Invalid(
-                $"'{request.PickupKind}' is not a pickup kind. Use lowercase letters, digits and underscores, starting with a letter.");
+                $"'{request.ResolvedKind}' is not a signal kind. Use lowercase letters, digits and underscores, starting with a letter.");
 
         var currency = await _dbContext.Currencies
             .AsNoTracking()
             .FirstOrDefaultAsync(c => c.Id == request.CurrencyId, cancellationToken);
 
         if (currency is null)
-            return ServiceResult<PickupValuationDto>.Failure(
+            return ServiceResult<SignalValuationDto>.Failure(
                 ApiErrors.CurrencyNotFound,
                 ServiceErrorKind.NotFound,
                 $"Currency {request.CurrencyId} does not exist.");
@@ -75,28 +76,29 @@ public class RunAdminService : IRunAdminService
 
         if (request.GameId is { } gameId
             && !await _dbContext.Games.AnyAsync(g => g.Id == gameId, cancellationToken))
-            return ServiceResult<PickupValuationDto>.Failure(
+            return ServiceResult<SignalValuationDto>.Failure(
                 ApiErrors.GameNotFound,
                 ServiceErrorKind.NotFound,
                 $"Game {gameId} does not exist.");
 
         var now = DateTime.UtcNow;
 
-        var valuation = new PickupValuation
+        var valuation = new SignalValuation
         {
             Id = Guid.NewGuid(),
             GameId = request.GameId,
-            PickupKind = kind,
+            SignalKind = kind,
             CurrencyId = request.CurrencyId,
             UnitValue = request.UnitValue,
             MaxPerRun = request.MaxPerRun,
             MaxPerDay = request.MaxPerDay,
+            MaxPerSecond = request.MaxPerSecond,
             Enabled = request.Enabled,
             CreatedAtUtc = now,
             UpdatedAtUtc = now
         };
 
-        _dbContext.PickupValuations.Add(valuation);
+        _dbContext.SignalValuations.Add(valuation);
 
         try
         {
@@ -108,26 +110,26 @@ public class RunAdminService : IRunAdminService
             // same price at once cannot both succeed and silently double a payout.
             _dbContext.Entry(valuation).State = EntityState.Detached;
 
-            return ServiceResult<PickupValuationDto>.Failure(
+            return ServiceResult<SignalValuationDto>.Failure(
                 ApiErrors.ValuationDuplicate,
                 ServiceErrorKind.Conflict,
                 $"'{kind}' is already priced in '{currency.Key}' for that game. Update the existing row instead.");
         }
 
-        return ServiceResult<PickupValuationDto>.Success(await ReadAsync(valuation.Id, cancellationToken));
+        return ServiceResult<SignalValuationDto>.Success(await ReadAsync(valuation.Id, cancellationToken));
     }
 
-    public async Task<ServiceResult<PickupValuationDto>> UpdateValuationAsync(
+    public async Task<ServiceResult<SignalValuationDto>> UpdateValuationAsync(
         Guid valuationId,
-        UpdatePickupValuationRequest request,
+        UpdateSignalValuationRequest request,
         CancellationToken cancellationToken = default)
     {
-        var valuation = await _dbContext.PickupValuations
+        var valuation = await _dbContext.SignalValuations
             .Include(v => v.Currency)
             .FirstOrDefaultAsync(v => v.Id == valuationId, cancellationToken);
 
         if (valuation is null)
-            return ServiceResult<PickupValuationDto>.Failure(
+            return ServiceResult<SignalValuationDto>.Failure(
                 ApiErrors.ValuationNotFound,
                 ServiceErrorKind.NotFound,
                 $"Valuation {valuationId} does not exist.");
@@ -141,12 +143,13 @@ public class RunAdminService : IRunAdminService
         valuation.UnitValue = request.UnitValue;
         valuation.MaxPerRun = request.MaxPerRun;
         valuation.MaxPerDay = request.MaxPerDay;
+        valuation.MaxPerSecond = request.MaxPerSecond;
         valuation.Enabled = request.Enabled;
         valuation.UpdatedAtUtc = DateTime.UtcNow;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        return ServiceResult<PickupValuationDto>.Success(await ReadAsync(valuationId, cancellationToken));
+        return ServiceResult<SignalValuationDto>.Success(await ReadAsync(valuationId, cancellationToken));
     }
 
     // ------------------------------------------------------------- review queue
@@ -218,9 +221,9 @@ public class RunAdminService : IRunAdminService
 
     // ------------------------------------------------------------- mapping
 
-    private async Task<PickupValuationDto> ReadAsync(Guid valuationId, CancellationToken cancellationToken)
+    private async Task<SignalValuationDto> ReadAsync(Guid valuationId, CancellationToken cancellationToken)
     {
-        var row = await _dbContext.PickupValuations
+        var row = await _dbContext.SignalValuations
             .AsNoTracking()
             .Include(v => v.Currency)
             .FirstAsync(v => v.Id == valuationId, cancellationToken);
@@ -233,12 +236,13 @@ public class RunAdminService : IRunAdminService
         return ToDto(row, gameKey);
     }
 
-    private static PickupValuationDto ToDto(PickupValuation valuation, string? gameKey) => new()
+    private static SignalValuationDto ToDto(SignalValuation valuation, string? gameKey) => new()
     {
         Id = valuation.Id,
         GameId = valuation.GameId,
         GameKey = gameKey,
-        PickupKind = valuation.PickupKind,
+        SignalKind = valuation.SignalKind,
+        Surface = SignalKinds.OwnerOf(valuation.SignalKind) == SignalSurface.Attempt ? "ATTEMPT" : "RUN",
         CurrencyId = valuation.CurrencyId,
         Currency = valuation.Currency?.Key ?? string.Empty,
         CurrencyIsHard = valuation.Currency?.IsHard ?? false,
@@ -246,6 +250,7 @@ public class RunAdminService : IRunAdminService
         UnitValue = valuation.UnitValue,
         MaxPerRun = valuation.MaxPerRun,
         MaxPerDay = valuation.MaxPerDay,
+        MaxPerSecond = valuation.MaxPerSecond,
         Enabled = valuation.Enabled,
         CreatedAtUtc = valuation.CreatedAtUtc,
         UpdatedAtUtc = valuation.UpdatedAtUtc
@@ -309,8 +314,8 @@ public class RunAdminService : IRunAdminService
 
     private sealed record StoredPickup(string Kind, int Count);
 
-    private static ServiceResult<PickupValuationDto> Invalid(string message) =>
-        ServiceResult<PickupValuationDto>.Failure(
+    private static ServiceResult<SignalValuationDto> Invalid(string message) =>
+        ServiceResult<SignalValuationDto>.Failure(
             ApiErrors.ValuationInvalid, ServiceErrorKind.Validation, message);
 
     private static bool IsUniqueViolation(DbUpdateException exception) =>
