@@ -93,6 +93,15 @@ app.UseShare7RateLimiting();
 
 app.MapControllers();
 
+// The React console (Share7.Web) builds into wwwroot/app and routes on the client, so a hard
+// refresh on /app/currencies asks the server for a file that does not exist. Without this it is a
+// 404; with it the SPA shell is returned and the router resolves the path.
+//
+// Scoped to /app/ rather than a bare MapFallbackToFile so the vanilla console at / is untouched
+// while both are live — and so a typo anywhere else still 404s instead of silently serving HTML.
+// `:nonfile` keeps real assets going to UseStaticFiles above.
+app.MapFallbackToFile("/app/{*path:nonfile}", "/app/index.html");
+
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();

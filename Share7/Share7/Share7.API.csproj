@@ -30,4 +30,27 @@
     </Content>
   </ItemGroup>
 
+  <!--
+    Build the React console (Share7.Web) as part of publish.
+
+    Hooked to publish rather than left as a manual `npm run build` on purpose: publishing to this
+    project's host never deletes and never overwrites what it is not told about, so a forgotten
+    front-end build does not fail loudly — it silently leaves the previous SPA live and looks like
+    a deploy that did not take. Making MSBuild own the step removes the chance to forget.
+
+    BeforeTargets="ComputeFilesToPublish" so the assets exist before the publish file list is
+    assembled. The generated files are collected from wwwroot/app by the normal wwwroot glob.
+  -->
+  <PropertyGroup>
+    <SpaRoot>$(MSBuildProjectDirectory)/../Share7.Web</SpaRoot>
+  </PropertyGroup>
+
+  <Target Name="BuildSpa" BeforeTargets="ComputeFilesToPublish" Condition="Exists('$(SpaRoot)/package.json')">
+    <Message Importance="high" Text="Building React console from $(SpaRoot)…" />
+    <!-- `npm ci` rather than `npm install`: it installs exactly what package-lock.json pins, so a
+         publish cannot quietly pick up a different dependency version than the one tested. -->
+    <Exec Command="npm ci" WorkingDirectory="$(SpaRoot)" Condition="!Exists('$(SpaRoot)/node_modules')" />
+    <Exec Command="npm run build" WorkingDirectory="$(SpaRoot)" />
+  </Target>
+
 </Project>

@@ -4,4 +4,9 @@
   <Project Path="Share7.Infrastructure/Share7.Infrastructure.csproj" />
   <Project Path="Share7.Tests/Share7.Tests.csproj" />
   <Project Path="Share7/Share7.API.csproj" />
+  <Folder Name="/Share7.Web/">
+    <File Path="Share7.Web/package.json" />
+    <File Path="Share7.Web/vite.config.ts" />
+    <File Path="Share7.Web/tsconfig.json" />
+  </Folder>
 </Solution>
