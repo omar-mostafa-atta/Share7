@@ -307,7 +307,8 @@ public class ProgressService : IProgressService
         // never from anything the client said — which is why `correct_answer` is an attempt-owned
         // signal that a run reporting it can never be paid for.
         var signalRewards = await PaySignalsAsync(
-            userId, request.GameId, correctImprovement, now, cancellationToken);
+            userId, request.GameId, request.LessonId,
+            correctImprovement, lessonRow.BestCorrectCount, now, cancellationToken);
 
         // The client sent choice ids and nothing else that touches money. Everything the reward
         // engine reads below is the server's own recomputation.
@@ -464,7 +465,9 @@ public class ProgressService : IProgressService
     private async Task<List<RewardDto>> PaySignalsAsync(
         Guid userId,
         Guid gameId,
+        Guid lessonId,
         int correctImprovement,
+        int bestCorrectCount,
         DateTime now,
         CancellationToken cancellationToken)
     {
@@ -503,18 +506,25 @@ public class ProgressService : IProgressService
                     Delta = line.NetAmount,
                     TransactionType = CurrencyTransactionType.LessonReward,
                     SourceType = LedgerSourceType.ProgressAttempt,
-                    SourceId = gameId.ToString(),
-                    // The lesson and the improvement are both in the key. A retried submission
-                    // recomputes the same improvement and collides; a genuinely better later attempt
-                    // improves by a different amount and is a different payout.
-                    IdempotencyKey = $"attempt:{userId}:{gameId}:{line.Kind}:{line.PaidCount}:{now:yyyyMMddHHmmssfff}",
+                    SourceId = lessonId.ToString(),
+                    // Keyed on the record this payout bought, not on the moment it happened.
+                    //
+                    // BestCorrectCount only ever rises, so every improvement has a key of its own and
+                    // no two grants can collide — while a re-run of the same improvement produces the
+                    // same key and is refused. A timestamp here would have been unique every time,
+                    // which is the same as having no idempotency key at all: the guard would exist
+                    // and never fire. Replay is already stopped twice over (the request log, and an
+                    // improvement of zero), and this is the third, cheapest layer.
+                    IdempotencyKey = $"attempt:{gameId}:{lessonId}:{line.Kind}:{bestCorrectCount}",
                     Metadata = JsonSerializer.Serialize(new
                     {
                         gameId,
+                        lessonId,
                         source = line.Source,
                         improved = line.ReportedCount,
                         paid = line.PaidCount,
-                        unitValue = line.UnitValue
+                        unitValue = line.UnitValue,
+                        bestCorrectCount
                     })
                 },
                 cancellationToken);
