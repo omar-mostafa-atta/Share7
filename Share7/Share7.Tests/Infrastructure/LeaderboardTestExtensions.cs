@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Share7.Application.Leaderboards.Models;
 using Share7.Domain.Leaderboards;
@@ -69,6 +69,32 @@ public static class LeaderboardTestExtensions
             NullLogger<LeaderboardSettlementService>.Instance);
 
     /// <summary>A board with one open cycle covering all of time unless bounded.</summary>
+    /// <summary>The admin service, wired with the real projector and settlement it authors against.</summary>
+    public static LeaderboardAdminService CreateAdminService(
+        ApplicationDbContext context,
+        LeaderboardOptions? options = null)
+    {
+        var resolved = options ?? DefaultOptions();
+
+        return new LeaderboardAdminService(
+            context,
+            CreateProjector(context, resolved),
+            CreateRollover(context),
+            CreateSettlement(context, resolved),
+            CreateDisplayNames(context));
+    }
+
+    /// <summary>
+    /// One retention pass. The real service, because everything worth asserting about retention is a
+    /// condition on rows the database holds.
+    /// </summary>
+    public static GameResultRetentionService CreateRetentionService(
+        ApplicationDbContext context,
+        LeaderboardOptions? options = null) =>
+        new(context,
+            Options.Create(options ?? DefaultOptions()),
+            NullLogger<GameResultRetentionService>.Instance);
+
     public static async Task<(LeaderboardBoard Board, LeaderboardCycle Cycle)> CreateBoardAsync(
         this ApplicationDbContext context,
         string metric,

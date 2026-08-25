@@ -124,7 +124,7 @@ public static class RunTestExtensions
         return game;
     }
 
-    /// <summary>A price for one pickup kind. <paramref name="gameId"/> null makes it the platform default.</summary>
+    /// <summary>A price for one signal kind. <paramref name="gameId"/> null makes it the platform default.</summary>
     public static async Task<SignalValuation> CreateValuationAsync(
         this ApplicationDbContext context,
         Guid currencyId,
@@ -133,6 +133,7 @@ public static class RunTestExtensions
         long unitValue = 1,
         int maxPerRun = 500,
         int? maxPerDay = null,
+        double? maxPerSecond = null,
         bool enabled = true,
         CancellationToken cancellationToken = default)
     {
@@ -147,6 +148,7 @@ public static class RunTestExtensions
             UnitValue = unitValue,
             MaxPerRun = maxPerRun,
             MaxPerDay = maxPerDay,
+            MaxPerSecond = maxPerSecond,
             Enabled = enabled,
             CreatedAtUtc = now,
             UpdatedAtUtc = now
