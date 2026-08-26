@@ -1,7 +1,7 @@
-# Starts the API and the React dev server together, each in its own window.
+﻿# Starts the API and the console dev server together, each in its own window.
 #
 #   .\dev.ps1           dev loop  — Vite on :5173 proxying /api to the API on :7147
-#   .\dev.ps1 -Built    prod path — builds the SPA into wwwroot/app, API serves it on :7147
+#   .\dev.ps1 -Built    prod path — builds the SPA into wwwroot, API serves it on :7147
 #
 # The API must run the `https` profile either way: vite.config.ts proxies to
 # https://localhost:7147, so the `http`-only profile (:5215) leaves every call unproxied.
@@ -24,7 +24,7 @@ foreach ($c in $busy) {
 }
 
 if ($Built) {
-    Write-Host 'Building the SPA into wwwroot/app...' -ForegroundColor Cyan
+    Write-Host 'Building the SPA into wwwroot...' -ForegroundColor Cyan
     Push-Location $web
     try {
         npm run build
@@ -33,9 +33,8 @@ if ($Built) {
     finally { Pop-Location }
 
     Write-Host ''
-    Write-Host 'Starting the API. It serves both consoles:' -ForegroundColor Green
-    Write-Host '  React console : https://localhost:7147/app/' -ForegroundColor Green
-    Write-Host '  Old console   : https://localhost:7147/' -ForegroundColor Green
+    Write-Host 'Starting the API. It serves the console:' -ForegroundColor Green
+    Write-Host '  https://localhost:7147/' -ForegroundColor Green
     Write-Host ''
     dotnet run --project $api --launch-profile https
     return
@@ -55,6 +54,6 @@ Start-Process powershell -ArgumentList @(
 
 Write-Host ''
 Write-Host 'Open this once both windows have settled:' -ForegroundColor Green
-Write-Host '  http://localhost:5173/app/' -ForegroundColor Green
+Write-Host '  http://localhost:5173/' -ForegroundColor Green
 Write-Host ''
 Write-Host 'Edits to Share7.Web reload instantly. Edits to C# need the API window restarted.'

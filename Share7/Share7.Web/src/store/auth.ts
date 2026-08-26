@@ -2,10 +2,9 @@ import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { AuthResult } from '../types/api'
 
-// The old console persists to sessionStorage under `s7_state`. During the migration both consoles
-// are served from the same origin — the vanilla one at `/`, this one at `/app/` — so they share a
-// sessionStorage namespace. A different key keeps the two sessions independent instead of letting
-// them overwrite each other's tokens.
+// Distinct from the `s7_state` key the hand-written console used, which mattered while both were
+// served from this origin and shared a sessionStorage namespace. That console is gone; the key
+// stays as it is because renaming it would sign every open session out for nothing.
 const STORAGE_KEY = 's7_auth'
 
 interface AuthState {

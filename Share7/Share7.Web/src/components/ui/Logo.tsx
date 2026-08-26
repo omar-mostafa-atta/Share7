@@ -70,7 +70,7 @@ export function BrandBadge({ size = 38, title = 'شارع العلوم' }: { siz
 export function BrandCharacter({ height = 260 }: { height?: number }) {
   return (
     <img
-      src="/app/character.png"
+      src="/character.png"
       alt=""
       aria-hidden
       height={height}

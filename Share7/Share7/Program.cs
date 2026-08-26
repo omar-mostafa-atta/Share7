@@ -59,7 +59,7 @@ app.UseSwagger();
 app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
-// `/` resolves to wwwroot/index.html — the admin console. Must precede UseStaticFiles.
+// `/` resolves to wwwroot/index.html — the console's SPA shell. Must precede UseStaticFiles.
 app.UseDefaultFiles();
 
 // `Cache-Control: no-cache` on the console's own assets — which means "revalidate", not "do not
@@ -97,14 +97,14 @@ app.UseShare7RateLimiting();
 
 app.MapControllers();
 
-// The React console (Share7.Web) builds into wwwroot/app and routes on the client, so a hard
-// refresh on /app/currencies asks the server for a file that does not exist. Without this it is a
-// 404; with it the SPA shell is returned and the router resolves the path.
+// The console (Share7.Web) builds into wwwroot and routes on the client, so a hard refresh on
+// /currencies asks the server for a file that does not exist. Without this it is a 404; with it the
+// SPA shell is returned and the router resolves the path.
 //
-// Scoped to /app/ rather than a bare MapFallbackToFile so the vanilla console at / is untouched
-// while both are live — and so a typo anywhere else still 404s instead of silently serving HTML.
-// `:nonfile` keeps real assets going to UseStaticFiles above.
-app.MapFallbackToFile("/app/{*path:nonfile}", "/app/index.html");
+// Unscoped now that this is the only console — it used to be limited to /app/ so that the
+// hand-written one at / was left alone. `:nonfile` still keeps real assets going to UseStaticFiles
+// above, and MapControllers has already claimed /api, so neither is swallowed by the shell.
+app.MapFallbackToFile("{*path:nonfile}", "/index.html");
 
 using (var scope = app.Services.CreateScope())
 {

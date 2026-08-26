@@ -17,12 +17,10 @@ if (!root) throw new Error('#root is missing from index.html')
 
 createRoot(root).render(
   <StrictMode>
-    {/*
-      basename must match `base` in vite.config.ts and the MapFallbackToFile route in Program.cs.
-      Without it every route would resolve against `/` and the app would try to navigate out of
-      /app/ and into the old console.
-    */}
-    <BrowserRouter basename="/app">
+    {/* No basename: this console is the site root, matching `base: '/'` in vite.config.ts and the
+        bare fallback route in Program.cs. It was mounted under /app/ only while the console it
+        replaced still owned /. */}
+    <BrowserRouter>
       <App />
     </BrowserRouter>
   </StrictMode>,
