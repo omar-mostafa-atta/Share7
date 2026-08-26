@@ -34,6 +34,27 @@ public class GameAdminDto
     public bool IsActive { get; init; }
 
     /// <summary>
+    /// The name resolved into the <b>caller's</b> language, alongside — never instead of —
+    /// <see cref="Translations"/>.
+    /// <para>
+    /// A convenience for drawing a row, and nothing more. It exists because a listing has to print
+    /// one name per game and picking it client-side means every consumer reimplements the same
+    /// fallback. It is <b>not</b> what an edit form fills from: <c>PUT</c> is a full replace, so a
+    /// form filled from this field alone would send one language back and delete the rest. That is
+    /// the whole reason <see cref="Translations"/> is on this type, and why this field is additive
+    /// rather than a replacement for it.
+    /// </para>
+    /// <para>Empty when the caller's language has no name authored for the game.</para>
+    /// </summary>
+    public string DisplayName { get; init; } = string.Empty;
+
+    /// <inheritdoc cref="DisplayName"/>
+    public string Description { get; init; } = string.Empty;
+
+    /// <summary>Which language <see cref="DisplayName"/> and <see cref="Description"/> were resolved into.</summary>
+    public Guid LangId { get; init; }
+
+    /// <summary>
     /// One entry per language that has a name — deliberately the same type the save request takes,
     /// so what is read back is literally what has to be sent again.
     /// </summary>

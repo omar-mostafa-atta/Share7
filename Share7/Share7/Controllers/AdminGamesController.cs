@@ -17,20 +17,27 @@ namespace Share7.API.Controllers;
 [Authorize(Roles = $"{Roles.Admin},{Roles.SuperAdmin}")]
 public class AdminGamesController : ControllerBase
 {
-    private readonly IGameService _gameService;
     private readonly IGameAdminService _gameAdminService;
 
-    public AdminGamesController(IGameService gameService, IGameAdminService gameAdminService)
-    {
-        _gameService = gameService;
+    public AdminGamesController(IGameAdminService gameAdminService) =>
         _gameAdminService = gameAdminService;
-    }
 
-    /// <summary>Every game, disabled ones included.</summary>
+    /// <summary>
+    /// Every game, disabled ones included, in the authoring shape — each row carries all of its
+    /// translations as well as the name resolved into the caller's language.
+    /// <para>
+    /// This used to answer with the client read (<c>GameDto</c>), which carries one resolved name
+    /// and no translation list. Two things were wrong with it. A console could not show how many
+    /// languages a game had been authored in, and — the real damage — a row was not safe to open an
+    /// editor from: <c>PUT</c> here is a full replace, so saving a form filled from a one-language
+    /// row deletes every other language. Both consoles are listings that lead to an editor, so the
+    /// listing has to be the authoring read.
+    /// </para>
+    /// </summary>
     [HttpGet]
     public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
     {
-        var games = await _gameService.GetAllAsync(includeInactive: true, cancellationToken);
+        var games = await _gameAdminService.ListForAuthoringAsync(includeInactive: true, cancellationToken);
         return Ok(games);
     }
 

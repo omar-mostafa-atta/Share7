@@ -1,17 +1,25 @@
 // ===========================================================================
-// Curriculum tree — data access and selection state
+// Curriculum tree — data access and expansion state
 //
-// The cascade in the old console was per-level on purpose: reloading from the
-// grade down after every add wiped the selection and hid the node just
-// created. That property is preserved here — reloadLevel touches one level and
-// leaves the chain above it alone.
+// Rewritten from a five-column cascade to an actual tree.
+//
+// The cascade held ONE selection per level and one list of children per level,
+// so the screen could only ever show a single path: picking a different term
+// wiped the subjects, chapters and lessons of the one before it. That is fine
+// for drilling down and useless for comparing — "does Grade 2 Term 1 have the
+// same chapters as Term 2" meant clicking back and forth and remembering.
+//
+// Children are now keyed by parent id, so any number of branches can be open
+// at once and expanding one never discards another. Loading stays lazy: a
+// branch fetches its children the first time it is opened, and never again
+// unless something changes underneath it.
 // ===========================================================================
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../../lib/client'
 import { ApiError } from '../../lib/errors'
 import { toast } from '../../store/toast'
-import { LEVELS, LEVEL_ORDER, isEditable, levelsBelow, type Level } from './levels'
+import { LEVELS, LEVEL_ORDER, childLevelOf, isEditable, type Level } from './levels'
 import type {
   CreateCurriculumNodeRequest,
   CurriculumNode,
@@ -23,132 +31,155 @@ import type {
 
 export type TreeNode = CurriculumNode & Partial<Pick<LessonDto, 'hasQuestions' | 'questionsVersion'>>
 
-type ByLevel<T> = Record<Level, T>
+/** A node plus everything above it, which is what the detail pane needs. */
+export interface Selected {
+  level: Level
+  node: TreeNode
 
-const emptyItems = (): ByLevel<TreeNode[]> => ({
-  grade: [],
-  term: [],
-  subject: [],
-  chapter: [],
-  lesson: [],
-})
-
-const emptySelection = (): ByLevel<TreeNode | null> => ({
-  grade: null,
-  term: null,
-  subject: null,
-  chapter: null,
-  lesson: null,
-})
+  /** Root-to-parent. Empty for a grade. */
+  ancestors: TreeNode[]
+}
 
 export function useCurriculumTree(langId: string) {
-  const [items, setItems] = useState<ByLevel<TreeNode[]>>(emptyItems)
-  const [selection, setSelection] = useState<ByLevel<TreeNode | null>>(emptySelection)
-  const [loading, setLoading] = useState<Partial<ByLevel<boolean>>>({ grade: true })
+  const [grades, setGrades] = useState<TreeNode[]>([])
+  const [children, setChildren] = useState<Record<string, TreeNode[]>>({})
+  const [busy, setBusy] = useState<Record<string, boolean>>({})
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [selected, setSelected] = useState<Selected | null>(null)
+  const [loadingGrades, setLoadingGrades] = useState(true)
 
-  // Selection is read inside async callbacks that would otherwise close over a stale snapshot.
-  // A ref alongside the state gives those callbacks the current value without making every
-  // callback depend on — and be recreated by — each selection change.
-  //
-  // The ref is the authority for reads and must be assigned *before* any load is kicked off, not
-  // from inside a setState updater: React defers updaters until render, so a load started on the
-  // next line would still see the previous selection and bail out as though nothing were
-  // selected. That is exactly what made selecting a grade leave its terms column empty.
-  const selectionRef = useRef(selection)
+  // Read inside async callbacks that would otherwise close over a stale snapshot.
+  const childrenRef = useRef(children)
+  childrenRef.current = children
 
-  const commitSelection = (next: ByLevel<TreeNode | null>) => {
-    selectionRef.current = next
-    setSelection(next)
-  }
+  const setNodeBusy = (id: string, value: boolean) =>
+    setBusy((prev) => ({ ...prev, [id]: value }))
 
-  const setLevelLoading = (level: Level, value: boolean) =>
-    setLoading((prev) => ({ ...prev, [level]: value }))
+  /**
+   * Fetch one node's children.
+   *
+   * `force` skips the already-loaded check. Expansion uses the cache; an add or
+   * delete passes force so the branch it changed is refetched.
+   */
+  const loadChildren = useCallback(
+    async (parent: TreeNode, parentLevel: Level, force = false) => {
+      const level = childLevelOf(parentLevel)
+      if (!level) return
 
-  /** Fetch one level's children from the currently selected parent. */
-  const loadLevel = useCallback(async (level: Level) => {
-    if (!isEditable(level)) return
+      if (!force && childrenRef.current[parent.id]) return
 
-    const config = LEVELS[level]
-    const parent = selectionRef.current[config.parent]
-    if (!parent) return
-
-    setLevelLoading(level, true)
-    try {
-      const rows = await api.get<TreeNode[]>(config.list(parent.id))
-      setItems((prev) => ({ ...prev, [level]: rows }))
-    } catch {
-      setItems((prev) => ({ ...prev, [level]: [] }))
-    } finally {
-      setLevelLoading(level, false)
-    }
-  }, [])
+      setNodeBusy(parent.id, true)
+      try {
+        const rows = await api.get<TreeNode[]>(LEVELS[level].list(parent.id))
+        setChildren((prev) => ({ ...prev, [parent.id]: rows }))
+      } catch {
+        setChildren((prev) => ({ ...prev, [parent.id]: [] }))
+      } finally {
+        setNodeBusy(parent.id, false)
+      }
+    },
+    [],
+  )
 
   const loadGrades = useCallback(async () => {
-    setLevelLoading('grade', true)
+    setLoadingGrades(true)
     try {
       // Grades are the one level that takes an explicit language. Everything below resolves from
       // the token claim, which is why the page applies the language rather than just storing it.
       const rows = await api.get<GradeDto[]>(`/api/grades?langId=${langId}`)
-      setItems((prev) => ({ ...prev, grade: rows }))
+      setGrades(rows)
       return rows
     } catch {
-      setItems((prev) => ({ ...prev, grade: [] }))
+      setGrades([])
       return []
     } finally {
-      setLevelLoading('grade', false)
+      setLoadingGrades(false)
     }
   }, [langId])
 
-  // The tree is one shared set of nodes with a name per language, so node ids are stable across
-  // a language switch. Selections are therefore kept and every loaded level is refetched to pick
-  // up the new names — rather than resetting the admin to the top of the tree.
+  // A language switch keeps ids — the tree is one set of nodes with a name per language — so the
+  // expansion and the selection survive it. Only the text changes, which means every branch
+  // already open has to be refetched to pick up the new names.
   useEffect(() => {
     if (!langId) return
 
     void (async () => {
-      await loadGrades()
-      for (const level of LEVEL_ORDER) {
-        if (isEditable(level) && selectionRef.current[LEVELS[level].parent]) {
-          await loadLevel(level)
-        }
+      // The freshly-loaded rows are used directly rather than read back from a ref. `loadGrades`
+      // sets state, and state does not land before the next line of an async function — reading
+      // the ref here would walk the *previous* language's tree and match nothing.
+      const freshGrades = await loadGrades()
+
+      // Snapshot which branches were open before any awaits, so the loop is iterating a stable
+      // list rather than one being mutated by the refetches it is issuing.
+      const openParents = Object.keys(childrenRef.current)
+      if (!openParents.length) return
+
+      const known = { ...childrenRef.current }
+
+      for (const parentId of openParents) {
+        const found = locate(parentId, freshGrades, known)
+        if (found) await loadChildren(found.node, found.level, true)
       }
     })()
-  }, [langId, loadGrades, loadLevel])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [langId, loadGrades, loadChildren])
 
-  /** Pick a node: clears every level below it, then loads the next one down. */
-  const select = useCallback(
-    (level: Level, node: TreeNode) => {
-      const below = levelsBelow(level)
-
-      const next = { ...selectionRef.current, [level]: node }
-      for (const l of below) next[l] = null
-      commitSelection(next)
-
-      setItems((prev) => {
-        const cleared = { ...prev }
-        for (const l of below) cleared[l] = []
-        return cleared
+  const toggle = useCallback(
+    (node: TreeNode, level: Level) => {
+      setExpanded((prev) => {
+        const next = new Set(prev)
+        if (next.has(node.id)) next.delete(node.id)
+        else {
+          next.add(node.id)
+          void loadChildren(node, level)
+        }
+        return next
       })
-
-      // Grade is not in LEVELS (it has no admin endpoints), so its child is named directly.
-      const child = isEditable(level) ? LEVELS[level].next : 'term'
-      if (child) void loadLevel(child)
     },
-    [loadLevel],
+    [loadChildren],
   )
 
-  const addNode = useCallback(
-    async (level: Level, request: CreateCurriculumNodeRequest) => {
-      if (!isEditable(level)) return
+  const expand = useCallback(
+    (node: TreeNode, level: Level) => {
+      setExpanded((prev) => {
+        if (prev.has(node.id)) return prev
+        const next = new Set(prev)
+        next.add(node.id)
+        return next
+      })
+      void loadChildren(node, level)
+    },
+    [loadChildren],
+  )
 
-      const parent = selectionRef.current[LEVELS[level].parent]
-      if (!parent) return
+  /**
+   * Select a node, and open it.
+   *
+   * Selecting expands rather than merely highlighting: clicking a chapter to see
+   * what is in it and having nothing happen is the single most confusing thing a
+   * tree can do.
+   */
+  const select = useCallback(
+    (node: TreeNode, level: Level, ancestors: TreeNode[]) => {
+      setSelected({ node, level, ancestors })
+      if (childLevelOf(level)) expand(node, level)
+    },
+    [expand],
+  )
+
+  const addChild = useCallback(
+    async (parent: TreeNode, parentLevel: Level, request: CreateCurriculumNodeRequest) => {
+      const level = childLevelOf(parentLevel)
+      if (!level || !isEditable(level)) return
 
       await api.post(LEVELS[level].create(parent.id), request)
       toast.success(`${label(level)} added`, `Under "${parent.name}".`)
-      await loadLevel(level)
+
+      // Force, and expand — the point of adding is to see the thing you added.
+      await loadChildren(parent, parentLevel, true)
+      setExpanded((prev) => new Set(prev).add(parent.id))
     },
-    [loadLevel],
+    [loadChildren],
   )
 
   /**
@@ -156,14 +187,14 @@ export function useCurriculumTree(langId: string) {
    * descendants.
    *
    * A 409 is a question, not a failure: the body names exactly what `force` would destroy, so it
-   * is handed back to the caller to confirm rather than surfaced as an error. The old console
-   * required ticking a "force" checkbox *before* trying, which meant either a wasted attempt or
-   * an unbounded cascade authorised blind.
+   * is handed back to the caller to confirm rather than surfaced as an error.
    */
   const deleteNode = useCallback(
     async (
       level: Level,
       node: TreeNode,
+      parent: TreeNode | null,
+      parentLevel: Level | null,
       force: boolean,
     ): Promise<{ deleted: true } | { deleted: false; counts: CurriculumNodeChildCounts }> => {
       if (!isEditable(level)) return { deleted: true }
@@ -185,32 +216,77 @@ export function useCurriculumTree(langId: string) {
         force ? `"${node.name}" and everything under it.` : `"${node.name}".`,
       )
 
-      // Drop the selection and everything under it, then refresh this level in place.
-      const next = { ...selectionRef.current, [level]: null }
-      for (const l of levelsBelow(level)) next[l] = null
-      commitSelection(next)
+      // Drop it from the selection and from the expansion set, and forget any children it had
+      // cached — those rows are gone server-side and would otherwise reappear on re-expand.
+      setSelected((current) => (current?.node.id === node.id ? null : current))
 
-      setItems((prev) => {
-        const cleared = { ...prev }
-        for (const l of levelsBelow(level)) cleared[l] = []
-        return cleared
+      setExpanded((prev) => {
+        const next = new Set(prev)
+        next.delete(node.id)
+        return next
       })
 
-      await loadLevel(level)
+      setChildren((prev) => {
+        const next = { ...prev }
+        delete next[node.id]
+        return next
+      })
+
+      if (parent && parentLevel) await loadChildren(parent, parentLevel, true)
       return { deleted: true }
     },
-    [loadLevel],
+    [loadChildren],
   )
 
+  /** Refetch the branch a node sits in — after publishing questions, for instance. */
+  const refreshBranch = useCallback(
+    async (parent: TreeNode | null, parentLevel: Level | null) => {
+      if (parent && parentLevel) await loadChildren(parent, parentLevel, true)
+      else await loadGrades()
+    },
+    [loadChildren, loadGrades],
+  )
+
+  const collapseAll = useCallback(() => setExpanded(new Set()), [])
+
   return {
-    items,
-    selection,
-    loading,
+    grades,
+    children,
+    busy,
+    expanded,
+    selected,
+    loadingGrades,
+    toggle,
     select,
-    addNode,
+    setSelected,
+    addChild,
     deleteNode,
-    reloadLevel: (level: Level) => (level === 'grade' ? loadGrades() : loadLevel(level)),
+    refreshBranch,
+    collapseAll,
+    reloadGrades: loadGrades,
   }
+}
+
+/** Find a node by id anywhere in what is currently loaded, with its level. */
+function locate(
+  id: string,
+  grades: TreeNode[],
+  children: Record<string, TreeNode[]>,
+): { node: TreeNode; level: Level } | null {
+  const walk = (rows: TreeNode[], depth: number): { node: TreeNode; level: Level } | null => {
+    for (const row of rows) {
+      if (row.id === id) return { node: row, level: LEVEL_ORDER[depth] }
+
+      const kids = children[row.id]
+      if (kids) {
+        const found = walk(kids, depth + 1)
+        if (found) return found
+      }
+    }
+    return null
+  }
+
+  return walk(grades, 0)
 }
 
 /** "term" → "Term", for messages. */

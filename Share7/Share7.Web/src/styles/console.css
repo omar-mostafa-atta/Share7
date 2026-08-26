@@ -1,0 +1,1757 @@
+/* ===================================================================
+   Share7 Admin Console — Console layer
+   ===================================================================
+
+   Loaded after global.css. Everything here is either new (topbar,
+   command palette, data table, drawer, stat tiles, landing) or a
+   deliberate override of a layout rule from global.css.
+
+   Class prefix stays `s7-` so the two stylesheets read as one system.
+   Overrides are grouped at the bottom and each says what it replaces —
+   an override with no explanation is indistinguishable from a
+   specificity accident six months from now.
+   =================================================================== */
+
+/* ───────────────────────────────────────────────────────────────────
+   Canvas
+   Two fixed aurora pools behind everything. `position: fixed` rather
+   than a body background so they do not scroll — a gradient that
+   travels with the content reads as a moving stain; one that stays put
+   reads as room lighting.
+   ─────────────────────────────────────────────────────────────────── */
+
+.s7-aurora {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(60rem 40rem at 12% -8%, var(--s7-aurora-1), transparent 65%),
+    radial-gradient(52rem 36rem at 92% 6%, var(--s7-aurora-2), transparent 62%);
+
+  /* Promoted to its own compositor layer. The sticky topbar samples whatever is
+     behind it through a backdrop-filter, and when that backdrop lives in the
+     same layer as scrolling content the browser re-rasterises both together —
+     which shows up as the topbar strobing while the page moves under it. */
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+/* The canvas paints opaquely beneath the aurora. Without this the page shows
+   through to the browser's own background for a frame during a route swap. */
+body { background-color: var(--s7-bg); }
+
+/* Content sits above the aurora. Without this the whole app is painted
+   underneath it and the pools wash over the tables. */
+.s7-shell { position: relative; z-index: 1; }
+
+/* ───────────────────────────────────────────────────────────────────
+   Topbar
+   ─────────────────────────────────────────────────────────────────── */
+
+.s7-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 3.5rem;
+  margin: -1.75rem -2rem 1.5rem;
+  padding: 0.6rem 2rem;
+  background: var(--s7-glass);
+  backdrop-filter: var(--s7-blur);
+  -webkit-backdrop-filter: var(--s7-blur);
+  border-bottom: 1px solid var(--s7-glass-line);
+
+  /* Its own layer, for the reason given on .s7-aurora. */
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+/* Where backdrop-filter is unsupported the glass token is semi-transparent and
+   the topbar would let text scroll through it. Fall back to an opaque surface. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .s7-topbar { background: var(--s7-surface); }
+  .s7-palette { background: var(--s7-surface); }
+}
+
+@media (max-width: 991px) {
+  .s7-topbar { margin: -4.25rem -1rem 1.25rem; padding: 0.6rem 1rem; }
+}
+
+.s7-topbar-title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.s7-topbar-title strong {
+  font-size: 0.95rem;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.s7-topbar-title span {
+  font-size: 0.72rem;
+  color: var(--s7-muted);
+}
+
+/* The ⌘K affordance. A button rather than an input: it opens the
+   palette, it never receives typing itself, and a real <input> here
+   would steal focus from the palette's own field on open. */
+.s7-omni {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 13rem;
+  max-width: 22rem;
+  flex: 1 1 auto;
+  padding: 0.44rem 0.6rem;
+  font-family: inherit;
+  font-size: 0.82rem;
+  color: var(--s7-muted);
+  background: var(--s7-surface);
+  border: 1px solid var(--s7-line);
+  border-radius: var(--s7-radius);
+  cursor: pointer;
+  transition: border-color var(--s7-duration) var(--s7-ease),
+              box-shadow var(--s7-duration) var(--s7-ease);
+}
+
+.s7-omni:hover { border-color: var(--s7-line-strong); box-shadow: var(--s7-shadow-xs); }
+.s7-omni:focus-visible { outline: none; box-shadow: var(--s7-ring); }
+
+.s7-kbd {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.08rem 0.34rem;
+  font-family: var(--s7-font-mono);
+  font-size: 0.68rem;
+  line-height: 1.5;
+  color: var(--s7-muted);
+  background: var(--s7-surface-3);
+  border: 1px solid var(--s7-line);
+  border-radius: var(--s7-radius-sm);
+}
+
+/* ───────────────────────────────────────────────────────────────────
+   Command palette
+   ─────────────────────────────────────────────────────────────────── */
+
+.s7-palette-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 12vh 1rem 1rem;
+  background: rgba(4, 7, 15, 0.55);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+.s7-palette {
+  width: min(40rem, 100%);
+  max-height: 68vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--s7-glass-strong);
+  backdrop-filter: var(--s7-blur);
+  -webkit-backdrop-filter: var(--s7-blur);
+  border: 1px solid var(--s7-glass-line);
+  border-radius: var(--s7-radius-xl);
+  box-shadow: var(--s7-shadow-xl), var(--s7-bevel);
+}
+
+.s7-palette-field {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid var(--s7-line);
+}
+
+.s7-palette-field input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: inherit;
+  font-size: 0.95rem;
+  color: var(--s7-ink);
+  background: none;
+  border: 0;
+  outline: none;
+}
+
+.s7-palette-field input::placeholder { color: var(--s7-faint); }
+
+.s7-palette-list { overflow-y: auto; padding: 0.4rem; }
+
+.s7-palette-group {
+  padding: 0.55rem 0.6rem 0.25rem;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--s7-faint);
+}
+
+.s7-palette-item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  padding: 0.55rem 0.6rem;
+  font-family: inherit;
+  font-size: 0.875rem;
+  color: var(--s7-ink-soft);
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: var(--s7-radius);
+  cursor: pointer;
+}
+
+/* Active follows the keyboard cursor, not the mouse. Hover sets the
+   cursor too (see CommandPalette), so there is only ever one highlight
+   and Enter always runs the thing that looks selected. */
+.s7-palette-item.is-active {
+  color: #fff;
+  background: var(--s7-gradient);
+  box-shadow: var(--s7-shadow-brand);
+}
+
+.s7-palette-item.is-active .s7-palette-hint { color: rgba(255, 255, 255, 0.75); }
+
+.s7-palette-hint {
+  margin-left: auto;
+  font-size: 0.72rem;
+  color: var(--s7-faint);
+  white-space: nowrap;
+}
+
+.s7-palette-foot {
+  display: flex;
+  gap: 1rem;
+  padding: 0.55rem 1rem;
+  font-size: 0.72rem;
+  color: var(--s7-muted);
+  border-top: 1px solid var(--s7-line);
+}
+
+/* ───────────────────────────────────────────────────────────────────
+   Page header
+   ─────────────────────────────────────────────────────────────────── */
+
+.s7-page-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  margin-bottom: 1.35rem;
+}
+
+.s7-page-glyph {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2.75rem;
+  height: 2.75rem;
+  color: #fff;
+  background: var(--s7-gradient);
+  border-radius: var(--s7-radius-lg);
+  box-shadow: var(--s7-shadow-brand);
+}
+
+.s7-page-title h1 { font-size: 1.4rem; letter-spacing: -0.025em; }
+
+.s7-page-title p {
+  margin-top: 0.15rem;
+  max-width: 62ch;
+  font-size: 0.85rem;
+  color: var(--s7-muted);
+}
+
+.s7-page-actions { margin-left: auto; display: flex; align-items: center; gap: 0.5rem; }
+
+/* ───────────────────────────────────────────────────────────────────
+   Stat tiles
+   ─────────────────────────────────────────────────────────────────── */
+
+.s7-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0.9rem;
+  margin-bottom: 1.35rem;
+}
+
+.s7-stat {
+  position: relative;
+  overflow: hidden;
+  padding: 1rem 1.1rem;
+  background: var(--s7-surface);
+  border: 1px solid var(--s7-line);
+  border-radius: var(--s7-radius-lg);
+  box-shadow: var(--s7-shadow-sm), var(--s7-bevel);
+}
+
+/* Hairline of colour along the top edge, tinted per tone. Cheaper than a
+   coloured border on all four sides, which at this size reads as a
+   warning box rather than a category. */
+.s7-stat::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  background: var(--s7-stat-accent, var(--s7-gradient));
+}
+
+.s7-stat-head {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--s7-muted);
+}
+
+.s7-stat-value {
+  margin-top: 0.35rem;
+  font-size: 1.65rem;
+  font-weight: 680;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  color: var(--s7-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.s7-stat-sub { margin-top: 0.15rem; font-size: 0.78rem; color: var(--s7-muted); }
+
+.s7-stat-tone-brand   { --s7-stat-accent: var(--s7-gradient); }
+.s7-stat-tone-success { --s7-stat-accent: var(--s7-success); }
+.s7-stat-tone-warning { --s7-stat-accent: var(--s7-warning); }
+.s7-stat-tone-danger  { --s7-stat-accent: var(--s7-danger); }
+.s7-stat-tone-info    { --s7-stat-accent: var(--s7-info); }
+.s7-stat-tone-cool    { --s7-stat-accent: var(--s7-gradient-cool); }
+
+/* ───────────────────────────────────────────────────────────────────
+   Data table
+   Sticky header, tabular numerals, density-aware padding.
+   ─────────────────────────────────────────────────────────────────── */
+
+.s7-dt-wrap {
+  overflow: auto;
+  max-height: var(--s7-dt-max, none);
+  border-radius: var(--s7-radius-lg);
+}
+
+.s7-dt { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.85rem; }
+
+.s7-dt thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 0.6rem var(--s7-cell-x);
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--s7-muted);
+  text-align: left;
+  white-space: nowrap;
+  background: var(--s7-surface-2);
+  border-bottom: 1px solid var(--s7-line);
+}
+
+.s7-dt-sortable { cursor: pointer; user-select: none; }
+.s7-dt-sortable:hover { color: var(--s7-ink); }
+
+.s7-dt-sort-glyph { display: inline-flex; vertical-align: -2px; margin-left: 0.25rem; opacity: 0.55; }
+.s7-dt-sortable.is-sorted .s7-dt-sort-glyph { opacity: 1; color: var(--s7-brand); }
+
+.s7-dt tbody td {
+  padding: var(--s7-row-y) var(--s7-cell-x);
+  border-bottom: 1px solid var(--s7-line-light);
+  vertical-align: middle;
+}
+
+.s7-dt tbody tr { transition: background var(--s7-duration-fast) var(--s7-ease); }
+.s7-dt tbody tr:hover { background: var(--s7-surface-2); }
+.s7-dt tbody tr.is-selected { background: var(--s7-brand-light); }
+.s7-dt tbody tr:last-child td { border-bottom: 0; }
+
+.s7-dt-clickable tbody tr { cursor: pointer; }
+
+/* Numbers right-align and share a width per glyph, so magnitudes line up
+   column-wise and a long payout table can be scanned vertically. */
+.s7-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.s7-mono { font-family: var(--s7-font-mono); font-size: 0.8em; }
+
+.s7-dt-empty { padding: 2.5rem 1rem; text-align: center; color: var(--s7-muted); }
+
+/* ───────────────────────────────────────────────────────────────────
+   Toolbar: search + filters above a table
+   ─────────────────────────────────────────────────────────────────── */
+
+.s7-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.9rem;
+}
+
+.s7-search {
+  position: relative;
+  flex: 1 1 14rem;
+  min-width: 0;
+  max-width: 24rem;
+  display: flex;
+  align-items: center;
+}
+
+.s7-search svg { position: absolute; left: 0.6rem; color: var(--s7-faint); pointer-events: none; }
+
+.s7-search input {
+  width: 100%;
+  padding: 0.46rem 0.6rem 0.46rem 2rem;
+  font-family: inherit;
+  font-size: 0.85rem;
+  color: var(--s7-ink);
+  background: var(--s7-surface);
+  border: 1px solid var(--s7-line);
+  border-radius: var(--s7-radius);
+  outline: none;
+  transition: border-color var(--s7-duration) var(--s7-ease),
+              box-shadow var(--s7-duration) var(--s7-ease);
+}
+
+.s7-search input:focus { border-color: var(--s7-brand); box-shadow: var(--s7-ring); }
+
+/* ── segmented control ── */
+
+.s7-seg {
+  display: inline-flex;
+  padding: 0.16rem;
+  background: var(--s7-surface-3);
+  border-radius: var(--s7-radius);
+}
+
+.s7-seg button {
+  position: relative;
+  padding: 0.32rem 0.7rem;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 550;
+  color: var(--s7-muted);
+  background: none;
+  border: 0;
+  border-radius: calc(var(--s7-radius) - 0.16rem);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.s7-seg button.is-active { color: var(--s7-ink); }
+
+/* The moving indicator is a sibling with a shared layoutId, so it slides
+   between options rather than cross-fading. It has to sit *under* the
+   labels, hence the z-index pair. */
+.s7-seg-pill {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: var(--s7-surface);
+  border-radius: calc(var(--s7-radius) - 0.16rem);
+  box-shadow: var(--s7-shadow-xs);
+}
+
+.s7-seg button > span { position: relative; z-index: 1; }
+
+/* ───────────────────────────────────────────────────────────────────
+   Drawer — right-hand detail sheet
+   ─────────────────────────────────────────────────────────────────── */
+
+.s7-drawer-scrim { position: fixed; inset: 0; z-index: 80; background: rgba(4, 7, 15, 0.5); }
+
+/* Absolute against the scrim, which is itself fixed at inset:0 — so the geometry
+   is identical to `position: fixed` but cannot be re-parented. A fixed element
+   resolves against the nearest ancestor carrying a transform, filter or
+   will-change, and the animation library sets will-change on the scrim while it
+   fades. Absolute sidesteps the whole question. */
+.s7-drawer {
+  position: absolute;
+  inset: 0 0 0 auto;
+  z-index: 81;
+  width: min(46rem, 100%);
+  display: flex;
+  flex-direction: column;
+  background: var(--s7-surface);
+  border-left: 1px solid var(--s7-line);
+  box-shadow: var(--s7-shadow-xl);
+}
+
+.s7-drawer-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1.1rem 1.35rem;
+  border-bottom: 1px solid var(--s7-line);
+}
+
+.s7-drawer-head h2 { font-size: 1.05rem; letter-spacing: -0.02em; }
+.s7-drawer-head p { margin-top: 0.1rem; font-size: 0.8rem; color: var(--s7-muted); }
+.s7-drawer-body { flex: 1 1 auto; overflow-y: auto; padding: 1.35rem; }
+
+.s7-drawer-foot {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.9rem 1.35rem;
+  border-top: 1px solid var(--s7-line);
+  background: var(--s7-surface-2);
+}
+
+/* ── definition list used inside drawers ── */
+
+.s7-dl { display: grid; grid-template-columns: minmax(8rem, 12rem) 1fr; gap: 0.1rem 1rem; }
+.s7-dl dt { padding: 0.4rem 0; font-size: 0.8rem; color: var(--s7-muted); }
+.s7-dl dd { margin: 0; padding: 0.4rem 0; font-size: 0.85rem; color: var(--s7-ink); overflow-wrap: anywhere; }
+
+@media (max-width: 640px) {
+  .s7-dl { grid-template-columns: 1fr; }
+  .s7-dl dd { padding-top: 0; margin-bottom: 0.35rem; }
+}
+
+/* ───────────────────────────────────────────────────────────────────
+   Small parts
+   ─────────────────────────────────────────────────────────────────── */
+
+/* A GUID rendered so it can be recognised and copied without being read.
+   Middle-truncated by JS; this only styles it. */
+.s7-id {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.1rem 0.4rem;
+  font-family: var(--s7-font-mono);
+  font-size: 0.72rem;
+  color: var(--s7-muted);
+  background: var(--s7-surface-3);
+  border-radius: var(--s7-radius-sm);
+  border: 0;
+  cursor: pointer;
+}
+
+.s7-id:hover { color: var(--s7-ink); }
+
+/* Horizontal proportion bar — a cap, a quota, a share of a payout. */
+.s7-meter {
+  position: relative;
+  height: 0.4rem;
+  min-width: 4rem;
+  overflow: hidden;
+  background: var(--s7-surface-3);
+  border-radius: var(--s7-radius-full);
+}
+
+.s7-meter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--s7-gradient);
+}
+
+.s7-meter-warning span { background: var(--s7-warning); }
+.s7-meter-danger  span { background: var(--s7-danger); }
+
+/* Live/idle dot with a halo that pulses only while genuinely live. */
+.s7-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--s7-muted);
+}
+
+.s7-dot-live {
+  background: var(--s7-success);
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+  animation: s7-pulse 2s infinite;
+}
+
+@keyframes s7-pulse {
+  70%  { box-shadow: 0 0 0 0.5rem rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s7-dot-live { animation: none; }
+}
+
+.s7-stack { display: flex; flex-direction: column; gap: 1.1rem; }
+.s7-inline { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; }
+.s7-split { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: 1.1rem; }
+
+.s7-note {
+  padding: 0.7rem 0.85rem;
+  font-size: 0.82rem;
+  color: var(--s7-ink-soft);
+  background: var(--s7-info-bg);
+  border: 1px solid var(--s7-line);
+  border-left: 3px solid var(--s7-info);
+  border-radius: var(--s7-radius);
+}
+
+.s7-note-warning { background: var(--s7-warning-bg); border-left-color: var(--s7-warning); }
+.s7-note-danger  { background: var(--s7-danger-bg);  border-left-color: var(--s7-danger); }
+
+/* ───────────────────────────────────────────────────────────────────
+   Landing
+   ─────────────────────────────────────────────────────────────────── */
+
+.s7-hero {
+  position: relative;
+  overflow: hidden;
+  padding: 2rem 2.15rem;
+  margin-bottom: 1.35rem;
+  color: #fff;
+  background: linear-gradient(135deg, #312e81, #6d28d9 55%, #4f46e5);
+  border-radius: var(--s7-radius-2xl);
+  box-shadow: var(--s7-shadow-lg);
+}
+
+/* Light sweep across the hero. Pure decoration, so it is a pseudo-element
+   and never reaches the accessibility tree. */
+.s7-hero::after {
+  content: '';
+  position: absolute;
+  inset: -40% -10% auto auto;
+  width: 28rem;
+  height: 28rem;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.18), transparent 62%);
+  pointer-events: none;
+}
+
+.s7-hero h1 {
+  position: relative;
+  font-size: 1.75rem;
+  letter-spacing: -0.03em;
+  color: #fff;
+}
+
+.s7-hero p {
+  position: relative;
+  margin-top: 0.4rem;
+  max-width: 58ch;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.s7-hero-row { position: relative; display: flex; flex-wrap: wrap; gap: 1.75rem; margin-top: 1.4rem; }
+.s7-hero-stat strong {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 680;
+  letter-spacing: -0.03em;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+.s7-hero-stat span { font-size: 0.75rem; color: rgba(255, 255, 255, 0.7); }
+
+/* Quick-launch grid on the landing page. */
+.s7-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 0.9rem; }
+
+.s7-tile {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem 1.1rem;
+  text-align: left;
+  text-decoration: none;
+  color: inherit;
+  background: var(--s7-surface);
+  border: 1px solid var(--s7-line);
+  border-radius: var(--s7-radius-lg);
+  box-shadow: var(--s7-shadow-sm), var(--s7-bevel);
+  cursor: pointer;
+  transition: border-color var(--s7-duration) var(--s7-ease),
+              box-shadow var(--s7-duration) var(--s7-ease);
+}
+
+.s7-tile:hover { border-color: var(--s7-brand); box-shadow: var(--s7-shadow-md); }
+
+.s7-tile-glyph {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2.25rem;
+  height: 2.25rem;
+  color: var(--s7-brand);
+  background: var(--s7-brand-light);
+  border-radius: var(--s7-radius);
+}
+
+.s7-tile strong { display: block; font-size: 0.9rem; font-weight: 620; }
+.s7-tile span { font-size: 0.78rem; color: var(--s7-muted); }
+
+/* ───────────────────────────────────────────────────────────────────
+   Overrides of global.css
+   ─────────────────────────────────────────────────────────────────── */
+
+/* global.css sets `.s7-main { padding: 1.75rem 2rem 4rem }`. The topbar is
+   a child of main and has to sit flush against the top and both edges, so
+   it cancels that padding with negative margins (above) — which only works
+   if main stops being the scroll container's padded box. Widening the max
+   width at the same time: the original had none, and a 2560px monitor
+   stretched every table to unreadable line lengths. */
+.s7-main { max-width: 100rem; }
+
+/* Cards pick up the bevel so they separate from the canvas in dark mode,
+   where the drop shadow has nothing left to darken. */
+.s7-card { box-shadow: var(--s7-shadow-sm), var(--s7-bevel); }
+
+/* One focus treatment everywhere, replacing the browser default outline
+   that global.css never styled. :focus-visible only, so a mouse click
+   does not leave a ring behind. */
+.s7-btn:focus-visible,
+.s7-input:focus-visible,
+.s7-select:focus-visible,
+.s7-textarea:focus-visible,
+.s7-nav-link:focus-visible,
+.s7-tile:focus-visible,
+.s7-id:focus-visible {
+  outline: none;
+  box-shadow: var(--s7-ring);
+}
+
+/* ===================================================================
+   Auth — the sign-in screen
+   ===================================================================
+
+   Replaces the single centred card. Two panels: a brand side that states
+   what this console is, and a form side that stays legible in both
+   themes.
+
+   The old card was `background: rgba(255,255,255,0.97)` with no colour of
+   its own, so it inherited --s7-ink for its text. That was fine while the
+   palette was light-only; once dark shipped, --s7-ink became near-white
+   and the card rendered white-on-white. The form side below paints an
+   explicit surface AND an explicit ink for exactly that reason.
+   =================================================================== */
+
+.s7-auth {
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  min-height: 100%;
+  background: var(--s7-bg);
+}
+
+@media (max-width: 900px) {
+  /* The brand panel is the half that goes: on a phone it would push the
+     form below the fold, and someone signing in is not here to read it. */
+  .s7-auth { grid-template-columns: 1fr; }
+  .s7-auth-side { display: none; }
+}
+
+/* ── brand side ── */
+
+.s7-auth-side {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 3rem 3.25rem;
+  color: #fff;
+  background: linear-gradient(150deg, #1e1b4b, #4c1d95 48%, #4f46e5);
+}
+
+/* Two drifting pools of light. Long, offset durations so the pair never
+   visibly repeats — a short loop reads as an animated GIF. */
+.s7-auth-side::before,
+.s7-auth-side::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+}
+
+.s7-auth-side::before {
+  width: 34rem;
+  height: 34rem;
+  top: -12rem;
+  left: -10rem;
+  background: rgba(99, 102, 241, 0.55);
+  animation: s7-auth-drift-a 26s var(--s7-ease) infinite alternate;
+}
+
+.s7-auth-side::after {
+  width: 28rem;
+  height: 28rem;
+  right: -9rem;
+  bottom: -11rem;
+  background: rgba(217, 70, 239, 0.4);
+  animation: s7-auth-drift-b 34s var(--s7-ease) infinite alternate;
+}
+
+@keyframes s7-auth-drift-a {
+  to { transform: translate3d(5rem, 4rem, 0) scale(1.15); }
+}
+
+@keyframes s7-auth-drift-b {
+  to { transform: translate3d(-4rem, -3rem, 0) scale(1.1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s7-auth-side::before,
+  .s7-auth-side::after { animation: none; }
+}
+
+.s7-auth-brand {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.s7-auth-brand strong { font-size: 1.05rem; font-weight: 700; letter-spacing: -0.01em; }
+.s7-auth-brand span { display: block; font-size: 0.75rem; color: rgba(255, 255, 255, 0.62); }
+
+.s7-auth-pitch { position: relative; max-width: 34ch; }
+
+.s7-auth-pitch h2 {
+  font-size: clamp(1.75rem, 2.6vw, 2.4rem);
+  line-height: 1.15;
+  letter-spacing: -0.035em;
+  color: #fff;
+}
+
+.s7-auth-pitch p {
+  margin-top: 0.85rem;
+  font-size: 0.925rem;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.s7-auth-points {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+
+.s7-auth-point {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.32rem 0.7rem;
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: var(--s7-radius-full);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.s7-auth-character {
+  position: relative;
+  align-self: flex-end;
+  margin-block: -2rem;
+}
+
+/* Below 1200px the brand panel gets tight and the character is the first thing
+   that can go without losing meaning — the pitch and the points still read. */
+@media (max-width: 1200px) {
+  .s7-auth-character { display: none; }
+}
+
+.s7-auth-foot {
+  position: relative;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* ── form side ── */
+
+.s7-auth-main {
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: 2rem 1.5rem;
+}
+
+.s7-auth-tools {
+  position: absolute;
+  top: 1.1rem;
+  right: 1.25rem;
+  display: flex;
+  gap: 0.4rem;
+}
+
+.s7-auth-card {
+  width: min(25rem, 100%);
+
+  /* Explicit surface and ink. See the note at the top of this section — a
+     card that inherits its text colour breaks the moment the theme flips. */
+  color: var(--s7-ink);
+  background: var(--s7-surface);
+  border: 1px solid var(--s7-line);
+  border-radius: var(--s7-radius-xl);
+  box-shadow: var(--s7-shadow-lg), var(--s7-bevel);
+  padding: 2rem 1.85rem;
+}
+
+.s7-auth-card h1 {
+  font-size: 1.35rem;
+  letter-spacing: -0.025em;
+}
+
+.s7-auth-card > p {
+  margin-top: 0.3rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.85rem;
+  color: var(--s7-muted);
+}
+
+.s7-auth-fields { display: flex; flex-direction: column; gap: 0.9rem; }
+
+.s7-auth-card .s7-btn-primary {
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.65rem;
+  font-size: 0.9rem;
+}
+
+/* Password field with a reveal control docked inside it. */
+.s7-auth-reveal { position: relative; display: flex; align-items: center; }
+.s7-auth-reveal .s7-input { padding-inline-end: 2.6rem; }
+
+.s7-auth-reveal button {
+  position: absolute;
+  inset-inline-end: 0.5rem;
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  color: var(--s7-muted);
+  background: none;
+  border: 0;
+  border-radius: var(--s7-radius-sm);
+  cursor: pointer;
+}
+
+.s7-auth-reveal button:hover { color: var(--s7-ink); background: var(--s7-surface-3); }
+
+.s7-auth-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.65rem 0.75rem;
+  font-size: 0.82rem;
+  color: var(--s7-danger-ink);
+  background: var(--s7-danger-bg);
+  border: 1px solid var(--s7-danger-line);
+  border-radius: var(--s7-radius);
+  overflow: hidden;
+}
+
+.s7-auth-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--s7-warning-ink);
+}
+
+.s7-auth-note {
+  margin-top: 1.35rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--s7-line);
+  font-size: 0.75rem;
+  color: var(--s7-muted);
+  text-align: center;
+}
+
+/* ===================================================================
+   Curriculum — tree explorer
+   ===================================================================
+
+   Replaces the five-column cascade. That layout could only ever show
+   one path: choosing a different term discarded the subjects, chapters
+   and lessons under the previous one, and each column was a fifth of
+   the width so most names truncated.
+
+   A tree keeps every open branch, indents to show depth, and leaves the
+   full width available to the detail pane on the right.
+   =================================================================== */
+
+.s7-curriculum {
+  display: grid;
+  grid-template-columns: minmax(18rem, 24rem) minmax(0, 1fr);
+  gap: 1.1rem;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  /* Stacked. The tree keeps its own scroll so the detail pane is still
+     reachable without scrolling past every lesson in the grade. */
+  .s7-curriculum { grid-template-columns: 1fr; }
+}
+
+/* ── the tree pane ── */
+
+.s7-tree-pane {
+  position: sticky;
+  top: 4.6rem;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 6.5rem);
+  overflow: hidden;
+  background: var(--s7-surface);
+  border: 1px solid var(--s7-line);
+  border-radius: var(--s7-radius-lg);
+  box-shadow: var(--s7-shadow-sm), var(--s7-bevel);
+}
+
+@media (max-width: 1100px) {
+  .s7-tree-pane { position: static; max-height: 32rem; }
+}
+
+.s7-tree-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 0.8rem;
+  border-bottom: 1px solid var(--s7-line);
+}
+
+.s7-tree-scroll { flex: 1 1 auto; overflow-y: auto; padding: 0.4rem; }
+
+.s7-tree-foot {
+  padding: 0.5rem 0.8rem;
+  font-size: 0.72rem;
+  color: var(--s7-muted);
+  border-top: 1px solid var(--s7-line);
+}
+
+/* ── rows ── */
+
+.s7-tree { display: flex; flex-direction: column; }
+.s7-tree-branch { display: flex; flex-direction: column; }
+
+.s7-tree-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  border-radius: var(--s7-radius-sm);
+
+  /* One number drives the indent and the guide line, so they cannot drift. */
+  padding-inline-start: calc(var(--s7-depth, 0) * 0.85rem);
+}
+
+.s7-tree-row:hover { background: var(--s7-surface-2); }
+
+.s7-tree-row.is-selected {
+  background: var(--s7-brand-light);
+  box-shadow: inset 2px 0 0 var(--s7-brand);
+}
+
+.s7-tree-row.is-selected .s7-tree-name { color: var(--s7-brand); font-weight: 620; }
+
+/* Chevron and row label are separate targets on purpose: opening a branch to
+   look inside must not change what the detail pane is showing. */
+.s7-tree-chevron {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 1.4rem;
+  height: 1.7rem;
+  color: var(--s7-muted);
+  background: none;
+  border: 0;
+  border-radius: var(--s7-radius-sm);
+  cursor: pointer;
+  transition: transform var(--s7-duration) var(--s7-ease), color var(--s7-duration) var(--s7-ease);
+}
+
+.s7-tree-chevron:hover { color: var(--s7-ink); }
+.s7-tree-chevron.is-open { transform: rotate(90deg); }
+
+.s7-tree-leaf {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 1.4rem;
+  height: 1.7rem;
+  color: var(--s7-faint);
+}
+
+.s7-tree-label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.32rem 0.3rem;
+  font-family: inherit;
+  font-size: 0.83rem;
+  color: var(--s7-ink-soft);
+  text-align: start;
+  background: none;
+  border: 0;
+  border-radius: var(--s7-radius-sm);
+  cursor: pointer;
+}
+
+.s7-tree-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.s7-tree-count {
+  flex: none;
+  margin-inline-start: auto;
+  padding: 0 0.35rem;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--s7-faint);
+}
+
+/* Add is revealed on hover or focus rather than always shown — five levels
+   times every row is a wall of plus signs. Kept in the tab order regardless,
+   so it is reachable without a mouse. */
+.s7-tree-add {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-inline-end: 0.2rem;
+  color: var(--s7-muted);
+  background: none;
+  border: 0;
+  border-radius: var(--s7-radius-sm);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--s7-duration) var(--s7-ease), color var(--s7-duration) var(--s7-ease);
+}
+
+.s7-tree-row:hover .s7-tree-add,
+.s7-tree-add:focus-visible { opacity: 1; }
+.s7-tree-add:hover { color: var(--s7-brand); background: var(--s7-brand-light); }
+
+.s7-tree-note {
+  padding: 0.3rem 0.3rem 0.3rem calc(var(--s7-depth, 0) * 0.85rem + 1.55rem);
+  font-size: 0.76rem;
+  color: var(--s7-faint);
+  font-style: italic;
+}
+
+.s7-tree-empty { padding: 2rem 1rem; text-align: center; font-size: 0.82rem; color: var(--s7-muted); }
+
+/* ── detail pane ── */
+
+.s7-detail-empty {
+  display: grid;
+  place-items: center;
+  min-height: 20rem;
+  padding: 2rem;
+  text-align: center;
+  background: var(--s7-surface);
+  border: 1px dashed var(--s7-line-strong);
+  border-radius: var(--s7-radius-lg);
+}
+
+.s7-detail-empty p { margin-top: 0.5rem; max-width: 34ch; font-size: 0.85rem; color: var(--s7-muted); }
+
+/* Breadcrumb across the top of the detail pane — the answer to "where am I",
+   which the cascade could only give by reading five columns. */
+.s7-crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.15rem;
+  margin-bottom: 0.6rem;
+  font-size: 0.78rem;
+  color: var(--s7-muted);
+}
+
+.s7-crumb {
+  padding: 0.15rem 0.4rem;
+  font: inherit;
+  color: var(--s7-muted);
+  background: none;
+  border: 0;
+  border-radius: var(--s7-radius-sm);
+  cursor: pointer;
+}
+
+.s7-crumb:hover { color: var(--s7-brand); background: var(--s7-brand-light); }
+.s7-crumb-sep { color: var(--s7-faint); }
+.s7-crumb.is-current { color: var(--s7-ink); font-weight: 600; cursor: default; }
+.s7-crumb.is-current:hover { background: none; }
+
+.s7-detail-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.s7-detail-head h2 { font-size: 1.2rem; letter-spacing: -0.02em; }
+
+.s7-level-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.12rem 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--s7-brand);
+  background: var(--s7-brand-light);
+  border-radius: var(--s7-radius-full);
+}
+
+/* ===========================================================================
+   Analytics
+   ===========================================================================
+   Charts, the retention triangle, funnels and the per-account trace.
+
+   One rule runs through all of it: A MISSING VALUE MUST NOT LOOK LIKE ZERO.
+   `.s7-retention-unknown` is hatched with no number, and the uniques label
+   reads "pending" rather than "0" — because a cohort that has not aged to D30
+   yet and a cohort where nobody came back are otherwise the same picture, and
+   one of them sends a team to fix something that was never broken.
+   =========================================================================== */
+
+.s7-chart {
+  display: grid;
+  gap: 8px;
+}
+
+.s7-chart svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+.s7-chart-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--s7-muted);
+}
+
+.s7-chart-foot strong {
+  color: var(--s7-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.s7-chart-legend {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--s7-muted);
+}
+
+.s7-chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.s7-chart-legend i {
+  width: 10px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.s7-chart-empty {
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--s7-muted);
+  font-size: 13px;
+  border: 1px dashed var(--s7-line);
+  border-radius: 12px;
+}
+
+/* ---- retention triangle -------------------------------------------------- */
+
+.s7-retention {
+  /* The triangle is wide by design and must scroll INSIDE its card. Letting the
+     page scroll horizontally instead breaks every other panel on the screen. */
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.s7-retention table {
+  border-collapse: separate;
+  border-spacing: 2px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.s7-retention th {
+  font-weight: 600;
+  color: var(--s7-muted);
+  text-align: left;
+  white-space: nowrap;
+  padding: 4px 6px;
+}
+
+.s7-retention-cohort {
+  position: sticky;
+  left: 0;
+  background: var(--s7-surface);
+  z-index: 1;
+}
+
+.s7-retention-size {
+  text-align: right !important;
+  color: var(--s7-muted);
+  padding: 4px 8px;
+}
+
+.s7-retention-day {
+  text-align: center !important;
+  min-width: 42px;
+}
+
+.s7-retention-cell {
+  text-align: center;
+  padding: 5px 6px;
+  border-radius: 6px;
+  min-width: 42px;
+  color: var(--s7-text);
+}
+
+/* Not yet known. Hatched, with no number — see the block comment above. */
+.s7-retention-unknown {
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 4px,
+    var(--s7-surface-3) 4px,
+    var(--s7-surface-3) 5px
+  );
+  opacity: 0.5;
+}
+
+.s7-curve {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 160px;
+  position: relative;
+  padding-bottom: 34px;
+}
+
+.s7-curve-col {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  height: 100%;
+  min-width: 0;
+}
+
+.s7-curve-bar {
+  width: 100%;
+  background: var(--s7-gradient);
+  border-radius: 4px 4px 0 0;
+  min-height: 2px;
+}
+
+.s7-curve-label,
+.s7-curve-value {
+  font-size: 10px;
+  color: var(--s7-muted);
+  white-space: nowrap;
+}
+
+.s7-curve-value {
+  font-variant-numeric: tabular-nums;
+}
+
+.s7-curve-note {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  font-size: 12px;
+  color: var(--s7-muted);
+}
+
+/* ---- funnel -------------------------------------------------------------- */
+
+.s7-funnel-presets,
+.s7-funnel-steps,
+.s7-funnel-controls,
+.s7-form-row,
+.s7-range,
+.s7-trace-results {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.s7-funnel-presets,
+.s7-trace-results {
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.s7-funnel-step {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.s7-funnel-result {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.s7-funnel-bar-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) 3fr auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.s7-funnel-bar-label {
+  display: grid;
+  min-width: 0;
+}
+
+.s7-funnel-bar-label strong {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.s7-funnel-bar-label span {
+  font-size: 11px;
+  color: var(--s7-muted);
+}
+
+.s7-funnel-bar-track {
+  height: 22px;
+  background: var(--s7-surface-3);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.s7-funnel-bar-fill {
+  height: 100%;
+  background: var(--s7-gradient);
+  border-radius: 6px;
+}
+
+.s7-funnel-bar-figures {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.s7-funnel-bar-figures em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--s7-muted);
+}
+
+.s7-funnel-note {
+  font-size: 12px;
+  color: var(--s7-muted);
+  margin-top: 14px;
+}
+
+/* ---- economy ------------------------------------------------------------- */
+
+.s7-economy {
+  display: grid;
+  gap: 20px;
+}
+
+.s7-economy-row {
+  display: grid;
+  gap: 10px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--s7-line);
+}
+
+.s7-economy-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.s7-economy-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.s7-economy-bars {
+  display: grid;
+  gap: 6px;
+}
+
+.s7-economy-bar {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--s7-muted);
+}
+
+.s7-economy-track {
+  height: 12px;
+  background: var(--s7-surface-3);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.s7-economy-fill {
+  height: 100%;
+  border-radius: 6px;
+}
+
+.s7-economy-in {
+  background: var(--s7-success);
+}
+
+.s7-economy-out {
+  background: var(--s7-warning);
+}
+
+.s7-economy-bar em {
+  font-style: normal;
+  color: var(--s7-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.s7-economy-split {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 18px;
+}
+
+.s7-economy-split h4 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--s7-muted);
+  margin: 0 0 6px;
+}
+
+.s7-economy-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  padding: 3px 0;
+}
+
+.s7-economy-line em {
+  font-style: normal;
+  color: var(--s7-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- timeline ------------------------------------------------------------ */
+
+.s7-timeline {
+  display: grid;
+  gap: 18px;
+}
+
+.s7-timeline-day h4 {
+  font-size: 12px;
+  color: var(--s7-muted);
+  margin: 0 0 8px;
+  position: sticky;
+  top: 0;
+  background: var(--s7-surface);
+  padding: 4px 0;
+  z-index: 1;
+}
+
+.s7-timeline-row {
+  display: grid;
+  grid-template-columns: 62px auto 1fr auto;
+  gap: 10px;
+  align-items: start;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border-left: 3px solid var(--s7-line);
+  background: var(--s7-surface-2);
+  margin-bottom: 6px;
+}
+
+/* Money-coloured left edges, so a wall of behaviour does not bury the ledger
+   rows a support question is actually about. */
+.s7-timeline-row.s7-tone-brand { border-left-color: var(--s7-brand); }
+.s7-timeline-row.s7-tone-success { border-left-color: var(--s7-success); }
+.s7-timeline-row.s7-tone-warning { border-left-color: var(--s7-warning); }
+.s7-timeline-row.s7-tone-info { border-left-color: var(--s7-info); }
+.s7-timeline-row.s7-tone-cool { border-left-color: var(--s7-brand-3); }
+
+.s7-timeline-row time {
+  font-size: 11px;
+  color: var(--s7-muted);
+  font-variant-numeric: tabular-nums;
+  padding-top: 2px;
+}
+
+.s7-timeline-body {
+  min-width: 0;
+}
+
+.s7-timeline-body strong {
+  font-size: 13px;
+  font-weight: 500;
+  word-break: break-word;
+}
+
+.s7-timeline-body details {
+  margin-top: 4px;
+  font-size: 11px;
+}
+
+.s7-timeline-body summary {
+  cursor: pointer;
+  color: var(--s7-muted);
+}
+
+.s7-timeline-body dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 12px;
+  margin: 6px 0 0;
+}
+
+.s7-timeline-body dl > div {
+  display: contents;
+}
+
+.s7-timeline-body dt {
+  color: var(--s7-muted);
+}
+
+.s7-timeline-body dd {
+  margin: 0;
+  word-break: break-all;
+}
+
+.s7-timeline-amount {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.s7-timeline-amount.s7-pos { color: var(--s7-success-ink); }
+.s7-timeline-amount.s7-neg { color: var(--s7-danger-ink); }
+
+.s7-timeline-amount em {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--s7-muted);
+}
+
+/* ---- shared bits --------------------------------------------------------- */
+
+.s7-chip {
+  border: 1px solid var(--s7-line);
+  background: var(--s7-surface);
+  color: var(--s7-text);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.s7-chip:hover {
+  border-color: var(--s7-brand);
+}
+
+.s7-chip-on {
+  background: var(--s7-brand-light);
+  border-color: var(--s7-brand);
+  color: var(--s7-brand-hover);
+}
+
+.s7-chip-clear {
+  padding: 4px 10px;
+  line-height: 1;
+}
+
+.s7-inline-badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.s7-cell-stack {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.s7-cell-stack span {
+  font-size: 11px;
+}
+
+.s7-drawer-body {
+  display: grid;
+  gap: 14px;
+}
+
+.s7-drawer-subhead {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--s7-muted);
+  margin: 8px 0 0;
+}
+
+.s7-param {
+  border: 1px solid var(--s7-line);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.s7-param-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+  font-size: 12px;
+}

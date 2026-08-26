@@ -73,7 +73,24 @@ export const LEVELS: Record<Exclude<Level, 'grade'>, LevelConfig> = {
 
 export const isEditable = (level: Level): level is Exclude<Level, 'grade'> => level !== 'grade'
 
-/** Levels below the given one, root-to-leaf. */
-export function levelsBelow(level: Level): Level[] {
-  return LEVEL_ORDER.slice(LEVEL_ORDER.indexOf(level) + 1)
+
+/**
+ * What sits directly under this level, or null at the leaf.
+ *
+ * Never `'grade'` — a grade is the root and is nobody's child — so the return
+ * type says so. That is what lets callers index LEVELS, which is keyed by the
+ * editable levels only, without a cast.
+ */
+export function childLevelOf(level: Level): Exclude<Level, 'grade'> | null {
+  const next = LEVEL_ORDER[LEVEL_ORDER.indexOf(level) + 1]
+  return next && next !== 'grade' ? next : null
+}
+
+/** Singular noun for a level, for buttons and prompts. */
+export const LEVEL_NOUN: Record<Level, string> = {
+  grade: 'grade',
+  term: 'term',
+  subject: 'subject',
+  chapter: 'chapter',
+  lesson: 'lesson',
 }

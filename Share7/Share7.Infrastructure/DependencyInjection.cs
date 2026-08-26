@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -32,9 +32,16 @@ using Share7.Infrastructure.Identity;
 using Share7.Infrastructure.Multiplayer;
 using Share7.Infrastructure.Progression;
 using Share7.Infrastructure.Identity.ExternalAuth;
+using Share7.Application.Admin.Interfaces;
+using Share7.Application.Admin.Models;
+using Share7.Infrastructure.Seeding;
+using Share7.Infrastructure.Admin;
 using Share7.Application.Leaderboards.Interfaces;
 using Share7.Application.Leaderboards.Models;
 using Share7.Infrastructure.Leaderboards;
+using Share7.Application.Telemetry.Interfaces;
+using Share7.Application.Telemetry.Models;
+using Share7.Infrastructure.Telemetry;
 using Share7.Infrastructure.Persistence;
 using Share7.Infrastructure.Progress;
 using Share7.Infrastructure.Rewards;
@@ -95,6 +102,10 @@ public static class DependencyInjection
         services.AddScoped<ICurriculumService, CurriculumService>();
         services.AddScoped<ICurriculumAdminService, CurriculumAdminService>();
         services.AddScoped<IUserAdminService, UserAdminService>();
+
+        // Read-only counters for the admin console's landing page. Scoped like every other
+        // service here because it holds a DbContext.
+        services.AddScoped<IAdminOverviewService, AdminOverviewService>();
         services.AddScoped<ILessonQuestionService, LessonQuestionService>();
         services.AddScoped<IQuestionImportService, QuestionImportService>();
         services.AddScoped<ILessonRecoveryQuestionService, LessonRecoveryQuestionService>();
@@ -179,6 +190,33 @@ public static class DependencyInjection
         services.AddScoped<ILeaderboardJobRunner, LeaderboardJobRunner>();
         services.AddScoped<ILeaderboardService, LeaderboardService>();
         services.AddScoped<ILeaderboardAdminService, LeaderboardAdminService>();
+
+        // Telemetry. Ingest is the hottest write path in the platform, so the registry it reads on
+        // every batch is a process-lifetime cache rather than a per-request query — the same
+        // argument LevelCurveCache makes, only against thousands of reads a second instead of one
+        // per attempt. It takes IServiceScopeFactory rather than a DbContext for the reason
+        // MultiplayerCompositionTests exists to catch: a singleton holding a scoped context keeps
+        // the first request's context alive for the life of the process.
+        services.Configure<TelemetryOptions>(configuration.GetSection(TelemetryOptions.SectionName));
+        services.AddSingleton<ITelemetrySchemaCache, TelemetrySchemaCache>();
+
+        services.AddScoped<ITelemetryIngestService, TelemetryIngestService>();
+        services.AddScoped<ITelemetrySchemaService, TelemetrySchemaService>();
+        services.AddScoped<ITelemetryAnalyticsService, TelemetryAnalyticsService>();
+        services.AddScoped<IUserTimelineService, UserTimelineService>();
+
+        // Scoped services with timers around them, so one pass is testable without standing up a
+        // host — the split GameResultRetentionSweeper already established.
+        services.AddScoped<ITelemetryRollupService, TelemetryRollupService>();
+        services.AddScoped<ITelemetryRetentionService, TelemetryRetentionService>();
+        services.AddHostedService<TelemetryProjectorWorker>();
+        services.AddHostedService<TelemetryRetentionSweeper>();
+
+        // Content seeding. Registered unconditionally; the options object is what decides whether a
+        // call to it does anything, so the startup path and the admin endpoint can both depend on it
+        // without either of them knowing the environment.
+        services.Configure<ContentSeedOptions>(configuration.GetSection(ContentSeedOptions.SectionName));
+        services.AddScoped<IContentSeeder, ContentSeeder>();
 
         return services;
     }

@@ -1,4 +1,4 @@
-namespace Share7.Domain.Leaderboards;
+﻿namespace Share7.Domain.Leaderboards;
 
 /// <summary>
 /// How far one consumer has read the <see cref="GameResult"/> stream.
@@ -37,4 +37,10 @@ public class ProjectionCheckpoint
 public static class ProjectionConsumers
 {
     public const string Objectives = "objectives";
+
+    /// <summary>
+    /// The telemetry rollup projector. Reads <c>TelemetryEvents</c>, not <c>GameResult</c> — a
+    /// second stream with its own cursor, which is exactly the generality this table was built for.
+    /// </summary>
+    public const string Telemetry = "telemetry";
 }

@@ -1,30 +1,70 @@
 /* ===================================================================
    Share7 Admin Console — Design Tokens
-   Ported verbatim from wwwroot/css/variables.css so the React console is
-   visually continuous with the one it replaces. Motion tokens are new.
+   ===================================================================
+
+   Two complete themes, both defined here in full.
+
+   The console is a control surface for a live platform: a superadmin sits
+   in it for hours reading dense tables of money, ranks and flags. So the
+   default is dark — a deep slate canvas that keeps the eye on the data
+   rather than on a glowing white sheet — and light is a first-class
+   alternative, not an afterthought.
+
+   Theme resolution has three states, matching how every OS-integrated app
+   behaves:
+
+     :root                                  -> light values (the base)
+     :root:not([data-theme='light']) @media -> dark, when the OS asks
+     :root[data-theme='dark' | 'light']     -> an explicit choice wins
+
+   Nothing gets its ONLY definition inside a media query or an attribute
+   block, so a token always resolves whichever state is active.
+
+   Every name Omar's global.css already consumes is still defined, with the
+   same meaning — only the values move. That is deliberate: his stylesheet
+   references tokens 288 times against 55 colour literals, so re-tuning the
+   palette here re-skins Curriculum and Currencies without editing them.
    =================================================================== */
 
 :root {
-  /* ── brand ── */
+  /* ─────────────────────────────────────────────────────────────
+     Brand
+     Indigo -> violet carries over from the vanilla console; the
+     platform's badge yellow stays the single warm accent. Cyan and
+     magenta are new, and exist so charts and status families have
+     hues that are not "another indigo".
+     ───────────────────────────────────────────────────────────── */
   --s7-brand:         #4f46e5;
   --s7-brand-hover:   #4338ca;
   --s7-brand-light:   #eef0ff;
   --s7-brand-2:       #7c3aed;
   --s7-brand-2-hover: #6d28d9;
+  --s7-brand-3:       #06b6d4;
+  --s7-brand-4:       #d946ef;
 
-  /* ── brand accent: the badge yellow ── */
   --s7-accent:        #ffc629;
   --s7-accent-ink:    #7a5300;
+
+  /* The signature gradient. Used by the nav pill, primary buttons and
+     every "this is the brand" surface, so it is a token rather than a
+     literal repeated at each call site. */
+  --s7-gradient:      linear-gradient(135deg, var(--s7-brand), var(--s7-brand-2));
+  --s7-gradient-warm: linear-gradient(135deg, #f59e0b, #ef4444);
+  --s7-gradient-cool: linear-gradient(135deg, var(--s7-brand-3), var(--s7-brand));
 
   /* ── neutrals ── */
   --s7-bg:            #f2f4f9;
   --s7-bg-alt:        #f8f9fc;
   --s7-surface:       #ffffff;
+  --s7-surface-2:     #f8f9fc;
+  --s7-surface-3:     #eef1f7;
   --s7-ink:           #16203a;
   --s7-ink-soft:      #334155;
   --s7-muted:         #6b7688;
+  --s7-faint:         #9aa3b2;
   --s7-line:          #e7eaf3;
   --s7-line-light:    #f0f2f8;
+  --s7-line-strong:   #d6dbe8;
 
   /* ── semantic ── */
   --s7-success:       #10b981;
@@ -36,18 +76,51 @@
   --s7-info:          #3b82f6;
   --s7-info-bg:       #eff6ff;
 
-  /* ── sidebar ── */
+  /* Foreground to pair with each `-bg` above.
+     These exist because the `-bg` values invert between themes and the text on
+     them cannot stay put: a badge reading #b91c1c (dark red) on #fef2f2 (pale
+     pink) is correct in light and invisible on the dark theme's #350f13. Every
+     tinted chip, pill and inline error resolves its colour from here, so the
+     pair moves together. */
+  --s7-success-ink:  #047857;
+  --s7-warning-ink:  #b45309;
+  --s7-danger-ink:   #b91c1c;
+  --s7-info-ink:     #1d4ed8;
+
+  /* Hairlines for the same tinted surfaces. */
+  --s7-success-line: #bbf7d0;
+  --s7-danger-line:  #fbd5d5;
+
+  /* ── sidebar ──
+     Dark in both themes. In light mode it is the one dark element, which
+     is what anchors the layout; in dark mode it recedes below the canvas
+     so the content plane reads as raised. */
   --s7-sidebar-bg:     #0f172a;
   --s7-sidebar-ink:    #94a3b8;
   --s7-sidebar-hover:  rgba(255, 255, 255, 0.06);
-  --s7-sidebar-active: linear-gradient(135deg, var(--s7-brand), var(--s7-brand-2));
-  --s7-sidebar-width:  260px;
+  --s7-sidebar-active: var(--s7-gradient);
+  --s7-sidebar-width:  268px;
+
+  /* ── glass ──
+     Backdrop-filtered surfaces: the topbar, the command palette, drawers.
+     Tokenised because the blur radius and the veil colour have to change
+     together between themes or the effect turns to mud. */
+  --s7-glass:        rgba(255, 255, 255, 0.72);
+  --s7-glass-strong: rgba(255, 255, 255, 0.88);
+  --s7-glass-line:   rgba(15, 23, 42, 0.08);
+  --s7-blur:         saturate(180%) blur(16px);
+
+  /* Ambient light behind the canvas — two soft brand-coloured pools. Very
+     low alpha on purpose: it should read as depth, never as colour. */
+  --s7-aurora-1: rgba(79, 70, 229, 0.10);
+  --s7-aurora-2: rgba(124, 58, 237, 0.08);
 
   /* ── radii ── */
   --s7-radius-sm:   0.4rem;
   --s7-radius:      0.75rem;
   --s7-radius-lg:   1rem;
   --s7-radius-xl:   1.25rem;
+  --s7-radius-2xl:  1.5rem;
   --s7-radius-full: 9999px;
 
   /* ── shadows ── */
@@ -56,23 +129,181 @@
   --s7-shadow:       0 4px 12px -2px rgba(16, 24, 40, 0.08), 0 2px 4px -2px rgba(16, 24, 40, 0.04);
   --s7-shadow-md:    0 8px 24px -6px rgba(16, 24, 40, 0.12), 0 4px 8px -4px rgba(16, 24, 40, 0.06);
   --s7-shadow-lg:    0 16px 48px -12px rgba(16, 24, 40, 0.18);
+  --s7-shadow-xl:    0 32px 80px -24px rgba(16, 24, 40, 0.24);
   --s7-shadow-brand: 0 8px 28px -8px rgba(79, 70, 229, 0.45);
+
+  /* Inset highlight along the top edge of a raised surface. Nearly
+     invisible in light mode, load-bearing in dark — it is what separates
+     a card from the canvas once the shadow has nothing left to darken. */
+  --s7-bevel: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+
+  /* ── focus ──
+     One ring for the whole console. Two layers so it stays visible
+     against both a light card and a dark one. */
+  --s7-ring: 0 0 0 2px var(--s7-surface), 0 0 0 4px var(--s7-brand);
 
   /* ── transitions ── */
   --s7-ease:          cubic-bezier(0.4, 0, 0.2, 1);
+  --s7-ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --s7-ease-spring:   cubic-bezier(0.34, 1.56, 0.64, 1);
+  --s7-duration-fast: 120ms;
   --s7-duration:      180ms;
   --s7-duration-slow: 300ms;
+  --s7-duration-lg:   420ms;
 
   /* ── typography ── */
   --s7-font:      'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --s7-font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', Consolas, monospace;
 
-  /* ── motion (new) ──
-     --s7-ease-out-expo drives entrances: fast start, long settle, which reads as responsive
-     rather than slow even at 420ms. --s7-ease-spring overshoots ~4% and is for elements that
-     should feel physical — modals, the sidebar pill, a value that just changed. */
-  --s7-ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
-  --s7-ease-spring:   cubic-bezier(0.34, 1.56, 0.64, 1);
-  --s7-duration-fast: 120ms;
-  --s7-duration-lg:   420ms;
+  /* ── density ──
+     Driven by the topbar's density switch. A superadmin scanning a
+     thousand-row payout table wants more rows per screen than someone
+     authoring a single objective, and that is a per-person preference
+     rather than something a designer can settle centrally. */
+  --s7-row-y:  0.72rem;
+  --s7-cell-x: 0.9rem;
+
+  color-scheme: light;
+}
+
+/* ───────────────────────────────────────────────────────────────────
+   Dark — the console's default.
+
+   Guarded with :not([data-theme='light']) so an explicit light choice
+   still wins on a machine set to dark at the OS level.
+   ─────────────────────────────────────────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --s7-brand:         #6366f1;
+    --s7-brand-hover:   #818cf8;
+    --s7-brand-light:   #1e1b4b;
+    --s7-brand-2:       #a855f7;
+    --s7-brand-2-hover: #c084fc;
+    --s7-brand-3:       #22d3ee;
+    --s7-brand-4:       #e879f9;
+
+    --s7-bg:          #080b14;
+    --s7-bg-alt:      #0c1020;
+    --s7-surface:     #121829;
+    --s7-surface-2:   #171e33;
+    --s7-surface-3:   #1e2740;
+    --s7-ink:         #eef2ff;
+    --s7-ink-soft:    #c7d0e8;
+    --s7-muted:       #8b97b4;
+    --s7-faint:       #5f6b8a;
+    --s7-line:        #232c47;
+    --s7-line-light:  #1a2138;
+    --s7-line-strong: #33405f;
+
+    --s7-success-bg:  #052e23;
+    --s7-warning-bg:  #2e2205;
+    --s7-danger-bg:   #350f13;
+    --s7-info-bg:     #0b1e3d;
+    /* Light text on the dark tinted surfaces above — see the note in :root. */
+    --s7-success-ink:  #6ee7b7;
+    --s7-warning-ink:  #fcd34d;
+    --s7-danger-ink:   #fca5a5;
+    --s7-info-ink:     #93c5fd;
+
+    --s7-success-line: #0d4f3c;
+    --s7-danger-line:  #5c1a20;
+
+    --s7-sidebar-bg:    #05070f;
+    --s7-sidebar-ink:   #7d8aa8;
+    --s7-sidebar-hover: rgba(255, 255, 255, 0.05);
+
+    --s7-glass:        rgba(18, 24, 41, 0.72);
+    --s7-glass-strong: rgba(18, 24, 41, 0.92);
+    --s7-glass-line:   rgba(255, 255, 255, 0.07);
+
+    --s7-aurora-1: rgba(99, 102, 241, 0.16);
+    --s7-aurora-2: rgba(168, 85, 247, 0.12);
+
+    --s7-shadow-xs:    0 1px 2px rgba(0, 0, 0, 0.4);
+    --s7-shadow-sm:    0 1px 3px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.35);
+    --s7-shadow:       0 4px 12px -2px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
+    --s7-shadow-md:    0 8px 24px -6px rgba(0, 0, 0, 0.6), 0 4px 8px -4px rgba(0, 0, 0, 0.45);
+    --s7-shadow-lg:    0 16px 48px -12px rgba(0, 0, 0, 0.7);
+    --s7-shadow-xl:    0 32px 80px -24px rgba(0, 0, 0, 0.8);
+    --s7-shadow-brand: 0 8px 28px -8px rgba(99, 102, 241, 0.5);
+
+    --s7-bevel: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    --s7-ring:  0 0 0 2px var(--s7-bg), 0 0 0 4px var(--s7-brand);
+
+    color-scheme: dark;
+  }
+}
+
+/* Explicit dark — the same values again, so the toggle wins in both
+   directions rather than only when the OS already agrees. */
+:root[data-theme='dark'] {
+  --s7-brand:         #6366f1;
+  --s7-brand-hover:   #818cf8;
+  --s7-brand-light:   #1e1b4b;
+  --s7-brand-2:       #a855f7;
+  --s7-brand-2-hover: #c084fc;
+  --s7-brand-3:       #22d3ee;
+  --s7-brand-4:       #e879f9;
+
+  --s7-bg:          #080b14;
+  --s7-bg-alt:      #0c1020;
+  --s7-surface:     #121829;
+  --s7-surface-2:   #171e33;
+  --s7-surface-3:   #1e2740;
+  --s7-ink:         #eef2ff;
+  --s7-ink-soft:    #c7d0e8;
+  --s7-muted:       #8b97b4;
+  --s7-faint:       #5f6b8a;
+  --s7-line:        #232c47;
+  --s7-line-light:  #1a2138;
+  --s7-line-strong: #33405f;
+
+  --s7-success-bg:  #052e23;
+  --s7-warning-bg:  #2e2205;
+  --s7-danger-bg:   #350f13;
+  --s7-info-bg:     #0b1e3d;
+    /* Light text on the dark tinted surfaces above — see the note in :root. */
+    --s7-success-ink:  #6ee7b7;
+    --s7-warning-ink:  #fcd34d;
+    --s7-danger-ink:   #fca5a5;
+    --s7-info-ink:     #93c5fd;
+
+    --s7-success-line: #0d4f3c;
+    --s7-danger-line:  #5c1a20;
+
+  --s7-sidebar-bg:    #05070f;
+  --s7-sidebar-ink:   #7d8aa8;
+  --s7-sidebar-hover: rgba(255, 255, 255, 0.05);
+
+  --s7-glass:        rgba(18, 24, 41, 0.72);
+  --s7-glass-strong: rgba(18, 24, 41, 0.92);
+  --s7-glass-line:   rgba(255, 255, 255, 0.07);
+
+  --s7-aurora-1: rgba(99, 102, 241, 0.16);
+  --s7-aurora-2: rgba(168, 85, 247, 0.12);
+
+  --s7-shadow-xs:    0 1px 2px rgba(0, 0, 0, 0.4);
+  --s7-shadow-sm:    0 1px 3px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.35);
+  --s7-shadow:       0 4px 12px -2px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
+  --s7-shadow-md:    0 8px 24px -6px rgba(0, 0, 0, 0.6), 0 4px 8px -4px rgba(0, 0, 0, 0.45);
+  --s7-shadow-lg:    0 16px 48px -12px rgba(0, 0, 0, 0.7);
+  --s7-shadow-xl:    0 32px 80px -24px rgba(0, 0, 0, 0.8);
+  --s7-shadow-brand: 0 8px 28px -8px rgba(99, 102, 241, 0.5);
+
+  --s7-bevel: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --s7-ring:  0 0 0 2px var(--s7-bg), 0 0 0 4px var(--s7-brand);
+
+  color-scheme: dark;
+}
+
+/* Explicit light. The base :root above is already light, so this only has
+   to restore color-scheme when the OS is dark and the admin chose light. */
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+/* Compact density, set on <html> by the topbar switch. */
+:root[data-density='compact'] {
+  --s7-row-y:  0.44rem;
+  --s7-cell-x: 0.7rem;
 }

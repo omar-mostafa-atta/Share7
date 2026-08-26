@@ -1,4 +1,4 @@
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
@@ -9,7 +9,11 @@ using Share7.Application.Common.Interfaces;
 using Share7.Domain.Constants;
 using Share7.Infrastructure;
 using Share7.Infrastructure.Identity;
+using Share7.Application.Telemetry.Interfaces;
 using Share7.Infrastructure.Persistence;
+using Share7.Application.Admin.Interfaces;
+using Share7.Application.Admin.Models;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -112,6 +116,25 @@ using (var scope = app.Services.CreateScope())
     {
         if (!await roleManager.RoleExistsAsync(roleName))
             await roleManager.CreateAsync(new ApplicationRole(roleName));
+    }
+
+    // The telemetry vocabulary, before the first client can connect. Without it every event on a
+    // fresh database lands as "unregistered" — stored, but folded into no rollup — and the console
+    // shows an empty dashboard next to a full raw table. Additive: a name that already has a row is
+    // left exactly as an operator authored it.
+    var telemetrySchemas = scope.ServiceProvider.GetRequiredService<ITelemetrySchemaService>();
+    await telemetrySchemas.SeedAsync(CancellationToken.None);
+
+    // Content: catalogues, curriculum, questions. Gated twice over — the master switch and an
+    // explicit opt-in to running it here — because a fresh production database needs this and a
+    // deployment that already has content must never have it appear underneath. When RunOnStartup
+    // is off the seeder is still reachable at POST /api/admin/seed, which is what a deployment
+    // usually wants: a hundred thousand inserts do not belong on the path to the first request.
+    var seedOptions = scope.ServiceProvider.GetRequiredService<IOptions<ContentSeedOptions>>().Value;
+    if (seedOptions is { Enabled: true, RunOnStartup: true })
+    {
+        var contentSeeder = scope.ServiceProvider.GetRequiredService<IContentSeeder>();
+        await contentSeeder.SeedAsync(CancellationToken.None);
     }
 
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();

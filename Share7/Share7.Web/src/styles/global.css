@@ -377,7 +377,7 @@ code, .mono { font-family: var(--s7-font-mono); font-size: 0.85em; }
 
 .s7-btn-ghost:hover:not(:disabled) { background: var(--s7-bg-alt); border-color: #d8dfee; color: var(--s7-ink); }
 
-.s7-btn-danger { background: var(--s7-danger-bg); color: var(--s7-danger); border-color: #fbd5d5; }
+.s7-btn-danger { background: var(--s7-danger-bg); color: var(--s7-danger); border-color: var(--s7-danger-line); }
 .s7-btn-danger:hover:not(:disabled) { background: var(--s7-danger); color: #fff; border-color: var(--s7-danger); }
 
 .s7-btn-icon { padding: 0.4rem; width: 32px; height: 32px; }
@@ -489,11 +489,11 @@ code, .mono { font-family: var(--s7-font-mono); font-size: 0.85em; }
   white-space: nowrap;
 }
 
-.s7-badge-success { background: var(--s7-success-bg); color: #047857; }
+.s7-badge-success { background: var(--s7-success-bg); color: var(--s7-success-ink); }
 .s7-badge-muted   { background: var(--s7-line-light); color: var(--s7-muted); }
-.s7-badge-warning { background: var(--s7-warning-bg); color: #b45309; }
-.s7-badge-danger  { background: var(--s7-danger-bg); color: #b91c1c; }
-.s7-badge-info    { background: var(--s7-info-bg); color: #1d4ed8; }
+.s7-badge-warning { background: var(--s7-warning-bg); color: var(--s7-warning-ink); }
+.s7-badge-danger  { background: var(--s7-danger-bg); color: var(--s7-danger-ink); }
+.s7-badge-info    { background: var(--s7-info-bg); color: var(--s7-info-ink); }
 .s7-badge-brand   { background: var(--s7-brand-light); color: var(--s7-brand); }
 
 /* ===================================================================
@@ -811,7 +811,7 @@ code, .mono { font-family: var(--s7-font-mono); font-size: 0.85em; }
   padding: 0.6rem 0.7rem;
   border-radius: var(--s7-radius);
   background: var(--s7-danger-bg);
-  color: #b91c1c;
+  color: var(--s7-danger-ink);
   font-size: 0.8125rem;
   font-weight: 500;
 }
@@ -1004,7 +1004,7 @@ code, .mono { font-family: var(--s7-font-mono); font-size: 0.85em; }
 .s7-count-value {
   font-size: 1.1rem;
   font-weight: 700;
-  color: #b91c1c;
+  color: var(--s7-danger-ink);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1140,8 +1140,8 @@ code, .mono { font-family: var(--s7-font-mono); font-size: 0.85em; }
   letter-spacing: 0.04em;
 }
 
-.s7-column-chip.is-correct { background: var(--s7-success-bg); border-color: #bbf7d0; }
-.s7-column-chip.is-correct b { color: #047857; }
+.s7-column-chip.is-correct { background: var(--s7-success-bg); border-color: var(--s7-success-line); }
+.s7-column-chip.is-correct b { color: var(--s7-success-ink); }
 
 /* ── manual question rows ── */
 
@@ -1218,7 +1218,7 @@ code, .mono { font-family: var(--s7-font-mono); font-size: 0.85em; }
 .s7-errors {
   padding: 0.7rem 0.8rem;
   margin-bottom: 0.75rem;
-  border: 1px solid #fbd5d5;
+  border: 1px solid var(--s7-danger-line);
   border-left: 3px solid var(--s7-danger);
   border-radius: var(--s7-radius);
   background: var(--s7-danger-bg);
@@ -1230,11 +1230,11 @@ code, .mono { font-family: var(--s7-font-mono); font-size: 0.85em; }
   gap: 0.4rem;
   font-size: 0.8125rem;
   font-weight: 650;
-  color: #b91c1c;
+  color: var(--s7-danger-ink);
   margin-bottom: 0.35rem;
 }
 
-.s7-errors ul { margin: 0; padding-left: 1.1rem; font-size: 0.78rem; color: #991b1b; }
+.s7-errors ul { margin: 0; padding-left: 1.1rem; font-size: 0.78rem; color: var(--s7-danger-ink); }
 .s7-errors li { margin-top: 0.15rem; }
 
 /* ── version pill ── */
@@ -1246,7 +1246,7 @@ code, .mono { font-family: var(--s7-font-mono); font-size: 0.85em; }
   padding: 0.15rem 0.5rem;
   border-radius: var(--s7-radius-full);
   background: var(--s7-info-bg);
-  color: #1d4ed8;
+  color: var(--s7-info-ink);
   font-family: var(--s7-font-mono);
   font-size: 0.7rem;
   font-weight: 600;

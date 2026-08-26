@@ -18,15 +18,25 @@ export const easeSpring = [0.34, 1.56, 0.64, 1] as const
 export const springSoft: Transition = { type: 'spring', stiffness: 380, damping: 30 }
 export const springSnappy: Transition = { type: 'spring', stiffness: 560, damping: 34 }
 
-/** A page fading up into place. Applied by AppShell to every route. */
+/**
+ * A page settling into place. Applied by AppShell to every route.
+ *
+ * Starts at 0.4 rather than 0. A page that fades from fully transparent spends its
+ * first frames indistinguishable from an empty column, which on the dark canvas
+ * reads as a flash before the content appears — the same complaint the removed
+ * `mode="wait"` gap caused, just shorter. Beginning part-visible means the
+ * incoming page is legible immediately and merely *settles*.
+ *
+ * The stagger is tight for the same reason: 0.035s across a handful of cards is
+ * a sweep, 0.06 with a delay on top is a page assembling itself while you wait.
+ */
 export const pageVariants: Variants = {
-  hidden: { opacity: 0, y: 10 },
+  hidden: { opacity: 0.4, y: 6 },
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.42, ease: easeOutExpo, staggerChildren: 0.06, delayChildren: 0.04 },
+    transition: { duration: 0.26, ease: easeOutExpo, staggerChildren: 0.035 },
   },
-  exit: { opacity: 0, y: -6, transition: { duration: 0.16, ease: 'easeIn' } },
 }
 
 /** A child of a staggered container — cards, form sections, table rows. */

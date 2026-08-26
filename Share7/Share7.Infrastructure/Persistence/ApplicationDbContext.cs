@@ -14,6 +14,7 @@ using Share7.Domain.Objectives;
 using Share7.Domain.Progression;
 using Share7.Domain.Rewards;
 using Share7.Domain.Runs;
+using Share7.Domain.Telemetry;
 using Share7.Infrastructure.Identity;
 
 namespace Share7.Infrastructure.Persistence;
@@ -207,6 +208,40 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, Applicati
     /// is checked against. One keyed row, rather than a group-by over every payout ever written.
     /// </summary>
     public DbSet<DailySignalLedger> DailySignalLedger => Set<DailySignalLedger>();
+
+    // Telemetry — the behaviour record. TelemetryEvents is append-only and the hottest write
+    // path here; everything below it is a projection of that stream, in the same relationship
+    // LeaderboardEntries has to GameResults.
+    //
+    // **Nothing in this block is authoritative about anything a child was given.** The ledgers
+    // above own every grant, and the user timeline reads them directly rather than a copy kept
+    // here — see Docs/AnalyticsArchitecture.md, Rule 2. What telemetry adds is the context those
+    // tables have no column for: which screen, how long, what was on offer.
+    public DbSet<TelemetryEvent> TelemetryEvents => Set<TelemetryEvent>();
+
+    /// <summary>One client play session. The only honest measure of play time the platform has.</summary>
+    public DbSet<TelemetrySession> TelemetrySessions => Set<TelemetrySession>();
+
+    /// <summary>
+    /// One row per (user, active day), carrying the install cohort and the day index. **The
+    /// retention substrate** — D1/D7/D30 is a group-by over this rather than a self-join over raw.
+    /// </summary>
+    public DbSet<TelemetryUserDay> TelemetryUserDays => Set<TelemetryUserDay>();
+
+    /// <summary>One row per user, kept for the life of the platform after their raw events are swept.</summary>
+    public DbSet<TelemetryUserLifecycle> TelemetryUserLifecycle => Set<TelemetryUserLifecycle>();
+
+    /// <summary>Daily counters per event, optionally split by one dimension. One table, not one per chart.</summary>
+    public DbSet<TelemetryDailyMetric> TelemetryDailyMetrics => Set<TelemetryDailyMetric>();
+
+    /// <summary>The pre-aggregated retention triangle. Tens of thousands of rows, not billions.</summary>
+    public DbSet<TelemetryRetentionCohort> TelemetryRetentionCohorts => Set<TelemetryRetentionCohort>();
+
+    /// <summary>
+    /// The event-name registry — category, sampling, retention. What stops ten years of shipping
+    /// becoming four thousand event names nobody can tell apart.
+    /// </summary>
+    public DbSet<TelemetryEventSchema> TelemetryEventSchemas => Set<TelemetryEventSchema>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

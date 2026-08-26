@@ -1,4 +1,4 @@
-namespace Share7.API.RateLimiting;
+﻿namespace Share7.API.RateLimiting;
 
 /// <summary>
 /// Limits for the request throttles, bound from the <c>RateLimiting</c> section.
@@ -47,6 +47,18 @@ public class RateLimitOptions
     /// </para>
     /// </summary>
     public int WritePermitsPerMinute { get; set; } = 60;
+
+    /// <summary>
+    /// Batches a minute per user against telemetry ingest.
+    /// <para>
+    /// Higher than the write budget on purpose. A device that has been offline drains its queue on
+    /// reconnect — that is what the queue is for — and throttling it back to the write limit would
+    /// mean a week's backlog takes hours to land, or expires against the backlog window first. It
+    /// is still a hard ceiling: at this rate one account can offer at most a few thousand events a
+    /// minute, and the batch cap is what bounds the rest.
+    /// </para>
+    /// </summary>
+    public int TelemetryPermitsPerMinute { get; set; } = 120;
 
     /// <summary>
     /// Whether to read the client address from <c>X-Forwarded-For</c> instead of the socket.

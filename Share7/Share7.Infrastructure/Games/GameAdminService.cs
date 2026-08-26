@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Share7.Application.Common.Models;
 using Share7.Application.Curriculum.Interfaces;
@@ -11,53 +12,83 @@ namespace Share7.Infrastructure.Games;
 public class GameAdminService : IGameAdminService
 {
     private readonly ApplicationDbContext _dbContext;
-    private readonly IGameService _gameService;
+    private readonly ILanguageService _languageService;
 
-    public GameAdminService(ApplicationDbContext dbContext, IGameService gameService)
+    public GameAdminService(ApplicationDbContext dbContext, ILanguageService languageService)
     {
         _dbContext = dbContext;
-        _gameService = gameService;
+        _languageService = languageService;
+    }
+
+    public async Task<IReadOnlyList<GameAdminDto>> ListForAuthoringAsync(
+        bool includeInactive = true, CancellationToken cancellationToken = default)
+    {
+        var langId = await _languageService.ResolveCurrentAsync(cancellationToken);
+
+        var query = _dbContext.Games.AsNoTracking();
+        if (!includeInactive)
+            query = query.Where(g => g.IsActive);
+
+        return await query
+            .OrderBy(g => g.GameKey)
+            .Select(Projection(langId))
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<GameAdminDto?> GetForAuthoringAsync(Guid gameId, CancellationToken cancellationToken = default)
     {
-        var game = await _dbContext.Games
+        var langId = await _languageService.ResolveCurrentAsync(cancellationToken);
+
+        return await _dbContext.Games
             .AsNoTracking()
-            .Include(g => g.Translations)
-            .FirstOrDefaultAsync(g => g.Id == gameId, cancellationToken);
-
-        if (game is null)
-            return null;
-
-        return new GameAdminDto
-        {
-            GameId = game.Id,
-            GameKey = game.GameKey,
-            MinPlayers = game.MinPlayers,
-            MaxPlayers = game.MaxPlayers,
-            ReadyTimeoutSeconds = game.ReadyTimeoutSeconds,
-            SupportsSinglePlayer = game.SupportsSinglePlayer,
-            SupportsMultiplayer = game.SupportsMultiplayer,
-            UseLobby = game.UseLobby,
-            UseMatchmaking = game.UseMatchmaking,
-            IsActive = game.IsActive,
-
-            // The save request's own translation type, so what comes back out is literally what has
-            // to go back in — an edit form never has to remap between a read shape and a write one.
-            Translations = [.. game.Translations.Select(t => new GameTranslationRequest
-            {
-                LangId = t.LangId,
-                DisplayName = t.DisplayName,
-                Description = t.Description
-            })]
-        };
+            .Where(g => g.Id == gameId)
+            .Select(Projection(langId))
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
-    public async Task<ServiceResult<GameDto>> CreateAsync(SaveGameRequest request, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Shared projection so the list, the single read and what a write hands back cannot drift.
+    /// <para>
+    /// An <see cref="Expression"/> rather than a plain method for the reason
+    /// <c>GameService.Projection</c> documents: a method call inside <c>Select</c> is not
+    /// translatable, so EF would materialize the entity and evaluate it client-side — where
+    /// <c>Translations</c> is empty because it was never included, and every name silently comes
+    /// back blank.
+    /// </para>
+    /// </summary>
+    private static Expression<Func<Game, GameAdminDto>> Projection(Guid langId) => g => new GameAdminDto
+    {
+        GameId = g.Id,
+        GameKey = g.GameKey,
+        MinPlayers = g.MinPlayers,
+        MaxPlayers = g.MaxPlayers,
+        ReadyTimeoutSeconds = g.ReadyTimeoutSeconds,
+        SupportsSinglePlayer = g.SupportsSinglePlayer,
+        SupportsMultiplayer = g.SupportsMultiplayer,
+        UseLobby = g.UseLobby,
+        UseMatchmaking = g.UseMatchmaking,
+        IsActive = g.IsActive,
+
+        // Resolved for a listing to print, alongside — never instead of — the full set below.
+        DisplayName = g.Translations.Where(t => t.LangId == langId).Select(t => t.DisplayName).FirstOrDefault() ?? string.Empty,
+        Description = g.Translations.Where(t => t.LangId == langId).Select(t => t.Description).FirstOrDefault() ?? string.Empty,
+        LangId = langId,
+
+        // The save request's own translation type, so what comes back out is literally what has
+        // to go back in — an edit form never has to remap between a read shape and a write one.
+        Translations = g.Translations.Select(t => new GameTranslationRequest
+        {
+            LangId = t.LangId,
+            DisplayName = t.DisplayName,
+            Description = t.Description
+        }).ToList()
+    };
+
+    public async Task<ServiceResult<GameAdminDto>> CreateAsync(SaveGameRequest request, CancellationToken cancellationToken = default)
     {
         var validation = await ValidateAsync(request, null, cancellationToken);
         if (!validation.Succeeded)
-            return Propagate<GameDto>(validation);
+            return Propagate<GameAdminDto>(validation);
 
         var game = new Game { Id = Guid.NewGuid() };
         Apply(game, request, validation.Value!);
@@ -65,21 +96,21 @@ public class GameAdminService : IGameAdminService
         _dbContext.Games.Add(game);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        return ServiceResult<GameDto>.Success((await _gameService.GetByIdAsync(game.Id, cancellationToken))!);
+        return ServiceResult<GameAdminDto>.Success((await GetForAuthoringAsync(game.Id, cancellationToken))!);
     }
 
-    public async Task<ServiceResult<GameDto>> UpdateAsync(Guid gameId, SaveGameRequest request, CancellationToken cancellationToken = default)
+    public async Task<ServiceResult<GameAdminDto>> UpdateAsync(Guid gameId, SaveGameRequest request, CancellationToken cancellationToken = default)
     {
         var game = await _dbContext.Games
             .Include(g => g.Translations)
             .FirstOrDefaultAsync(g => g.Id == gameId, cancellationToken);
 
         if (game is null)
-            return ServiceResult<GameDto>.NotFound("Game not found.");
+            return ServiceResult<GameAdminDto>.NotFound("Game not found.");
 
         var validation = await ValidateAsync(request, gameId, cancellationToken);
         if (!validation.Succeeded)
-            return Propagate<GameDto>(validation);
+            return Propagate<GameAdminDto>(validation);
 
         // Full replace: drop the existing translations and rebuild from the request, so a
         // language removed from the payload does not linger as a stale name.
@@ -89,7 +120,7 @@ public class GameAdminService : IGameAdminService
         Apply(game, request, validation.Value!);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        return ServiceResult<GameDto>.Success((await _gameService.GetByIdAsync(game.Id, cancellationToken))!);
+        return ServiceResult<GameAdminDto>.Success((await GetForAuthoringAsync(game.Id, cancellationToken))!);
     }
 
     public async Task<ServiceResult<GameDeletionImpact>> DeleteAsync(Guid gameId, bool force, CancellationToken cancellationToken = default)

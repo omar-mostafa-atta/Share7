@@ -1,4 +1,4 @@
-namespace Share7.API.RateLimiting;
+﻿namespace Share7.API.RateLimiting;
 
 /// <summary>
 /// Names of the endpoint policies, so an <c>[EnableRateLimiting]</c> attribute and the
@@ -18,4 +18,16 @@ public static class RateLimitPolicies
     /// See <see cref="RateLimitOptions.WritePermitsPerMinute"/>.
     /// </summary>
     public const string Writes = "writes";
+
+    /// <summary>
+    /// Telemetry ingest, partitioned by user.
+    /// <para>
+    /// **Its own policy because it is neither a read nor an ordinary write.** A client that has
+    /// been offline for a week drains a backlog in a burst of batches, which is correct behaviour
+    /// and would trip the write limit; but each batch carries up to a hundred events, so the same
+    /// number of requests moves two orders of magnitude more rows. See
+    /// <see cref="RateLimitOptions.TelemetryPermitsPerMinute"/>.
+    /// </para>
+    /// </summary>
+    public const string Telemetry = "telemetry";
 }

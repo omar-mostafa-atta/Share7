@@ -3865,6 +3865,377 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.ToTable("RunPayouts", (string)null);
                 });
 
+            modelBuilder.Entity("Share7.Domain.Telemetry.TelemetryDailyMetric", b =>
+                {
+                    b.Property<DateTime>("DayUtc")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Name")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("Dimension")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("DimensionValue")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<long>("Count")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("LastSequence")
+                        .HasColumnType("bigint");
+
+                    b.Property<int?>("UniqueUsers")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UniqueUsersComputedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("DayUtc", "Name", "Dimension", "DimensionValue");
+
+                    b.HasIndex("Name", "DayUtc")
+                        .HasDatabaseName("IX_TelemetryMetric_Name");
+
+                    b.ToTable("TelemetryDailyMetrics", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Telemetry.TelemetryEvent", b =>
+                {
+                    b.Property<long>("Sequence")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Sequence"));
+
+                    b.Property<string>("AppVersion")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<int>("ClientSeq")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("DayUtc")
+                        .HasColumnType("date");
+
+                    b.Property<string>("DeviceModel")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<Guid?>("GameId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsUnregistered")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Locale")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ParamsJson")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("nvarchar(2048)");
+
+                    b.Property<string>("Platform")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<DateTime>("ReceivedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("RunId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<double>("SampleRate")
+                        .HasColumnType("float");
+
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Sequence");
+
+                    b.HasIndex("DayUtc", "Name")
+                        .HasDatabaseName("IX_TelemetryEvent_Day");
+
+                    b.HasIndex("SessionId", "ClientSeq")
+                        .HasDatabaseName("IX_TelemetryEvent_Session");
+
+                    b.HasIndex("UserId", "Id")
+                        .IsUnique()
+                        .HasDatabaseName("UX_TelemetryEvent_Idem");
+
+                    b.HasIndex("UserId", "ReceivedAtUtc")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("IX_TelemetryEvent_User");
+
+                    b.ToTable("TelemetryEvents", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Telemetry.TelemetryEventSchema", b =>
+                {
+                    b.Property<string>("Name")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("Dimensions")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<bool>("Enabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<DateTime?>("FirstSeenAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Group")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<int?>("RetentionDays")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("RollUpDaily")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<double>("SampleRate")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("float")
+                        .HasDefaultValue(1.0);
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Name");
+
+                    b.HasIndex("FirstSeenAtUtc")
+                        .HasDatabaseName("IX_TelemetrySchema_Unregistered")
+                        .HasFilter("[FirstSeenAtUtc] IS NOT NULL");
+
+                    b.ToTable("TelemetryEventSchemas", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Telemetry.TelemetryRetentionCohort", b =>
+                {
+                    b.Property<DateTime>("CohortDayUtc")
+                        .HasColumnType("date");
+
+                    b.Property<int>("DayIndex")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CohortSize")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("ComputedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("RetainedUsers")
+                        .HasColumnType("int");
+
+                    b.HasKey("CohortDayUtc", "DayIndex");
+
+                    b.HasIndex("DayIndex")
+                        .HasDatabaseName("IX_TelemetryCohort_DayIndex");
+
+                    b.ToTable("TelemetryRetentionCohorts", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Telemetry.TelemetrySession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AppVersion")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTime>("DayUtc")
+                        .HasColumnType("date");
+
+                    b.Property<int>("DurationSeconds")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("EndedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("EventCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("LastSeenAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("LastSequence")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Platform")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<DateTime>("StartedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DayUtc")
+                        .HasDatabaseName("IX_TelemetrySession_Day");
+
+                    b.HasIndex("UserId", "StartedAtUtc")
+                        .HasDatabaseName("IX_TelemetrySession_User");
+
+                    b.ToTable("TelemetrySessions", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Telemetry.TelemetryUserDay", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("DayUtc")
+                        .HasColumnType("date");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DayIndex")
+                        .HasColumnType("int");
+
+                    b.Property<int>("EventCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("FirstSeenDayUtc")
+                        .HasColumnType("date");
+
+                    b.Property<long>("LastSequence")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("PlaySeconds")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RunCount")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SessionCount")
+                        .HasColumnType("int");
+
+                    b.HasKey("UserId", "DayUtc");
+
+                    b.HasIndex("DayUtc")
+                        .HasDatabaseName("IX_TelemetryUserDay_Day");
+
+                    b.HasIndex("FirstSeenDayUtc", "DayIndex")
+                        .HasDatabaseName("IX_TelemetryUserDay_Cohort");
+
+                    b.ToTable("TelemetryUserDays", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Telemetry.TelemetryUserLifecycle", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("ActiveDays")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CohortDayUtc")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("FirstSeenAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("InstallAppVersion")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("InstallPlatform")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("LastAppVersion")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("LastPlatform")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<DateTime>("LastSeenAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("LastSequence")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("TotalEvents")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("TotalPlaySeconds")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("TotalSessions")
+                        .HasColumnType("int");
+
+                    b.HasKey("UserId");
+
+                    b.HasIndex("CohortDayUtc")
+                        .HasDatabaseName("IX_TelemetryLifecycle_Cohort");
+
+                    b.HasIndex("LastSeenAtUtc")
+                        .HasDatabaseName("IX_TelemetryLifecycle_LastSeen");
+
+                    b.ToTable("TelemetryUserLifecycle", (string)null);
+                });
+
             modelBuilder.Entity("Share7.Infrastructure.Identity.ApplicationRole", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4931,6 +5302,42 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.Navigation("Currency");
 
                     b.Navigation("Run");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Telemetry.TelemetryEvent", b =>
+                {
+                    b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Share7.Domain.Telemetry.TelemetrySession", b =>
+                {
+                    b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Share7.Domain.Telemetry.TelemetryUserDay", b =>
+                {
+                    b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Share7.Domain.Telemetry.TelemetryUserLifecycle", b =>
+                {
+                    b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Share7.Domain.Commerce.Offer", b =>

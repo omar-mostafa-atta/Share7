@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Security.Claims;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
@@ -77,6 +77,19 @@ public static class RateLimitingExtensions
                     _ => new FixedWindowRateLimiterOptions
                     {
                         PermitLimit = options.WritePermitsPerMinute,
+                        Window = TimeSpan.FromMinutes(1),
+                        QueueLimit = 0
+                    }));
+
+            // Fixed window, like Writes. A telemetry batch is not latency-sensitive and the client
+            // already backs off on a 429 — there is nothing here worth the extra segments the auth
+            // policy pays for.
+            limiter.AddPolicy(RateLimitPolicies.Telemetry, context =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    $"telemetry:{PartitionKeyFor(context, options)}",
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = options.TelemetryPermitsPerMinute,
                         Window = TimeSpan.FromMinutes(1),
                         QueueLimit = 0
                     }));
