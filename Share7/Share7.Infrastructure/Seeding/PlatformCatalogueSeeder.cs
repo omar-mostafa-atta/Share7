@@ -104,12 +104,41 @@ internal sealed class PlatformCatalogueSeeder
     /// </summary>
     private async Task<Guid> GamesAsync(ContentSeedReport report, CancellationToken ct)
     {
-        const string key = "runner";
+        // The client reaches this row by string, not by id: MiniGameDefinitionSO.GameId is the
+        // Addressables address and the backend gameKey at once, and Unity resolves the row through
+        // IGameCatalogService.GetGameByKeyAsync before it can read a progress snapshot, start a run
+        // or matchmake. Seeding "runner" against a client that says "game.runner" published a game
+        // no client could find: every snapshot came back NotFound and the home screen's Continue
+        // card sat empty with nothing on screen to say why.
+        const string key = "game.runner";
 
-        var existing = await _db.Games.FirstOrDefaultAsync(g => g.GameKey == key, ct);
-        if (existing is not null) return existing.Id;
+        // What earlier runs of this seeder wrote. Renamed in place rather than re-seeded so the row
+        // keeps its id — signal valuations, recorded attempts and runs all point at it, and a second
+        // row would strand every one of them while paying nothing.
+        //
+        // This is the deliberate exception to "a row that exists is left alone" above. That rule
+        // protects tuned values from an operator who changed them; a gameKey is not a tuned value,
+        // it is the address the client reaches this row by.
+        const string legacyKey = "runner";
 
-        var id = SeedId.For("game", key);
+        var existing = await _db.Games
+            .FirstOrDefaultAsync(g => g.GameKey == key || g.GameKey == legacyKey, ct);
+
+        if (existing is not null)
+        {
+            if (existing.GameKey != key)
+            {
+                existing.GameKey = key;
+                report.Games++;
+            }
+
+            return existing.Id;
+        }
+
+        // Derived from the legacy name deliberately: a database seeded before this rename already
+        // holds SeedId.For("game", "runner"), and minting a different id for a fresh environment
+        // would leave the two disagreeing about the id of the same game — what SeedId exists to stop.
+        var id = SeedId.For("game", legacyKey);
 
         _db.Games.Add(new Game
         {
