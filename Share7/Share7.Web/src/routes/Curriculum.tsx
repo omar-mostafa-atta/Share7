@@ -18,6 +18,10 @@ import { listVariants } from '../components/ui/motion'
 import { AddNodeModal } from '../features/curriculum/AddNodeModal'
 import { DeleteNodeDialog, type PendingDelete } from '../features/curriculum/DeleteNodeDialog'
 import { TreeView } from '../features/curriculum/TreeView'
+import { CurriculumDashboard } from '../features/curriculum/CurriculumDashboard'
+import { QuestionBrowser } from '../features/curriculum/QuestionBrowser'
+import { Drawer } from '../components/ui/Drawer'
+import { Segmented } from '../components/ui/bits'
 import { useCurriculumTree, type TreeNode } from '../features/curriculum/data'
 import {
   LEVEL_LABELS,
@@ -26,7 +30,7 @@ import {
   isEditable,
   type Level,
 } from '../features/curriculum/levels'
-import { QuestionPoolPanel } from '../features/questions/QuestionPoolPanel'
+import { LessonSheetPanel } from '../features/questions/LessonSheetPanel'
 import { useLanguages } from '../store/languages'
 import type { CreateCurriculumNodeRequest } from '../types/api'
 
@@ -51,6 +55,14 @@ export function Curriculum() {
   const selectedLangId = useLanguages((s) => s.selectedLangId)
   const loadLanguages = useLanguages((s) => s.load)
   const applyLanguage = useLanguages((s) => s.apply)
+
+  // Three answers to three different questions: what exists (tree), whether it works (dashboard),
+  // and what is actually in it (questions). Tabs rather than one page, because the tree's split
+  // layout wants the full width and the other two want a single column.
+  const [view, setView] = useState<'tree' | 'dashboard' | 'questions'>('tree')
+
+  /** The lesson whose question editor is open over the top, from wherever it was opened. */
+  const [editingLesson, setEditingLesson] = useState<{ id: string; path: string[] } | null>(null)
 
   const [switching, setSwitching] = useState(false)
   const [filter, setFilter] = useState('')
@@ -124,6 +136,16 @@ export function Curriculum() {
         subtitle="Grades down to lessons. Open as many branches as you like — each one loads on demand and stays open."
         actions={
           <div className="s7-inline">
+            <Segmented
+              layoutId="curriculum-view"
+              value={view}
+              onChange={setView}
+              options={[
+                { value: 'tree', label: 'Tree' },
+                { value: 'dashboard', label: 'Dashboard' },
+                { value: 'questions', label: 'Questions' },
+              ]}
+            />
             {switching ? (
               <span className="s7-inline s7-hint" style={{ margin: 0 }}>
                 <Languages size={13} className="s7-spin" />
@@ -151,7 +173,24 @@ export function Curriculum() {
         }
       />
 
-      <div className="s7-curriculum">
+      {view === 'dashboard' ? (
+        <CurriculumDashboard
+          onOpenLesson={(id, path) => setEditingLesson({ id, path })}
+        />
+      ) : null}
+
+      {view === 'questions' ? (
+        <QuestionBrowser
+          // Scope follows the tree's selection, so switching tabs keeps your place instead of
+          // resetting to the whole curriculum every time.
+          scopeLevel={selected?.level ?? null}
+          scopeId={selected?.node.id ?? null}
+          scopeName={selected?.node.name ?? 'the curriculum'}
+          onOpenLesson={(id, path) => setEditingLesson({ id, path })}
+        />
+      ) : null}
+
+      <div className="s7-curriculum" hidden={view !== 'tree'}>
         {/* ── tree ── */}
         <motion.div className="s7-tree-pane" variants={listVariants}>
           <div className="s7-tree-head">
@@ -234,6 +273,25 @@ export function Curriculum() {
           )}
         </motion.div>
       </div>
+
+      {/* The question editor, opened from a finding or a search hit. It carries its own lesson id,
+          so it does not need the tree to have that branch loaded — which is the whole reason the
+          dashboard and the browser can link straight to it. */}
+      <Drawer
+        open={!!editingLesson}
+        onClose={() => setEditingLesson(null)}
+        title="Lesson questions"
+        subtitle={editingLesson?.path.join(' › ')}
+      >
+        {editingLesson ? (
+          <LessonSheetPanel
+            key={editingLesson.id}
+            lesson={{ id: editingLesson.id, name: editingLesson.path.at(-1) ?? '', langId: '', order: 0 }}
+            path={editingLesson.path.slice(0, -1)}
+            onPublished={() => void tree.reloadGrades()}
+          />
+        ) : null}
+      </Drawer>
 
       <AddNodeModal
         level={addUnder ? childLevelOf(addUnder.level) : null}
@@ -353,7 +411,7 @@ function NodeDetail({
           screen while you typed, and the only reminder of which one it was was a read-only text
           box. Here the tree stays put on the left. */}
       {level === 'lesson' ? (
-        <QuestionPoolPanel lesson={node} path={path} onPublished={onPublished} />
+        <LessonSheetPanel lesson={node} path={path} onPublished={onPublished} />
       ) : childLevel ? (
         <Card>
           <CardHeader icon={<FileText size={16} />} title={`What goes in a ${LEVEL_NOUN[level]}`} />

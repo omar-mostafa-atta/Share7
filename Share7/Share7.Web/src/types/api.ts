@@ -1185,3 +1185,118 @@ export interface UpsertEventSchemaRequest {
   rollUpDaily: boolean
   dimensions: string
 }
+
+// ---- lesson sheet (Share7.Application.Curriculum.Models) -----------------
+
+/**
+ * One question in both languages plus the pool it belongs to — the shape a lesson
+ * is *authored* in, not the shape it is stored in. Storage keeps four independently
+ * versioned sets (EN/AR × main/recovery); `rowNumber` is the key that ties a
+ * question's four stored rows together, which is what lets a delete mean all of them.
+ */
+export interface LessonSheetRow {
+  rowNumber: number
+  questionEn: string
+  correctEn: string
+  wrongEn1: string
+  wrongEn2: string
+  questionAr: string
+  correctAr: string
+  wrongAr1: string
+  wrongAr2: string
+  isRecovery: boolean
+}
+
+export interface LessonSheetDto {
+  lessonId: string
+  mainVersionEn: number
+  mainVersionAr: number
+  recoveryVersionEn: number
+  recoveryVersionAr: number
+  rows: LessonSheetRow[]
+
+  /** Rows published in one language but not the other — residue of the per-language uploads. */
+  unpairedRowNumbers: number[]
+}
+
+export interface LessonSheetResult {
+  succeeded: boolean
+  lessonId: string
+  mainCount: number
+  recoveryCount: number
+  mainVersion: number
+  recoveryVersion: number
+  replacedCount: number
+  errors: QuestionImportError[]
+}
+
+// ---- curriculum health & search -----------------------------------------
+
+export type CurriculumIssueKind =
+  | 'GradeWithoutTerms'
+  | 'TermWithoutSubjects'
+  | 'SubjectWithoutChapters'
+  | 'ChapterWithoutLessons'
+  | 'LessonWithoutQuestions'
+  | 'LessonWithoutRecovery'
+  | 'LessonLanguageGap'
+  | 'LessonVersionDrift'
+  | 'MissingTranslation'
+
+/** Error = a child can reach this and find nothing usable. Warning = incomplete but playable. */
+export type CurriculumIssueSeverity = 'Error' | 'Warning'
+
+export interface CurriculumIssueDto {
+  kind: CurriculumIssueKind
+  severity: CurriculumIssueSeverity
+  nodeId: string
+  nodeLevel: string
+  path: string[]
+  detail: string
+}
+
+export interface CurriculumStatsDto {
+  grades: number
+  terms: number
+  subjects: number
+  chapters: number
+  lessons: number
+  lessonsWithQuestions: number
+  lessonsWithRecovery: number
+  lessonsFullyBilingual: number
+  questionsEn: number
+  questionsAr: number
+  recoveryQuestionsEn: number
+  recoveryQuestionsAr: number
+  lessonsReady: number
+}
+
+export interface CurriculumHealthDto {
+  stats: CurriculumStatsDto
+  errorCount: number
+  warningCount: number
+  issues: CurriculumIssueDto[]
+  truncated: boolean
+}
+
+export type QuestionPoolFilter = 'All' | 'Main' | 'Recovery'
+
+export interface QuestionSearchItemDto {
+  lessonId: string
+  path: string[]
+  rowNumber: number
+  isRecovery: boolean
+  questionEn: string
+  correctEn: string
+  questionAr: string
+  correctAr: string
+  isUnpaired: boolean
+}
+
+export interface QuestionSearchResultDto {
+  total: number
+  page: number
+  pageSize: number
+  lessonCount: number
+  items: QuestionSearchItemDto[]
+}

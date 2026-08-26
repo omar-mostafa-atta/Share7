@@ -110,6 +110,13 @@ public static class DependencyInjection
         services.AddScoped<IQuestionImportService, QuestionImportService>();
         services.AddScoped<ILessonRecoveryQuestionService, LessonRecoveryQuestionService>();
         services.AddScoped<IRecoveryQuestionImportService, RecoveryQuestionImportService>();
+
+        // The paired authoring surface over the same storage the four per-language importers write.
+        services.AddScoped<ILessonSheetService, LessonSheetService>();
+
+        // Read-only views over the same tree: how complete it is, and what is in it.
+        services.AddScoped<ICurriculumHealthService, CurriculumHealthService>();
+        services.AddScoped<ICurriculumSearchService, CurriculumSearchService>();
         services.AddScoped<IGameService, GameService>();
         services.AddScoped<IGameAdminService, GameAdminService>();
         services.AddScoped<IUnlockService, UnlockService>();
