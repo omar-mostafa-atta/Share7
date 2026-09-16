@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Share7.Domain.Leaderboards;
 using Share7.Tests.Infrastructure;
 using Xunit;
@@ -31,7 +31,7 @@ public class LeaderboardPlausibilityTests
         await BoundAsync(context, LeaderboardMetrics.LessonBestPercent, maxValue: 100);
 
         var reason = await new Share7.Infrastructure.Leaderboards.PlausibilityGuard(context)
-            .ReasonToFlagAsync(userId, path.GameId, LeaderboardMetrics.LessonBestPercent, 4000, DateTime.UtcNow);
+            .ReasonToFlagAsync(userId, path.GameId, modeId: null, LeaderboardMetrics.LessonBestPercent, 4000, DateTime.UtcNow);
 
         Assert.NotNull(reason);
         Assert.Contains("4000", reason);
@@ -47,7 +47,7 @@ public class LeaderboardPlausibilityTests
         await BoundAsync(context, LeaderboardMetrics.LessonBestPercent, maxValue: 100);
 
         Assert.Null(await new Share7.Infrastructure.Leaderboards.PlausibilityGuard(context)
-            .ReasonToFlagAsync(userId, path.GameId, LeaderboardMetrics.LessonBestPercent, 90, DateTime.UtcNow));
+            .ReasonToFlagAsync(userId, path.GameId, modeId: null, LeaderboardMetrics.LessonBestPercent, 90, DateTime.UtcNow));
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public class LeaderboardPlausibilityTests
         // The right default for a platform expecting new mini-games: an unauthored bound must not
         // silently flag every result the first game to raise a new metric produces.
         Assert.Null(await new Share7.Infrastructure.Leaderboards.PlausibilityGuard(context)
-            .ReasonToFlagAsync(userId, path.GameId, LeaderboardMetrics.LessonsAced, 999_999, DateTime.UtcNow));
+            .ReasonToFlagAsync(userId, path.GameId, modeId: null, LeaderboardMetrics.LessonsAced, 999_999, DateTime.UtcNow));
     }
 
     [Fact]
@@ -78,7 +78,7 @@ public class LeaderboardPlausibilityTests
         // Each result is individually plausible; the rate is not. This is the exploit a value
         // ceiling cannot see.
         var reason = await new Share7.Infrastructure.Leaderboards.PlausibilityGuard(context)
-            .ReasonToFlagAsync(userId, path.GameId, LeaderboardMetrics.LessonsAced, 1, DateTime.UtcNow);
+            .ReasonToFlagAsync(userId, path.GameId, modeId: null, LeaderboardMetrics.LessonsAced, 1, DateTime.UtcNow);
 
         Assert.NotNull(reason);
     }
@@ -94,7 +94,7 @@ public class LeaderboardPlausibilityTests
 
         var reason = await new Share7.Infrastructure.Leaderboards.PlausibilityGuard(context)
             .ReasonToFlagAsync(
-                userId, path.GameId, LeaderboardMetrics.LessonsAced, 1, DateTime.UtcNow.AddDays(1));
+                userId, path.GameId, modeId: null, LeaderboardMetrics.LessonsAced, 1, DateTime.UtcNow.AddDays(1));
 
         Assert.NotNull(reason);
         Assert.Contains("future", reason, StringComparison.OrdinalIgnoreCase);

@@ -1,4 +1,4 @@
-namespace Share7.Domain.Leaderboards;
+﻿namespace Share7.Domain.Leaderboards;
 
 /// <summary>
 /// Every metric something in this codebase actually raises.
@@ -90,9 +90,21 @@ public static class LeaderboardMetrics
     /// adding a field to the run result and the code that bounds it, in the same change.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// How many questions one attempt got right.
+    /// <para>
+    /// **Raised only by an event entry**, and deliberately not by ordinary play. It is a per-attempt
+    /// count rather than a transition, so a board on it would otherwise rank whoever replayed the
+    /// same lesson the most — inside an event that is bounded by the event's own entry limits, and
+    /// outside one there is nothing to bound it.
+    /// </para>
+    /// </summary>
+    public const string CorrectAnswers = "CORRECT_ANSWERS";
+
     public static readonly IReadOnlySet<string> Known = new HashSet<string>(StringComparer.Ordinal)
     {
         LessonsCompleted,
+        CorrectAnswers,
         LessonsAced,
         TotalLessonScore,
         LessonBestPercent,

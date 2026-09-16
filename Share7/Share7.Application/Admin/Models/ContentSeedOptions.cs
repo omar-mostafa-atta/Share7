@@ -39,6 +39,18 @@ public class ContentSeedOptions
     /// </summary>
     public bool DemoPlayers { get; set; }
 
+    /// <summary>
+    /// Demo competitions in every state the event screens draw: running this week, ending tonight,
+    /// scheduled for next week with a real-world prize, and finished last week with its prizes
+    /// already awarded.
+    /// <para>
+    /// <b>Off by default even when the seeder is on.</b> They are advertised to every account that
+    /// opens the app, and the finished one pays real balances to the demo players. Pair it with
+    /// <see cref="DemoPlayers"/>, or the ladders are empty and nobody wins last week's cup.
+    /// </para>
+    /// </summary>
+    public bool DemoEvents { get; set; }
+
     /// <summary>Chapters created under each subject.</summary>
     public int ChaptersPerSubject { get; set; } = 3;
 

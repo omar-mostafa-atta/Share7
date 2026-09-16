@@ -1,4 +1,5 @@
-using Share7.Domain.Leaderboards;
+﻿using Share7.Domain.Leaderboards;
+using Share7.Domain.Play;
 
 namespace Share7.Application.Leaderboards.Models;
 
@@ -78,4 +79,22 @@ public sealed class GameResultContext
 
     /// <summary>Why the producer flagged it. Used when <see cref="PreFlagged"/> is set.</summary>
     public string? PreFlagReason { get; init; }
+
+    /// <summary>
+    /// The mode the gameplay was played in, stamped onto every row so a board can select on it
+    /// without joining back to the run.
+    /// </summary>
+    public Guid? ModeId { get; init; }
+
+    /// <summary>Why it was played. Defaults to curriculum, which is what every caller that predates this did.</summary>
+    public PlayContextKind Context { get; init; } = PlayContextKind.Curriculum;
+
+    /// <summary>The event these results belong to, when they were earned inside one.</summary>
+    public Guid? EventId { get; init; }
+
+    /// <summary>
+    /// False records the results without letting them rank — a mode that posts to no board. Quests
+    /// still read them, which is why the rows are written at all.
+    /// </summary>
+    public bool CountsForRanking { get; init; } = true;
 }

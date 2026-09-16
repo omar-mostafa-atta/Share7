@@ -11,11 +11,13 @@ import { Curriculum } from './routes/Curriculum'
 import { Events } from './routes/Events'
 import { Games } from './routes/Games'
 import { Leaderboards } from './routes/Leaderboards'
+import { LiveEvents } from './routes/LiveEvents'
 import { Login } from './routes/Login'
 import { Multiplayer } from './routes/Multiplayer'
 import { Objectives } from './routes/Objectives'
 import { Offers } from './routes/Offers'
 import { Overview } from './routes/Overview'
+import { PlayModes } from './routes/PlayModes'
 import { ProductKinds } from './routes/ProductKinds'
 import { Progression } from './routes/Progression'
 import { ProtectedRoute } from './routes/ProtectedRoute'
@@ -69,9 +71,15 @@ export function App() {
 
           <Route path="/curriculum" element={<Curriculum />} />
           <Route path="/games" element={<Games />} />
+          <Route path="/modes" element={<PlayModes />} />
 
           <Route path="/objectives" element={<Objectives />} />
           <Route path="/leaderboards" element={<Leaderboards />} />
+
+          {/* `/events` belongs to the telemetry event registry, which predates this.
+              Competitions live at `/live-events` rather than renaming a page admins
+              already have bookmarked. */}
+          <Route path="/live-events" element={<LiveEvents />} />
           <Route path="/progression" element={<Progression />} />
 
           <Route path="/currencies" element={<Currencies />} />

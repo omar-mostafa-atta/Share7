@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Share7.Application.Admin.Interfaces;
 using Share7.Domain.Commerce;
 using Share7.Domain.Constants;
@@ -6,6 +6,7 @@ using Share7.Domain.Economy;
 using Share7.Domain.Games;
 using Share7.Domain.Leaderboards;
 using Share7.Domain.Objectives;
+using Share7.Domain.Play;
 using Share7.Domain.Progression;
 using Share7.Domain.Rewards;
 using Share7.Infrastructure.Persistence;
@@ -35,6 +36,12 @@ internal sealed class PlatformCatalogueSeeder
     {
         var currencies = await CurrenciesAsync(report, ct);
         var runnerId = await GamesAsync(report, ct);
+
+        // Profiles before modes: a mode may name one, and the default is what every mode that names
+        // none settles under.
+        await EconomyProfilesAsync(report, ct);
+        await ModesAsync(runnerId, report, ct);
+        await WorldsAsync(runnerId, report, ct);
 
         await LevelsAsync(report, ct);
         await ValuationsAsync(currencies, runnerId, report, ct);
@@ -104,12 +111,41 @@ internal sealed class PlatformCatalogueSeeder
     /// </summary>
     private async Task<Guid> GamesAsync(ContentSeedReport report, CancellationToken ct)
     {
-        const string key = "runner";
+        // The client reaches this row by string, not by id: MiniGameDefinitionSO.GameId is the
+        // Addressables address and the backend gameKey at once, and Unity resolves the row through
+        // IGameCatalogService.GetGameByKeyAsync before it can read a progress snapshot, start a run
+        // or matchmake. Seeding "runner" against a client that says "game.runner" published a game
+        // no client could find: every snapshot came back NotFound and the home screen's Continue
+        // card sat empty with nothing on screen to say why.
+        const string key = "game.runner";
 
-        var existing = await _db.Games.FirstOrDefaultAsync(g => g.GameKey == key, ct);
-        if (existing is not null) return existing.Id;
+        // What earlier runs of this seeder wrote. Renamed in place rather than re-seeded so the row
+        // keeps its id — signal valuations, recorded attempts and runs all point at it, and a second
+        // row would strand every one of them while paying nothing.
+        //
+        // This is the deliberate exception to "a row that exists is left alone" above. That rule
+        // protects tuned values from an operator who changed them; a gameKey is not a tuned value,
+        // it is the address the client reaches this row by.
+        const string legacyKey = "runner";
 
-        var id = SeedId.For("game", key);
+        var existing = await _db.Games
+            .FirstOrDefaultAsync(g => g.GameKey == key || g.GameKey == legacyKey, ct);
+
+        if (existing is not null)
+        {
+            if (existing.GameKey != key)
+            {
+                existing.GameKey = key;
+                report.Games++;
+            }
+
+            return existing.Id;
+        }
+
+        // Derived from the legacy name deliberately: a database seeded before this rename already
+        // holds SeedId.For("game", "runner"), and minting a different id for a fresh environment
+        // would leave the two disagreeing about the id of the same game — what SeedId exists to stop.
+        var id = SeedId.For("game", legacyKey);
 
         _db.Games.Add(new Game
         {
@@ -142,6 +178,153 @@ internal sealed class PlatformCatalogueSeeder
 
         report.Games++;
         return id;
+    }
+
+    // ── play context ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The four pricing profiles every mode and event can choose between.
+    /// <para>
+    /// <c>default</c> carries <c>IsDefault</c>, and is what a mode that names no profile settles
+    /// under. The other three exist so an operator tuning a mode has somewhere to point it without
+    /// inventing a profile first — an empty profile table would mean the first person to want a
+    /// half-paying mode has to understand this whole mechanism before they can use it.
+    /// </para>
+    /// </summary>
+    private async Task EconomyProfilesAsync(ContentSeedReport report, CancellationToken ct)
+    {
+        var have = await _db.EconomyProfiles.Select(p => p.ProfileKey).ToListAsync(ct);
+        var now = DateTime.UtcNow;
+
+        void Add(string key, string name, int percent, bool rules, bool isDefault)
+        {
+            if (have.Contains(key, StringComparer.Ordinal)) return;
+
+            _db.EconomyProfiles.Add(new EconomyProfile
+            {
+                Id = SeedId.For("economy-profile", key),
+                ProfileKey = key,
+                Name = name,
+                PayoutPercent = percent,
+                PaysRuleRewards = rules,
+                IsDefault = isDefault,
+                CreatedAtUtc = now
+            });
+
+            report.EconomyProfiles++;
+        }
+
+        Add(EconomyProfileKeys.Default, "Standard payout", 100, true, isDefault: true);
+        Add(EconomyProfileKeys.Event, "Event payout", 100, true, isDefault: false);
+        Add(EconomyProfileKeys.Reduced, "Half payout", 50, true, isDefault: false);
+        Add(EconomyProfileKeys.None, "No payout", 0, false, isDefault: false);
+    }
+
+    /// <summary>
+    /// The Runner's Classic mode — the row every existing client resolves to when it sends no mode key.
+    /// <para>
+    /// <b>Seeding a default is not optional.</b> Runs and attempts from a build that predates modes
+    /// carry no key, and without a default row they would be priced with no policy at all. The key
+    /// matches the Unity <c>GameModeDefinition</c> exactly, because that equality is the only join
+    /// between the two catalogues.
+    /// </para>
+    /// </summary>
+    private async Task ModesAsync(Guid runnerId, ContentSeedReport report, CancellationToken ct)
+    {
+        const string key = "runner.mode.classic";
+
+        if (await _db.GameModes.AnyAsync(m => m.ModeKey == key, ct)) return;
+
+        var id = SeedId.For("game-mode", key);
+
+        _db.GameModes.Add(new GameMode
+        {
+            Id = id,
+            GameId = runnerId,
+            ModeKey = key,
+            Topologies = PlayTopologies.Solo | PlayTopologies.Versus,
+            MinPlayers = 1,
+            MaxPlayers = 2,
+            IsActive = true,
+
+            // The compatibility path, so it carries none of the gates a default must not have: no
+            // window, no entitlement, no grade floor.
+            IsDefault = true,
+            CountsTowardMastery = true,
+            SettlesEconomy = true,
+            CountsTowardRanking = true,
+            SortOrder = 0,
+            CreatedAtUtc = DateTime.UtcNow,
+            Translations =
+            [
+                new GameModeTranslation
+                {
+                    ModeId = id, LangId = En,
+                    Name = "Classic",
+                    Description = "Run the lesson and answer every question on the road."
+                },
+                new GameModeTranslation
+                {
+                    ModeId = id, LangId = Ar,
+                    Name = "كلاسيكي",
+                    Description = "اجرِ في الدرس وأجب عن كل سؤال على الطريق."
+                }
+            ]
+        });
+
+        report.GameModes++;
+    }
+
+    /// <summary>
+    /// The Runner's two shipped worlds, both free.
+    /// <para>
+    /// Free on purpose, and the desert is the game's default. A world policy row exists so that a
+    /// later world can be sold or won without a schema change — not so that the content a child
+    /// already has can be taken away and sold back to them.
+    /// </para>
+    /// </summary>
+    private async Task WorldsAsync(Guid runnerId, ContentSeedReport report, CancellationToken ct)
+    {
+        var have = await _db.GameWorlds
+            .Where(w => w.GameId == runnerId)
+            .Select(w => w.WorldKey)
+            .ToListAsync(ct);
+
+        var now = DateTime.UtcNow;
+
+        void Add(string key, int sort, bool isDefault, string nameEn, string nameAr, string descEn, string descAr)
+        {
+            if (have.Contains(key, StringComparer.Ordinal)) return;
+
+            var id = SeedId.For("game-world", key);
+
+            _db.GameWorlds.Add(new GameWorld
+            {
+                Id = id,
+                GameId = runnerId,
+                WorldKey = key,
+                UnlockKind = WorldUnlockKind.Free,
+                SortOrder = sort,
+                IsActive = true,
+                IsDefault = isDefault,
+                CreatedAtUtc = now,
+                Translations =
+                [
+                    new GameWorldTranslation { WorldId = id, LangId = En, Name = nameEn, Description = descEn },
+                    new GameWorldTranslation { WorldId = id, LangId = Ar, Name = nameAr, Description = descAr }
+                ]
+            });
+
+            report.GameWorlds++;
+        }
+
+        Add("runner.env.desert", 0, isDefault: true,
+            "Desert", "الصحراء",
+            "Dunes, ruins and a long straight road.", "كثبان وأطلال وطريق طويل مستقيم.");
+
+        Add("runner.env.forest", 1, isDefault: false,
+            "Forest", "الغابة",
+            "Tall trees and a winding trail.", "أشجار عالية ومسار متعرج.");
     }
 
     // ── progression ───────────────────────────────────────────────────────────

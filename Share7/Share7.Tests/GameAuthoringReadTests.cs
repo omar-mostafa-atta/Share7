@@ -24,7 +24,7 @@ public class GameAuthoringReadTests
     public GameAuthoringReadTests(SqlServerFixture fixture) => _fixture = fixture;
 
     private static GameAdminService Admin(ApplicationDbContext context) =>
-        new(context, new GameService(context, new StubLanguageService(LanguageIds.English)));
+        new(context, new StubLanguageService(LanguageIds.English));
 
     private static SaveGameRequest Request(string key) => new()
     {

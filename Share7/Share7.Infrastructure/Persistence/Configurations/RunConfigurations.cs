@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Share7.Domain.Economy;
 using Share7.Domain.Games;
+using Share7.Domain.Play;
 using Share7.Domain.Runs;
 using Share7.Infrastructure.Identity;
 
@@ -39,6 +40,29 @@ public class RunConfiguration : IEntityTypeConfiguration<Run>
             .HasConversion(EnumWire.Converter<RunOutcome>())
             .HasMaxLength(16)
             .IsRequired();
+
+        builder.Property(r => r.Context)
+            .HasConversion(EnumWire.Converter<PlayContextKind>())
+            .HasMaxLength(16)
+            .IsRequired();
+
+        // NoAction rather than Cascade, and no navigation: a settled run has to stay explicable
+        // after a mode is withdrawn, exactly as it does after a session is swept.
+        builder.HasOne<GameMode>()
+            .WithMany()
+            .HasForeignKey(r => r.ModeId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        builder.HasOne<PlayEvent>()
+            .WithMany()
+            .HasForeignKey(r => r.EventId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        // An event's own entry limits: "how many entries has this account settled in this event
+        // today". Filtered, because event runs are a small slice of the table.
+        builder.HasIndex(r => new { r.EventId, r.UserId, r.State, r.EndedAtUtc })
+            .HasFilter("[EventId] IS NOT NULL")
+            .HasDatabaseName("IX_Run_EventEntries");
 
         builder.Property(r => r.StartRequestId).HasMaxLength(128);
         builder.Property(r => r.ResultRequestId).HasMaxLength(128);

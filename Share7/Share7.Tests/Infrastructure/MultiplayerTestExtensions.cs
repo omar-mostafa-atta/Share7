@@ -1,8 +1,12 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Share7.Application.Multiplayer.Models;
 using Share7.Domain.Multiplayer;
+using Share7.Domain.Constants;
+using Share7.Infrastructure.Play;
+using Share7.Infrastructure.Progress;
+using Share7.Infrastructure.Progression;
 using Share7.Infrastructure.Multiplayer;
 using Share7.Infrastructure.Persistence;
 
@@ -28,17 +32,32 @@ public static class MultiplayerTest
         return options;
     }
 
-    public static MultiplayerSessionService Sessions(ApplicationDbContext context, MultiplayerOptions? options = null) =>
-        new(context, new MultiplayerRequestLogStore(context), MSOptions.Create(options ?? Options()));
+    /// <summary>
+    /// The session service with its real collaborators: the lesson matcher that decides what a
+    /// seated roster can play, and the play resolver that decides which mode a match is in. Stubs
+    /// here would make every seating test pass under rules nothing ships.
+    /// </summary>
+    public static MultiplayerSessionService Sessions(
+        ApplicationDbContext context, MultiplayerOptions? options = null, Guid? langId = null) =>
+        new(context,
+            new MultiplayerRequestLogStore(context),
+            new SessionLessonMatcher(context, new UnlockService(context)),
+            new PlaySelectionResolver(context, new LevelService(context)),
+            new StubLanguageService(langId ?? LanguageIds.English),
+            MSOptions.Create(options ?? Options()));
 
-    public static MatchmakingService Matchmaking(ApplicationDbContext context, MultiplayerOptions? options = null)
+    public static MatchmakingService Matchmaking(
+        ApplicationDbContext context, MultiplayerOptions? options = null, Guid? langId = null)
     {
         var resolved = options ?? Options();
 
         return new MatchmakingService(
             context,
-            Sessions(context, resolved),
+            Sessions(context, resolved, langId),
             new MultiplayerRequestLogStore(context),
+            new SessionLessonMatcher(context, new UnlockService(context)),
+            new PlaySelectionResolver(context, new LevelService(context)),
+            new StubLanguageService(langId ?? LanguageIds.English),
             MSOptions.Create(resolved));
     }
 

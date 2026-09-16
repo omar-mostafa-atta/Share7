@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace Share7.Application.Progress.Models;
 
@@ -46,6 +46,24 @@ public class SubmitAttemptRequest
     /// refused rather than silently resolved.
     /// </summary>
     public List<SubmittedAnswer> Answers { get; set; } = [];
+
+    /// <summary>
+    /// Which rule-set the lesson was played in. Absent resolves to the game's default mode, so a
+    /// client that predates modes submits exactly as it always did.
+    /// </summary>
+    [MaxLength(128)]
+    public string? ModeKey { get; set; }
+
+    /// <summary>
+    /// Why it was played. **This is what decides whether the attempt moves mastery**: only a
+    /// curriculum attempt of a mode that counts can, and a <c>practice</c> attempt is graded and
+    /// returned in full while changing nothing at all.
+    /// </summary>
+    [MaxLength(32)]
+    public string? ContextKey { get; set; }
+
+    /// <summary>Required when <see cref="ContextKey"/> is <c>event</c>, refused otherwise.</summary>
+    public Guid? EventId { get; set; }
 
     /// <summary>
     /// Optional client-generated id identifying **this submission**, so a retry after a lost

@@ -14,6 +14,7 @@ using Share7.Domain.Games;
 using Share7.Domain.Runs;
 using Share7.Infrastructure.Economy;
 using Share7.Infrastructure.Persistence;
+using Share7.Infrastructure.Play;
 using Share7.Infrastructure.Progression;
 using Share7.Infrastructure.Rewards;
 using Share7.Infrastructure.Runs;
@@ -59,6 +60,9 @@ public static class RunTestExtensions
                 NullLogger<GameResultRecorder>.Instance),
             new ObjectiveProjector(context, NullLogger<ObjectiveProjector>.Instance),
             new StubLanguageService(langId ?? LanguageIds.English),
+            // The real resolver too: a run's mode, context and event decide what it settles as, and
+            // a stub here would make every one of these tests pass under a policy nothing shipped.
+            new PlaySelectionResolver(context, new LevelService(context)),
             Options.Create(options ?? Permissive()));
     }
 

@@ -1,4 +1,4 @@
-using Share7.Application.Rewards.Models;
+﻿using Share7.Application.Rewards.Models;
 
 namespace Share7.Application.Rewards.Interfaces;
 
@@ -83,6 +83,18 @@ public interface IRewardService
     /// </para>
     /// </summary>
     /// <returns>One entry per rule that actually paid, empty when none did.</returns>
+    /// <summary>
+    /// Pays one event prize tier to one placing.
+    /// <para>
+    /// The same payment path as every other reward — one transaction, one savepoint, one idempotency
+    /// key — because a prize is currency and a second mechanism for handing out currency is how a
+    /// platform ends up with two answers to "where did this come from".
+    /// </para>
+    /// </summary>
+    Task<IReadOnlyList<RewardDto>> EvaluateEventPrizeAsync(
+        EventPrizeRewardContext context,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<RewardDto>> EvaluateRunSettlementAsync(
         RunRewardContext context,
         CancellationToken cancellationToken = default);

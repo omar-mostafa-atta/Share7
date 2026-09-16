@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using Share7.Application.Admin.Interfaces;
 using Share7.Application.Admin.Models;
 using Share7.Application.Leaderboards.Interfaces;
+using Share7.Application.Play.Interfaces;
 using Share7.Infrastructure.Identity;
 using Share7.Infrastructure.Persistence;
 
@@ -16,6 +17,8 @@ internal sealed class ContentSeeder : IContentSeeder
     private readonly ApplicationDbContext _db;
     private readonly UserManager<ApplicationUser> _users;
     private readonly ILeaderboardRolloverService _rollover;
+    private readonly ILeaderboardSettlementService _settlement;
+    private readonly IPlayEventAdminService _events;
     private readonly ContentSeedOptions _options;
     private readonly ILogger<ContentSeeder> _logger;
 
@@ -34,12 +37,16 @@ internal sealed class ContentSeeder : IContentSeeder
         ApplicationDbContext db,
         UserManager<ApplicationUser> users,
         ILeaderboardRolloverService rollover,
+        ILeaderboardSettlementService settlement,
+        IPlayEventAdminService events,
         IOptions<ContentSeedOptions> options,
         ILogger<ContentSeeder> logger)
     {
         _db = db;
         _users = users;
         _rollover = rollover;
+        _settlement = settlement;
+        _events = events;
         _options = options.Value;
         _logger = logger;
     }
@@ -73,11 +80,23 @@ internal sealed class ContentSeeder : IContentSeeder
                 _db.ChangeTracker.Clear();
             }
 
+            // Events either side of the demo players: created first so the players' ranked entries
+            // land on the new ladders, and settled after so last week's cup has somebody to pay.
+            var demoEvents = _options.DemoEvents
+                ? new DemoEventSeeder(_db, _events, _rollover, _settlement, _logger)
+                : null;
+
+            if (demoEvents is not null)
+                await demoEvents.SeedAsync(report, cancellationToken);
+
             if (_options.DemoPlayers)
             {
                 await new DemoPlayerSeeder(_db, _users, _options).SeedAsync(report, cancellationToken);
                 _db.ChangeTracker.Clear();
             }
+
+            if (demoEvents is not null)
+                await demoEvents.SettleFinishedAsync(report, cancellationToken);
 
             report.Elapsed = clock.Elapsed;
 

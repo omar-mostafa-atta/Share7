@@ -1,4 +1,4 @@
-using Share7.Application.Leaderboards.Models;
+﻿using Share7.Application.Leaderboards.Models;
 
 namespace Share7.Application.Leaderboards.Interfaces;
 
@@ -110,12 +110,40 @@ public interface ILeaderboardProjector
 /// cheat it was guarding against.
 /// </para>
 /// </summary>
+/// <summary>
+/// Something that has to happen when a cycle's ranks become final — today, awarding an event's prize
+/// table.
+/// <para>
+/// <b>An observer rather than a call into the event domain</b>, because settlement is leaderboard
+/// machinery and must not grow a dependency on every feature that cares about a result. Observers run
+/// after the placings are frozen and the rank-band rules are paid, and <b>before</b> the cycle is
+/// marked settled — so a failure leaves the job retryable, which is the whole reason the settlement
+/// path is idempotent in the first place.
+/// </para>
+/// </summary>
+public interface ICycleSettlementObserver
+{
+    /// <summary>
+    /// Called once the cycle's placings are frozen. Must be idempotent: the settlement job is
+    /// retried, and an observer that pays twice is worse than one that never ran.
+    /// </summary>
+    Task OnCycleSettlingAsync(Guid cycleId, CancellationToken cancellationToken = default);
+}
+
 public interface IPlausibilityGuard
 {
-    /// <summary>Why this result should be flagged, or null when nothing about it looks wrong.</summary>
+    /// <summary>
+    /// Why this result should be flagged, or null when nothing about it looks wrong.
+    /// </summary>
+    /// <param name="modeId">
+    /// The mode it was played in, so a bound authored for that mode is preferred over the game-wide
+    /// one. Null falls back to the game's bounds, which is what every result recorded before modes
+    /// existed does.
+    /// </param>
     Task<string?> ReasonToFlagAsync(
         Guid userId,
         Guid gameId,
+        Guid? modeId,
         string metric,
         long value,
         DateTime occurredAtUtc,

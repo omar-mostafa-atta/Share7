@@ -1,7 +1,8 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Share7.Domain.Entities;
 using Share7.Domain.Leaderboards;
 using Share7.Domain.Multiplayer;
+using Share7.Domain.Play;
 using Share7.Domain.Progress;
 using Share7.Infrastructure.Persistence;
 
@@ -56,7 +57,16 @@ public static class UserOwnedData
         // Removing entries mid-cycle leaves gaps in the ranks until the next reindex, which is
         // correct: rank 4 disappearing does not promote rank 5 to fourth place retroactively.
         typeof(LeaderboardEntry),
-        typeof(LeaderboardSettlement)
+        typeof(LeaderboardSettlement),
+
+        // A prize claim before the award it belongs to, because the list is purged in order and the
+        // claim's foreign key does not cascade. Both are deleted rather than anonymised, for the same
+        // reason the standings are: "rank 3, a tablet, week 37" is re-identifiable to everybody who
+        // was in that competition, and a child who asked to be forgotten should not leave a prize
+        // record behind them. What they were actually paid stays in the currency ledger, which is the
+        // economy's audit trail rather than a record about them.
+        typeof(PrizeClaim),
+        typeof(EventAward)
     ];
 
     /// <summary>

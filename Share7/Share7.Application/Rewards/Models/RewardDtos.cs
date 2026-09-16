@@ -61,6 +61,33 @@ public class ProgressRewardContext
 /// thing this whole subsystem is arranged to prevent.
 /// </para>
 /// </summary>
+/// <summary>
+/// One placing collecting one event prize tier.
+/// <para>
+/// Unlike <see cref="SettlementRewardContext"/>, the rule is named by id rather than matched by a
+/// reference key: an event's prize table is authored per event, and the tier owns the rule that pays
+/// it. Matching by key would let a rule authored for one event pay in another.
+/// </para>
+/// </summary>
+public class EventPrizeRewardContext
+{
+    public required Guid UserId { get; init; }
+
+    public required Guid RewardRuleId { get; init; }
+
+    public required Guid EventId { get; init; }
+
+    public required Guid TierId { get; init; }
+
+    public required string Cohort { get; init; }
+
+    public required Guid CohortKey { get; init; }
+
+    public required int FinalRank { get; init; }
+
+    public required long Value { get; init; }
+}
+
 public class SettlementRewardContext
 {
     public required Guid UserId { get; init; }

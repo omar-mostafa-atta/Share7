@@ -1,4 +1,4 @@
-using Share7.Domain.Multiplayer;
+﻿using Share7.Domain.Multiplayer;
 
 namespace Share7.Application.Multiplayer.Models;
 
@@ -15,8 +15,20 @@ public class CurriculumPathDto
 {
     public Guid? GradeId { get; set; }
     public Guid? TermId { get; set; }
+
+    /// <summary>
+    /// What the players chose to play. **Send this with no <see cref="LessonId"/> to matchmake on a
+    /// shared lesson**: the server works out which lessons each player has unlocked and has questions
+    /// for, matches on the overlap, and stamps one when the roster is ready.
+    /// </summary>
     public Guid? SubjectId { get; set; }
+
     public Guid? ChapterId { get; set; }
+
+    /// <summary>
+    /// One exact lesson. Matches only players who chose the same one — which is what the client did
+    /// before subject matchmaking existed, and still the right shape for a direct invite.
+    /// </summary>
     public Guid? LessonId { get; set; }
 }
 

@@ -14,10 +14,13 @@ using Share7.Application.Economy.Models;
 using Share7.Application.Rewards.Interfaces;
 using Share7.Application.Rewards.Models;
 using Share7.Application.Progression.Interfaces;
+using Share7.Application.Play.Interfaces;
+using Share7.Application.Play.Models;
 using Share7.Application.Runs.Interfaces;
 using Share7.Application.Runs.Models;
 using Share7.Domain.Economy;
 using Share7.Domain.Multiplayer;
+using Share7.Domain.Play;
 using Share7.Domain.Runs;
 using Share7.Infrastructure.Persistence;
 
@@ -52,6 +55,7 @@ public class RunService : IRunService
     private readonly IGameResultRecorder _gameResults;
     private readonly IObjectiveProjector _objectives;
     private readonly ILanguageService _languageService;
+    private readonly IPlaySelectionResolver _play;
     private readonly RunOptions _options;
 
     public RunService(
@@ -65,6 +69,7 @@ public class RunService : IRunService
         IGameResultRecorder gameResults,
         IObjectiveProjector objectives,
         ILanguageService languageService,
+        IPlaySelectionResolver play,
         IOptions<RunOptions> options)
     {
         _dbContext = dbContext;
@@ -77,6 +82,7 @@ public class RunService : IRunService
         _gameResults = gameResults;
         _objectives = objectives;
         _languageService = languageService;
+        _play = play;
         _options = options.Value;
     }
 
@@ -119,6 +125,34 @@ public class RunService : IRunService
                 ServiceErrorKind.Conflict,
                 $"Game '{game.GameKey}' is retired and cannot start new runs.");
 
+        // What the client asked to play, checked once, here. **Before the run row exists**, so a
+        // refusal costs nothing and an accepted run carries its policy from its first moment — the
+        // alternative, deciding at settlement, prices a run after it has been played.
+        var selection = await _play.ResolveAsync(
+            userId,
+            new PlaySelectionRequest
+            {
+                GameId = request.GameId,
+                ModeKey = request.ModeKey,
+                ContextKey = request.ContextKey,
+                EventId = request.EventId,
+
+                // A networked run's topology was already enforced when the session was formed, and
+                // this service cannot see the roster; checking a seat count of one here would refuse
+                // every multiplayer run of a versus-only mode.
+                PlayerCount = request.SessionId is null ? 1 : 0
+            },
+            cancellationToken);
+
+        if (!selection.Succeeded)
+            return ServiceResult<StartRunResponse>.Failure(
+                selection.Error ?? ApiErrors.ValidationFailed,
+                selection.ErrorKind,
+                string.Join(" ", selection.Errors),
+                selection.Details);
+
+        var play = selection.Value!;
+
         var now = DateTime.UtcNow;
 
         await ExpireOldestOpenRunsAsync(userId, now, cancellationToken);
@@ -128,6 +162,13 @@ public class RunService : IRunService
             Id = Guid.NewGuid(),
             UserId = userId,
             GameId = request.GameId,
+
+            // Stamped at start and never re-read, exactly like LayoutVersion above: a run begun
+            // under one mode's policy settles under that policy, whatever an operator changes while
+            // it is in flight.
+            ModeId = play.ModeId,
+            Context = play.Context,
+            EventId = play.EventId,
             Seed = NextSeed(),
             // Stamped now, from the generator that is live at *start*. Re-reading it at settlement
             // would verify a client's track against a generator it never used.
@@ -375,11 +416,24 @@ public class RunService : IRunService
 
         var multiplier = ResolveMultiplier(request.Modifiers, durationMs, flags);
 
+        // What this run was allowed to be worth, rebuilt from what was stamped on it at start. Never
+        // re-authorised: a mode withdrawn, an event closed or a grade changed since the child pressed
+        // play must not take their finished run away from them.
+        var play = await _play.DescribeAsync(run.ModeId, run.Context, run.EventId, cancellationToken);
+
+        // A mode or context that settles nothing skips pricing outright rather than pricing and then
+        // multiplying by zero — the difference matters, because pricing also *accrues* against the
+        // day's allowance, and a practice run must not spend a child's daily coin ceiling.
+        var pays = play.Policy.SettlesEconomy && !overRunLimit;
+
+        if (!play.Policy.SettlesEconomy)
+            caps.Reached("context_unpaid");
+
         // Pricing is not this file's job any more. The cap ladder, the valuation table and the daily
         // counters are shared with the attempt surface, so they live in one place that both call —
         // see ISignalPricer. What stays here is everything that is a fact about *runs*: the duration
         // clamp above, the layout check, the account's runs-per-day, and the modifier.
-        var pricing = overRunLimit
+        var pricing = !pays
             ? SignalPricing.Empty
             : await _pricer.PriceAsync(
                 new SignalPricingRequest
@@ -390,7 +444,13 @@ public class RunService : IRunService
                     Counts = collected,
                     NowUtc = now,
                     DurationMs = durationMs,
-                    Multiplier = multiplier
+                    Multiplier = multiplier,
+
+                    // The profile scales what the caps left, inside the pricer, so the payout rows
+                    // record the number that actually moved the balance. Applied *after* the caps
+                    // for the same reason the modifier is: a percentage of an open number would be
+                    // a way to buy back the daily ceiling.
+                    PayoutPercent = play.Profile?.PayoutPercent ?? 100
                 },
                 cancellationToken);
 
@@ -401,7 +461,8 @@ public class RunService : IRunService
 
         return await CommitSettlementAsync(
             run, userId, request, resultRequestId, durationMs, outcome,
-            collected, pricing.Lines, caps, flags, overRunLimit, cancellationToken);
+            collected, pricing.Lines, caps, flags, skipRules: !play.PaysRuleRewards || overRunLimit,
+            play, cancellationToken);
     }
 
     /// <summary>
@@ -514,6 +575,7 @@ public class RunService : IRunService
         CapTracker caps,
         List<string> flags,
         bool skipRules,
+        PlaySelection play,
         CancellationToken cancellationToken)
     {
         var now = DateTime.UtcNow;
@@ -646,26 +708,41 @@ public class RunService : IRunService
         // objective, so a run that committed without them would be a rank and a quest step silently
         // lost. It writes rows and queues a job — no board is walked here, so finishing a run never
         // waits on a leaderboard.
-        await _gameResults.RecordAsync(
-            new GameResultContext
-            {
-                UserId = userId,
-                GameId = run.GameId,
-                SourceId = run.Id,
-                OccurredAtUtc = now,
-                GradeId = await ResolveGradeIdAsync(userId, cancellationToken),
-                LangId = await _languageService.ResolveCurrentAsync(cancellationToken),
-                RequestId = resultRequestId,
-                SourceType = GameResultSource.Session,
-                // A run held back for review must not rank or advance an objective while it sits
-                // there. The per-metric bounds cannot see that; the run already decided.
-                PreFlagged = run.IsFlagged,
-                PreFlagReason = run.FlagReason,
-                Metrics = RunMetricsFor(
-                    run, durationMs, outcome, collected, granted,
-                    await KeyedAsync(earnedByCurrency, cancellationToken))
-            },
-            cancellationToken);
+        //
+        // Skipped for a run worth nothing — practice, and any context a mode refuses entirely. Not
+        // ranking is not enough: quests read these rows too, so a practice run recorded as
+        // non-ranking still advanced "play three runs" and paid its coins. The attempt path records
+        // nothing for the same sessions, and the two must not disagree about what practice is worth.
+        if (play.Policy != PlaySettlementPolicy.Nothing)
+        {
+            await _gameResults.RecordAsync(
+                new GameResultContext
+                {
+                    UserId = userId,
+                    GameId = run.GameId,
+                    SourceId = run.Id,
+                    OccurredAtUtc = now,
+                    GradeId = await ResolveGradeIdAsync(userId, cancellationToken),
+                    LangId = await _languageService.ResolveCurrentAsync(cancellationToken),
+                    RequestId = resultRequestId,
+                    SourceType = GameResultSource.Session,
+
+                    // The selection travels with the result so a board can select on it without joining
+                    // back to the run, and so a rebuild months later still knows what was played.
+                    ModeId = run.ModeId,
+                    Context = run.Context,
+                    EventId = run.EventId,
+                    CountsForRanking = play.Policy.Ranks,
+                    // A run held back for review must not rank or advance an objective while it sits
+                    // there. The per-metric bounds cannot see that; the run already decided.
+                    PreFlagged = run.IsFlagged,
+                    PreFlagReason = run.FlagReason,
+                    Metrics = RunMetricsFor(
+                        run, durationMs, outcome, collected, granted,
+                        await KeyedAsync(earnedByCurrency, cancellationToken))
+                },
+                cancellationToken);
+        }
 
         // Same inline fold as the attempt path, for the same reason — a "play three runs" daily
         // must tick over the moment the third run ends, not on the next batch pass.
@@ -868,6 +945,10 @@ public class RunService : IRunService
         // SignalPricer.CapLadder, which produces them.
         private static readonly string[] Precedence =
         [
+            // First, because it is the only one that is not a limit at all: this run was never going
+            // to pay. A results screen that showed "daily limit reached" for a practice run would be
+            // explaining the wrong thing entirely.
+            "context_unpaid",
             "daily_run_limit",
             "signal_rate_limit",
             "signal_daily_limit",

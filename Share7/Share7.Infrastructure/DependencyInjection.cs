@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -14,6 +14,7 @@ using Share7.Application.Equipment.Models;
 using Share7.Application.Games.Interfaces;
 using Share7.Application.Multiplayer.Interfaces;
 using Share7.Application.Multiplayer.Models;
+using Share7.Application.Play.Interfaces;
 using Share7.Application.Progress.Interfaces;
 using Share7.Application.Objectives.Interfaces;
 using Share7.Infrastructure.Objectives;
@@ -43,6 +44,7 @@ using Share7.Application.Telemetry.Interfaces;
 using Share7.Application.Telemetry.Models;
 using Share7.Infrastructure.Telemetry;
 using Share7.Infrastructure.Persistence;
+using Share7.Infrastructure.Play;
 using Share7.Infrastructure.Progress;
 using Share7.Infrastructure.Rewards;
 using Share7.Infrastructure.Runs;
@@ -119,6 +121,18 @@ public static class DependencyInjection
         services.AddScoped<ICurriculumSearchService, CurriculumSearchService>();
         services.AddScoped<IGameService, GameService>();
         services.AddScoped<IGameAdminService, GameAdminService>();
+
+        // The play-context domain: modes, worlds and events. The resolver is the gate every
+        // gameplay entry point runs, which is why it is one registration and not three copies.
+        services.AddScoped<IGameModeService, GameModeService>();
+        services.AddScoped<IGameModeAdminService, GameModeAdminService>();
+        services.AddScoped<IPlaySelectionResolver, PlaySelectionResolver>();
+        services.AddScoped<IGameWorldService, GameWorldService>();
+        services.AddScoped<IGameWorldAdminService, GameWorldAdminService>();
+        services.AddScoped<IPlayEventService, PlayEventService>();
+        services.AddScoped<IPlayEventAdminService, PlayEventAdminService>();
+        services.AddScoped<IPrizeClaimAdminService, PrizeClaimAdminService>();
+        services.AddScoped<IEconomyProfileAdminService, EconomyProfileAdminService>();
         services.AddScoped<IUnlockService, UnlockService>();
         services.AddScoped<IProgressService, ProgressService>();
         services.AddScoped<IWalletService, WalletService>();
@@ -178,6 +192,7 @@ public static class DependencyInjection
         // and the matchmade join would come to disagree about what "full" means.
         services.AddScoped<MultiplayerSessionService>();
         services.AddScoped<IMultiplayerSessionService>(sp => sp.GetRequiredService<MultiplayerSessionService>());
+        services.AddScoped<ISessionLessonMatcher, SessionLessonMatcher>();
         services.AddScoped<IMatchmakingService, MatchmakingService>();
         services.AddScoped<IMultiplayerAdminService, MultiplayerAdminService>();
 
@@ -194,6 +209,11 @@ public static class DependencyInjection
         services.AddScoped<ILeaderboardProjector, LeaderboardProjector>();
         services.AddScoped<ILeaderboardRolloverService, LeaderboardRolloverService>();
         services.AddScoped<ILeaderboardSettlementService, LeaderboardSettlementService>();
+
+        // Settlement observers. Registered against the interface rather than called from the
+        // settlement service directly, so leaderboard machinery never grows a dependency on every
+        // feature that cares about a final rank.
+        services.AddScoped<ICycleSettlementObserver, EventPrizeAwardService>();
         services.AddScoped<ILeaderboardJobRunner, LeaderboardJobRunner>();
         services.AddScoped<ILeaderboardService, LeaderboardService>();
         services.AddScoped<ILeaderboardAdminService, LeaderboardAdminService>();

@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Share7.Application.Common.Models;
 using Share7.Application.Multiplayer.Models;
@@ -27,13 +27,10 @@ public class MultiplayerSessionServiceTests
     public MultiplayerSessionServiceTests(SqlServerFixture fixture) => _fixture = fixture;
 
     private static MultiplayerSessionService Service(ApplicationDbContext context, params int[] accepted) =>
-        new(
-            context,
-            new MultiplayerRequestLogStore(context),
-            Options.Create(new MultiplayerOptions
-            {
-                AcceptedProtocolVersions = accepted.Length == 0 ? [1] : [.. accepted]
-            }));
+        MultiplayerTest.Sessions(context, new MultiplayerOptions
+        {
+            AcceptedProtocolVersions = accepted.Length == 0 ? [1] : [.. accepted]
+        });
 
     private static CreateMultiplayerSessionRequest CreateRequest(
         Guid gameId,

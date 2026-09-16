@@ -1335,8 +1335,19 @@ namespace Share7.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("Context")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<bool>("CountsForRanking")
+                        .HasColumnType("bit");
+
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("EventId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("FlagReason")
                         .HasMaxLength(256)
@@ -1358,6 +1369,9 @@ namespace Share7.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(48)
                         .HasColumnType("nvarchar(48)");
+
+                    b.Property<Guid?>("ModeId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("OccurredAtUtc")
                         .HasColumnType("datetime2");
@@ -1404,6 +1418,10 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.HasIndex("UserId", "OccurredAtUtc")
                         .HasDatabaseName("IX_GameResult_User");
 
+                    b.HasIndex("EventId", "Metric", "OccurredAtUtc")
+                        .HasDatabaseName("IX_GameResult_Event")
+                        .HasFilter("[EventId] IS NOT NULL");
+
                     b.HasIndex("GameId", "Metric", "OccurredAtUtc")
                         .HasDatabaseName("IX_GameResult_Replay");
 
@@ -1432,6 +1450,9 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<Guid?>("EventId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid?>("GameId")
                         .HasColumnType("uniqueidentifier");
 
@@ -1451,6 +1472,9 @@ namespace Share7.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(48)
                         .HasColumnType("nvarchar(48)");
+
+                    b.Property<Guid?>("ModeId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<int>("Period")
                         .HasColumnType("int");
@@ -1474,7 +1498,14 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.HasIndex("BoardKey")
                         .IsUnique();
 
+                    b.HasIndex("EventId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_LeaderboardBoard_Event")
+                        .HasFilter("[EventId] IS NOT NULL");
+
                     b.HasIndex("GameId");
+
+                    b.HasIndex("ModeId");
 
                     b.HasIndex("IsActive", "GameId")
                         .HasDatabaseName("IX_LeaderboardBoard_Listing");
@@ -1704,6 +1735,9 @@ namespace Share7.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(48)
                         .HasColumnType("nvarchar(48)");
+
+                    b.Property<Guid?>("ModeId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("datetime2");
@@ -2196,6 +2230,9 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("EndedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<Guid?>("EventId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("GameId")
                         .HasColumnType("uniqueidentifier");
 
@@ -2209,6 +2246,9 @@ namespace Share7.Infrastructure.Persistence.Migrations
                         .HasMaxLength(8)
                         .HasColumnType("nvarchar(8)");
 
+                    b.Property<Guid?>("LangId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("LastHeartbeatAtUtc")
                         .HasColumnType("datetime2");
 
@@ -2220,6 +2260,9 @@ namespace Share7.Infrastructure.Persistence.Migrations
 
                     b.Property<int>("MinPlayers")
                         .HasColumnType("int");
+
+                    b.Property<Guid?>("ModeId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<int>("ProtocolVersion")
                         .HasColumnType("int");
@@ -2236,6 +2279,9 @@ namespace Share7.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("nvarchar(32)");
+
+                    b.Property<Guid?>("SubjectId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("TransportRegion")
                         .HasMaxLength(16)
@@ -2273,7 +2319,34 @@ namespace Share7.Infrastructure.Persistence.Migrations
 
                     SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("GameId", "State", "Visibility", "IsRanked", "ProtocolVersion", "LessonId"), new[] { "CurrentPlayerCount", "MaxPlayers", "LastHeartbeatAtUtc", "CreatedAtUtc" });
 
+                    b.HasIndex("GameId", "State", "Visibility", "IsRanked", "ProtocolVersion", "SubjectId", "LangId", "ModeId", "EventId")
+                        .HasDatabaseName("IX_MultiplayerSession_SubjectMatchmaking");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("GameId", "State", "Visibility", "IsRanked", "ProtocolVersion", "SubjectId", "LangId", "ModeId", "EventId"), new[] { "CurrentPlayerCount", "MaxPlayers", "LastHeartbeatAtUtc", "CreatedAtUtc", "LessonId" });
+
                     b.ToTable("MultiplayerSessions", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Multiplayer.MultiplayerSessionEligibleLesson", b =>
+                {
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("LessonId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("SummedBestPercent")
+                        .HasColumnType("int");
+
+                    b.HasKey("SessionId", "LessonId");
+
+                    b.HasIndex("LessonId")
+                        .HasDatabaseName("IX_SessionEligibleLesson_Lesson");
+
+                    b.HasIndex("SessionId", "SummedBestPercent")
+                        .HasDatabaseName("IX_SessionEligibleLesson_Pick");
+
+                    b.ToTable("MultiplayerSessionEligibleLessons", (string)null);
                 });
 
             modelBuilder.Entity("Share7.Domain.Multiplayer.MultiplayerSessionPlayer", b =>
@@ -2649,6 +2722,565 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.HasKey("UserId", "StreakKey");
 
                     b.ToTable("UserStreaks", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Play.EconomyProfile", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("PayoutPercent")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("PaysRuleRewards")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ProfileKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsDefault")
+                        .IsUnique()
+                        .HasDatabaseName("UX_EconomyProfile_Default")
+                        .HasFilter("[IsDefault] = 1");
+
+                    b.HasIndex("ProfileKey")
+                        .IsUnique()
+                        .HasDatabaseName("UX_EconomyProfile_Key");
+
+                    b.ToTable("EconomyProfiles", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Play.EventAward", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Cohort")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("CohortKey")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("FinalRank")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("RewardTransactionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("SeenAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<Guid>("TierId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("Value")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TierId");
+
+                    b.HasIndex("UserId", "CreatedAtUtc")
+                        .HasDatabaseName("IX_EventAward_User");
+
+                    b.HasIndex("EventId", "Cohort", "CohortKey", "UserId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_EventAward_Placing");
+
+                    b.ToTable("EventAwards", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Play.EventPrizeTier", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long?>("DeclaredValueMinor")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("FromRank")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<int?>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("RewardRuleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ToRank")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ValueCurrencyCode")
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RewardRuleId");
+
+                    b.HasIndex("EventId", "FromRank")
+                        .HasDatabaseName("IX_EventPrizeTier_Event");
+
+                    b.ToTable("EventPrizeTiers", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Play.EventPrizeTierTranslation", b =>
+                {
+                    b.Property<Guid>("TierId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("LangId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("TierId", "LangId");
+
+                    b.ToTable("EventPrizeTierTranslations", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Play.GameMode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("AvailableFromUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("AvailableToUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("CountsTowardMastery")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("CountsTowardRanking")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("EconomyProfileId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("EntitlementProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("GameId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("MaxPlayers")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MinGradeOrder")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MinPlayers")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ModeKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<bool>("RequiresEntitlement")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("SettlesEconomy")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Topologies")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EconomyProfileId");
+
+                    b.HasIndex("EntitlementProductId");
+
+                    b.HasIndex("GameId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_GameMode_Default")
+                        .HasFilter("[IsDefault] = 1");
+
+                    b.HasIndex("ModeKey")
+                        .IsUnique()
+                        .HasDatabaseName("UX_GameMode_Key");
+
+                    b.HasIndex("GameId", "IsActive", "SortOrder")
+                        .HasDatabaseName("IX_GameMode_Offered");
+
+                    b.ToTable("GameModes", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Play.GameModeTranslation", b =>
+                {
+                    b.Property<Guid>("ModeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("LangId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("ModeId", "LangId");
+
+                    b.ToTable("GameModeTranslations", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Play.GameWorld", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("GameId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("MinGradeOrder")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MinLevel")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("UnlockKind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("WorldKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GameId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_GameWorld_Default")
+                        .HasFilter("[IsDefault] = 1");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("GameId", "WorldKey")
+                        .IsUnique()
+                        .HasDatabaseName("UX_GameWorld_Key");
+
+                    b.HasIndex("GameId", "IsActive", "SortOrder")
+                        .HasDatabaseName("IX_GameWorld_Listing");
+
+                    b.ToTable("GameWorlds", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Play.GameWorldTranslation", b =>
+                {
+                    b.Property<Guid>("WorldId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("LangId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("WorldId", "LangId");
+
+                    b.ToTable("GameWorldTranslations", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Play.PlayEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AccentColor")
+                        .HasMaxLength(9)
+                        .HasColumnType("nvarchar(9)");
+
+                    b.Property<string>("BannerAddress")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<Guid>("BoardId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CancelReason")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<DateTime?>("CancelledAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("ClaimWindowDays")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CycleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("EconomyProfileId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("EntryProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("EventKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<Guid>("GameId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("GrantsWorldForDuration")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<int?>("MaxEntriesPerDay")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("MaxEntriesTotal")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MaxGradeOrder")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MinGradeOrder")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MinLevel")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("ModeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("PrizeCohort")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("WorldKey")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BoardId");
+
+                    b.HasIndex("CycleId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_PlayEvent_Cycle");
+
+                    b.HasIndex("EconomyProfileId");
+
+                    b.HasIndex("EntryProductId");
+
+                    b.HasIndex("EventKey")
+                        .IsUnique()
+                        .HasDatabaseName("UX_PlayEvent_Key");
+
+                    b.HasIndex("ModeId");
+
+                    b.HasIndex("GameId", "IsActive", "SortOrder")
+                        .HasDatabaseName("IX_PlayEvent_Listing");
+
+                    b.ToTable("PlayEvents", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Play.PlayEventTranslation", b =>
+                {
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("LangId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Rules")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.HasKey("EventId", "LangId");
+
+                    b.ToTable("PlayEventTranslations", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Play.PrizeClaim", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AwardId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("FulfilledAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ReviewNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("ReviewedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("ReviewedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AwardId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_PrizeClaim_Award");
+
+                    b.HasIndex("ExpiresAtUtc")
+                        .HasDatabaseName("IX_PrizeClaim_Expiry");
+
+                    b.HasIndex("State", "CreatedAtUtc")
+                        .HasDatabaseName("IX_PrizeClaim_Queue");
+
+                    b.ToTable("PrizeClaims", (string)null);
                 });
 
             modelBuilder.Entity("Share7.Domain.Progress.ProgressRequestLog", b =>
@@ -3716,11 +4348,19 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.Property<bool>("CapReached")
                         .HasColumnType("bit");
 
+                    b.Property<string>("Context")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
                     b.Property<int>("DurationMs")
                         .HasColumnType("int");
 
                     b.Property<DateTime?>("EndedAtUtc")
                         .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("EventId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("ExpiresAtUtc")
                         .HasColumnType("datetime2");
@@ -3737,6 +4377,9 @@ namespace Share7.Infrastructure.Persistence.Migrations
 
                     b.Property<int>("LayoutVersion")
                         .HasColumnType("int");
+
+                    b.Property<Guid?>("ModeId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("ModifiersJson")
                         .HasColumnType("nvarchar(max)");
@@ -3789,6 +4432,8 @@ namespace Share7.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("GameId");
 
+                    b.HasIndex("ModeId");
+
                     b.HasIndex("State", "ExpiresAtUtc")
                         .HasDatabaseName("IX_Run_Open")
                         .HasFilter("[State] = 'OPEN'");
@@ -3812,6 +4457,10 @@ namespace Share7.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("UserId", "State", "EndedAtUtc")
                         .HasDatabaseName("IX_Run_UserSettled");
+
+                    b.HasIndex("EventId", "UserId", "State", "EndedAtUtc")
+                        .HasDatabaseName("IX_Run_EventEntries")
+                        .HasFilter("[EventId] IS NOT NULL");
 
                     b.ToTable("Runs", (string)null);
                 });
@@ -4930,6 +5579,11 @@ namespace Share7.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("GameId")
                         .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Share7.Domain.Play.GameMode", null)
+                        .WithMany()
+                        .HasForeignKey("ModeId")
+                        .OnDelete(DeleteBehavior.NoAction);
                 });
 
             modelBuilder.Entity("Share7.Domain.Leaderboards.LeaderboardBoardTranslation", b =>
@@ -5056,6 +5710,25 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.Navigation("Game");
                 });
 
+            modelBuilder.Entity("Share7.Domain.Multiplayer.MultiplayerSessionEligibleLesson", b =>
+                {
+                    b.HasOne("Share7.Domain.Curriculum.Lesson", "Lesson")
+                        .WithMany()
+                        .HasForeignKey("LessonId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Domain.Multiplayer.MultiplayerSession", "Session")
+                        .WithMany("EligibleLessons")
+                        .HasForeignKey("SessionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Lesson");
+
+                    b.Navigation("Session");
+                });
+
             modelBuilder.Entity("Share7.Domain.Multiplayer.MultiplayerSessionPlayer", b =>
                 {
                     b.HasOne("Share7.Domain.Multiplayer.MultiplayerSession", "Session")
@@ -5146,6 +5819,190 @@ namespace Share7.Infrastructure.Persistence.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Share7.Domain.Play.EventAward", b =>
+                {
+                    b.HasOne("Share7.Domain.Play.PlayEvent", "Event")
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Domain.Play.EventPrizeTier", "Tier")
+                        .WithMany()
+                        .HasForeignKey("TierId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Event");
+
+                    b.Navigation("Tier");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Play.EventPrizeTier", b =>
+                {
+                    b.HasOne("Share7.Domain.Play.PlayEvent", "Event")
+                        .WithMany("PrizeTiers")
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Domain.Rewards.RewardRule", "RewardRule")
+                        .WithMany()
+                        .HasForeignKey("RewardRuleId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("Event");
+
+                    b.Navigation("RewardRule");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Play.EventPrizeTierTranslation", b =>
+                {
+                    b.HasOne("Share7.Domain.Play.EventPrizeTier", "Tier")
+                        .WithMany("Translations")
+                        .HasForeignKey("TierId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Tier");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Play.GameMode", b =>
+                {
+                    b.HasOne("Share7.Domain.Play.EconomyProfile", "EconomyProfile")
+                        .WithMany()
+                        .HasForeignKey("EconomyProfileId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Share7.Domain.Commerce.Product", "EntitlementProduct")
+                        .WithMany()
+                        .HasForeignKey("EntitlementProductId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Share7.Domain.Games.Game", "Game")
+                        .WithMany()
+                        .HasForeignKey("GameId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("EconomyProfile");
+
+                    b.Navigation("EntitlementProduct");
+
+                    b.Navigation("Game");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Play.GameModeTranslation", b =>
+                {
+                    b.HasOne("Share7.Domain.Play.GameMode", "Mode")
+                        .WithMany("Translations")
+                        .HasForeignKey("ModeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Mode");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Play.GameWorld", b =>
+                {
+                    b.HasOne("Share7.Domain.Games.Game", "Game")
+                        .WithMany()
+                        .HasForeignKey("GameId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Domain.Commerce.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("Game");
+
+                    b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Play.GameWorldTranslation", b =>
+                {
+                    b.HasOne("Share7.Domain.Play.GameWorld", "World")
+                        .WithMany("Translations")
+                        .HasForeignKey("WorldId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("World");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Play.PlayEvent", b =>
+                {
+                    b.HasOne("Share7.Domain.Leaderboards.LeaderboardBoard", "Board")
+                        .WithMany()
+                        .HasForeignKey("BoardId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Domain.Leaderboards.LeaderboardCycle", "Cycle")
+                        .WithMany()
+                        .HasForeignKey("CycleId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Domain.Play.EconomyProfile", "EconomyProfile")
+                        .WithMany()
+                        .HasForeignKey("EconomyProfileId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Share7.Domain.Commerce.Product", "EntryProduct")
+                        .WithMany()
+                        .HasForeignKey("EntryProductId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Share7.Domain.Games.Game", "Game")
+                        .WithMany()
+                        .HasForeignKey("GameId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Domain.Play.GameMode", "Mode")
+                        .WithMany()
+                        .HasForeignKey("ModeId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Board");
+
+                    b.Navigation("Cycle");
+
+                    b.Navigation("EconomyProfile");
+
+                    b.Navigation("EntryProduct");
+
+                    b.Navigation("Game");
+
+                    b.Navigation("Mode");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Play.PlayEventTranslation", b =>
+                {
+                    b.HasOne("Share7.Domain.Play.PlayEvent", "Event")
+                        .WithMany("Translations")
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Event");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Play.PrizeClaim", b =>
+                {
+                    b.HasOne("Share7.Domain.Play.EventAward", "Award")
+                        .WithOne("Claim")
+                        .HasForeignKey("Share7.Domain.Play.PrizeClaim", "AwardId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Award");
                 });
 
             modelBuilder.Entity("Share7.Domain.Progress.ProgressRequestLog", b =>
@@ -5272,11 +6129,21 @@ namespace Share7.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Share7.Domain.Runs.Run", b =>
                 {
+                    b.HasOne("Share7.Domain.Play.PlayEvent", null)
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("Share7.Domain.Games.Game", null)
                         .WithMany()
                         .HasForeignKey("GameId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("Share7.Domain.Play.GameMode", null)
+                        .WithMany()
+                        .HasForeignKey("ModeId")
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
                         .WithMany()
@@ -5436,6 +6303,8 @@ namespace Share7.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Share7.Domain.Multiplayer.MultiplayerSession", b =>
                 {
+                    b.Navigation("EligibleLessons");
+
                     b.Navigation("Players");
                 });
 
@@ -5446,6 +6315,33 @@ namespace Share7.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Share7.Domain.Objectives.ObjectiveGroup", b =>
                 {
+                    b.Navigation("Translations");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Play.EventAward", b =>
+                {
+                    b.Navigation("Claim");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Play.EventPrizeTier", b =>
+                {
+                    b.Navigation("Translations");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Play.GameMode", b =>
+                {
+                    b.Navigation("Translations");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Play.GameWorld", b =>
+                {
+                    b.Navigation("Translations");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Play.PlayEvent", b =>
+                {
+                    b.Navigation("PrizeTiers");
+
                     b.Navigation("Translations");
                 });
 

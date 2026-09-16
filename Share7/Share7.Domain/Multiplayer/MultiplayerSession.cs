@@ -1,4 +1,4 @@
-using Share7.Domain.Games;
+﻿using Share7.Domain.Games;
 
 namespace Share7.Domain.Multiplayer;
 
@@ -96,7 +96,47 @@ public class MultiplayerSession
     /// carries the one value the candidate query joins on. Null when the caller sent no path.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// The lesson every player in this match will answer, or null while the roster is still forming.
+    /// <para>
+    /// <b>Null is a real and normal state now.</b> A subject-scoped match is created before anyone
+    /// knows which lesson the players have in common, and the lesson is stamped once there are enough
+    /// of them — see <see cref="EligibleLessons"/>. Sessions created with an explicit lesson (an
+    /// older client, or a direct invite) carry it from the start and never move.
+    /// </para>
+    /// </summary>
     public Guid? LessonId { get; set; }
+
+    /// <summary>
+    /// The subject the players chose. Set when the match is subject-scoped, which is what makes
+    /// matchmaking able to look for a lesson the players share rather than demanding they picked the
+    /// same one.
+    /// </summary>
+    public Guid? SubjectId { get; set; }
+
+    /// <summary>
+    /// The content language this match is played in. Questions exist per language, so two children on
+    /// different languages cannot share a lesson even when they share the unlock.
+    /// </summary>
+    public Guid? LangId { get; set; }
+
+    /// <summary>The mode being played, when the client named one. Matchmaking never mixes two.</summary>
+    public Guid? ModeId { get; set; }
+
+    /// <summary>The event this match is an entry in, when it is one.</summary>
+    public Guid? EventId { get; set; }
+
+    /// <summary>
+    /// The lessons every seated player can still play — the running intersection of what each of
+    /// them has unlocked and has questions for.
+    /// <para>
+    /// Narrowed on every seat rather than recomputed at start: a lesson that leaves the set because
+    /// the third player has not unlocked it must not come back if they leave again, or the match
+    /// would start on a lesson somebody was shown as impossible.
+    /// </para>
+    /// </summary>
+    public ICollection<MultiplayerSessionEligibleLesson> EligibleLessons { get; set; } =
+        new List<MultiplayerSessionEligibleLesson>();
 
     public bool IsRanked { get; set; }
 

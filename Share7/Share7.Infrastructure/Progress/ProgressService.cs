@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Share7.Application.Common.Models;
 using Share7.Application.Curriculum.Interfaces;
 using Share7.Application.Economy.Interfaces;
@@ -7,6 +8,8 @@ using Share7.Application.Economy.Models;
 using Share7.Domain.Economy;
 using Share7.Application.Leaderboards.Interfaces;
 using Share7.Application.Leaderboards.Models;
+using Share7.Application.Play.Interfaces;
+using Share7.Application.Play.Models;
 using Share7.Application.Progress.Interfaces;
 using Share7.Application.Progress.Models;
 using Share7.Application.Objectives.Interfaces;
@@ -14,6 +17,7 @@ using Share7.Application.Progression.Interfaces;
 using Share7.Application.Rewards.Interfaces;
 using Share7.Application.Rewards.Models;
 using Share7.Domain.Leaderboards;
+using Share7.Domain.Play;
 using Share7.Domain.Progress;
 using Share7.Infrastructure.Persistence;
 
@@ -56,6 +60,7 @@ public class ProgressService : IProgressService
     private readonly ILevelService _levels;
     private readonly ISignalPricer _pricer;
     private readonly IObjectiveProjector _objectives;
+    private readonly IPlaySelectionResolver _play;
 
     public ProgressService(
         ApplicationDbContext dbContext,
@@ -66,7 +71,8 @@ public class ProgressService : IProgressService
         IGameResultRecorder gameResults,
         ILevelService levels,
         ISignalPricer pricer,
-        IObjectiveProjector objectives)
+        IObjectiveProjector objectives,
+        IPlaySelectionResolver play)
     {
         _dbContext = dbContext;
         _languageService = languageService;
@@ -77,6 +83,7 @@ public class ProgressService : IProgressService
         _levels = levels;
         _pricer = pricer;
         _objectives = objectives;
+        _play = play;
     }
 
     // ------------------------------------------------------------- writing
@@ -157,6 +164,31 @@ public class ProgressService : IProgressService
         if (!isUnlocked)
             return ServiceResult<AttemptResultDto>.Forbidden("This lesson is still locked for this game.");
 
+        // Which rules, and why. Checked here — after the lesson is known to be playable and before
+        // anything is written — so a refused mode costs the same as a locked lesson: nothing.
+        var selection = await _play.ResolveAsync(
+            userId,
+            new PlaySelectionRequest
+            {
+                GameId = request.GameId,
+                ModeKey = request.ModeKey,
+                ContextKey = request.ContextKey,
+                EventId = request.EventId,
+                PlayerCount = 1
+            },
+            cancellationToken);
+
+        if (!selection.Succeeded)
+            return new ServiceResult<AttemptResultDto>
+            {
+                ErrorKind = selection.ErrorKind,
+                Errors = selection.Errors,
+                Error = selection.Error,
+                Details = selection.Details
+            };
+
+        var play = selection.Value!;
+
         // From here on the attempt writes. Progress, unlocks and any currency it earns commit as
         // one unit: a reward that survived a rolled-back attempt would be currency for gameplay
         // that never happened. Deliberately opened *after* the guard clauses so a refused
@@ -211,6 +243,17 @@ public class ProgressService : IProgressService
         var attemptState = StateFor(percent);
 
         var now = DateTime.UtcNow;
+
+        // **Graded in full, recorded as nothing.** A practice run, a free-play replay or an event
+        // entry is answered with the same breakdown a curriculum attempt gets — the child still sees
+        // what they got right — but it moves no progress, unlocks nothing and pays nothing. That is
+        // the whole point of the context axis, and it is enforced here rather than trusted to the
+        // client's copy of the rule.
+        if (!play.Policy.AffectsMastery)
+            return await RecordUnscoredAttemptAsync(
+                userId, request, play, langId, gradeId, lesson.Version,
+                answerResults, correctCount, totalCount, percent, unrecognised, now, transaction,
+                cancellationToken);
 
         var existingQuestionRows = await _dbContext.UserQuestionProgress
             .Where(p => p.UserId == userId && p.GameId == request.GameId && p.LessonId == request.LessonId)
@@ -456,6 +499,135 @@ public class ProgressService : IProgressService
     /// second proportional-payout mechanism living on the attempt path — is how an economy ends up
     /// with two answers to "how much can a child earn in a day".
     /// </para>
+    /// <summary>
+    /// Answers an attempt that is not allowed to move mastery: practice, free play, or an event entry.
+    /// <para>
+    /// <b>It is a read of the record, not a write to it.</b> No question row, no lesson row, no
+    /// unlock, no signal payment and no reward rule — every one of those is a statement that the
+    /// child learned something new, and replaying a lesson for fun is not that. What the caller gets
+    /// back is this attempt's own score beside the record as it already stood, so a results screen
+    /// can say "you got 4 of 5" without ever claiming the record moved.
+    /// </para>
+    /// <para>
+    /// The one thing it does write is the event ladder's metric, and only inside an event: the entry
+    /// has to be able to rank, and the event's own entry limits are what stop that from being
+    /// farmable. Outside an event nothing is recorded at all.
+    /// </para>
+    /// </summary>
+    private async Task<ServiceResult<AttemptResultDto>> RecordUnscoredAttemptAsync(
+        Guid userId,
+        SubmitAttemptRequest request,
+        PlaySelection play,
+        Guid langId,
+        Guid gradeId,
+        int questionsVersion,
+        IReadOnlyList<AnswerResultDto> answers,
+        int correctCount,
+        int totalCount,
+        int percent,
+        int unrecognised,
+        DateTime now,
+        IDbContextTransaction transaction,
+        CancellationToken cancellationToken)
+    {
+        // The record as it stands, untouched. Null when this lesson has never been played for real,
+        // which is exactly what a first-ever practice run looks like.
+        var record = await _dbContext.UserLessonProgress
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                p => p.UserId == userId && p.GameId == request.GameId && p.LessonId == request.LessonId,
+                cancellationToken);
+
+        if (play.Context == PlayContextKind.Event && play.Policy.Ranks && correctCount > 0)
+        {
+            await _gameResults.RecordAsync(
+                new GameResultContext
+                {
+                    UserId = userId,
+                    GameId = request.GameId,
+                    SourceId = request.LessonId,
+                    OccurredAtUtc = now,
+                    GradeId = gradeId,
+                    LangId = langId,
+                    RequestId = request.RequestId,
+                    ModeId = play.ModeId,
+                    Context = play.Context,
+                    EventId = play.EventId,
+                    CountsForRanking = play.Policy.Ranks,
+                    Metrics = [new GameResultDraft(LeaderboardMetrics.CorrectAnswers, correctCount)]
+                },
+                cancellationToken);
+
+            // Folded inline for the same reason the curriculum path does it: a quest counting event
+            // entries should tick over as the entry ends, not whenever a batch next runs.
+            await _objectives.ProjectForUserAsync(userId, cancellationToken);
+        }
+
+        var balances = await _walletService.GetBalancesAsync(userId, cancellationToken);
+        var level = await _levels.GetForUserAsync(userId, cancellationToken);
+
+        var response = new AttemptResultDto
+        {
+            GameId = request.GameId,
+            LessonId = request.LessonId,
+            LangId = langId,
+            CorrectCount = correctCount,
+            TotalCount = totalCount,
+            Percent = percent,
+
+            // The record's own attempt count, unchanged — this attempt was not one of them.
+            Attempts = record?.Attempts ?? 0,
+            CompletionState = (record?.CompletionState ?? CompletionState.Uncompleted).ToString(),
+            FirstAttemptWasPerfect = record?.FirstAttemptWasPerfect ?? false,
+            QuestionsVersion = questionsVersion,
+            Answers = answers,
+            UnrecognisedAnswers = unrecognised,
+            Unlocked = [],
+            Rewards = [],
+            Balances = balances,
+            Level = level,
+            LevelsGained = []
+        };
+
+        if (!string.IsNullOrWhiteSpace(request.RequestId))
+        {
+            var log = new ProgressRequestLog
+            {
+                UserId = userId,
+                RequestId = request.RequestId.Trim(),
+                Operation = AttemptOperation,
+                LessonId = request.LessonId,
+                ResponseJson = JsonSerializer.Serialize(response, AttemptJson),
+                CreatedAtUtc = now
+            };
+
+            _dbContext.ProgressRequestLogs.Add(log);
+
+            try
+            {
+                await _dbContext.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateException)
+            {
+                // Another retry of this same submission won the race. Hand back their answer, so two
+                // in-flight retries still produce exactly one recorded entry.
+                _dbContext.Entry(log).State = EntityState.Detached;
+                await transaction.RollbackAsync(cancellationToken);
+
+                var winner = await TryReplayAttemptAsync(userId, request.RequestId, cancellationToken);
+
+                return winner is not null
+                    ? ServiceResult<AttemptResultDto>.Success(winner)
+                    : ServiceResult<AttemptResultDto>.Conflict(
+                        "This attempt is already being recorded. Retry with the same requestId.");
+            }
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+
+        return ServiceResult<AttemptResultDto>.Success(response);
+    }
+
     /// <para>
     /// Returns reward lines shaped exactly like a rule's, so the client renders one list and does not
     /// need to know which of the two mechanisms paid. <c>RuleId</c> is empty because no rule fired:

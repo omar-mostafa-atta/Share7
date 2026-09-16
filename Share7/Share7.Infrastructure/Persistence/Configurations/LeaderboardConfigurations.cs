@@ -1,8 +1,9 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Share7.Domain.Games;
 using Share7.Domain.Leaderboards;
 using Share7.Domain.LookUps;
+using Share7.Domain.Play;
 using Share7.Infrastructure.Identity;
 
 namespace Share7.Infrastructure.Persistence.Configurations;
@@ -33,6 +34,17 @@ public class GameResultConfiguration : IEntityTypeConfiguration<GameResult>
             .HasDatabaseName("UX_GameResult_Sequence");
         builder.Property(r => r.FlagReason).HasMaxLength(256);
         builder.Property(r => r.SourceType).HasConversion<int>();
+
+        builder.Property(r => r.Context)
+            .HasConversion(EnumWire.Converter<PlayContextKind>())
+            .HasMaxLength(16)
+            .IsRequired();
+
+        // The event ladder's rebuild: one event's results, in the order they happened. Filtered for
+        // the same reason the run index is — event results are a slice, not the table.
+        builder.HasIndex(r => new { r.EventId, r.Metric, r.OccurredAtUtc })
+            .HasFilter("[EventId] IS NOT NULL")
+            .HasDatabaseName("IX_GameResult_Event");
 
         // The projector's queue: unclaimed rows in arrival order. Filtered so the index stays the
         // size of the backlog rather than the size of history, which is the difference between a
@@ -96,6 +108,20 @@ public class LeaderboardBoardConfiguration : IEntityTypeConfiguration<Leaderboar
 
         builder.HasIndex(b => new { b.IsActive, b.GameId })
             .HasDatabaseName("IX_LeaderboardBoard_Listing");
+
+        // One board per event. An event creates its own ladder, and a second board claiming the
+        // same event would split its prize table across two sets of final ranks.
+        builder.HasIndex(b => b.EventId)
+            .IsUnique()
+            .HasFilter("[EventId] IS NOT NULL")
+            .HasDatabaseName("UX_LeaderboardBoard_Event");
+
+        // NoAction both ways: neither a mode nor an event may be deleted out from under a board
+        // whose cycles have already been settled against it.
+        builder.HasOne<GameMode>()
+            .WithMany()
+            .HasForeignKey(b => b.ModeId)
+            .OnDelete(DeleteBehavior.NoAction);
 
         builder.HasOne<Game>()
             .WithMany()

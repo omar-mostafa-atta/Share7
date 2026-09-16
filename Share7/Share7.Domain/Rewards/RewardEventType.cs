@@ -1,4 +1,4 @@
-namespace Share7.Domain.Rewards;
+﻿namespace Share7.Domain.Rewards;
 
 /// <summary>
 /// A gameplay outcome the backend is willing to pay for.
@@ -113,5 +113,15 @@ public enum RewardEventType
     /// members' — finishing each step pays its own rule, and completing the set pays this one.
     /// </para>
     /// </summary>
-    ObjectiveGroupCompleted
+    ObjectiveGroupCompleted,
+
+    /// <summary>
+    /// A placing in an authored event won an in-game prize tier.
+    /// <para>
+    /// Scoped by the tier, never unscoped: a rule matching every event prize would pay the same
+    /// thing to every placing of every event ever run, which is the opposite of a prize table. The
+    /// event authoring path creates and owns these rules, so they are not authored by hand.
+    /// </para>
+    /// </summary>
+    EventPrize
 }

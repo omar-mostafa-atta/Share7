@@ -175,6 +175,40 @@ public class LeaderboardSettlementTests
         Assert.False(result.Succeeded);
     }
 
+    [Fact]
+    public async Task A_retry_that_finds_its_placings_already_frozen_still_settles_the_cycle()
+    {
+        await using var context = _fixture.CreateContext();
+        var path = await TestData.CreateCurriculumPathAsync(context);
+
+        var (_, cycle) = await context.CreateBoardAsync(
+            LeaderboardMetrics.LessonsAced, LeaderboardAggregation.Sum);
+
+        var player = await TestData.CreateUserAsync(context);
+        await context.AddResultAsync(player, path.GameId, LeaderboardMetrics.LessonsAced, 3);
+
+        await CloseAsync(context, cycle.Id);
+        await LeaderboardTestExtensions.CreateSettlement(context).SettleAsync(cycle.Id);
+
+        // A worker that died after freezing the ranks and before recording the cycle as settled:
+        // the placings exist and the cycle is still Closed, which is exactly what the job retries.
+        await using (var crashed = _fixture.CreateContext())
+            await CloseAsync(crashed, cycle.Id);
+
+        await using var retry = _fixture.CreateContext();
+        var settled = await LeaderboardTestExtensions.CreateSettlement(retry).SettleAsync(cycle.Id);
+
+        Assert.True(settled.Succeeded, string.Join("; ", settled.Errors));
+
+        await using var check = _fixture.CreateContext();
+
+        // The freeze collides with the rows already written and clears the change tracker. The
+        // cycle must be recorded as settled anyway, or the job runs this again on every retry.
+        Assert.Equal(
+            LeaderboardCycleState.Settled,
+            (await check.LeaderboardCycles.SingleAsync(c => c.Id == cycle.Id)).State);
+    }
+
     /// <summary>Closes a cycle the way rollover does, so settlement sees a real closed window.</summary>
     private static async Task CloseAsync(
         Share7.Infrastructure.Persistence.ApplicationDbContext context, Guid cycleId)

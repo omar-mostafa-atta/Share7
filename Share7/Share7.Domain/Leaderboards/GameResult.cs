@@ -1,3 +1,5 @@
+﻿using Share7.Domain.Play;
+
 namespace Share7.Domain.Leaderboards;
 
 /// <summary>
@@ -84,6 +86,37 @@ public class GameResult
     public string? Scope { get; set; }
 
     public GameResultSource SourceType { get; set; }
+
+    /// <summary>
+    /// The mode the gameplay was played in, or null for a result recorded before modes existed.
+    /// <para>
+    /// **Stamped on the result rather than looked up through the run**, because a board selects on
+    /// it per row and a join per result per board is the one cost this table cannot carry. It is
+    /// also history: re-reading the mode later would re-sort a finished cycle if an operator edited
+    /// the mode in between.
+    /// </para>
+    /// </summary>
+    public Guid? ModeId { get; set; }
+
+    /// <summary>Why it was played. Practice never reaches this table at all; the rest are recorded and ranked.</summary>
+    public PlayContextKind Context { get; set; } = PlayContextKind.Curriculum;
+
+    /// <summary>
+    /// Whether the projector may fold this result into a board.
+    /// <para>
+    /// **Recorded but unranked is a real state, and a flag is how it is expressed.** A mode can
+    /// declare that it posts to no board while still being played for coins and for quests — and
+    /// quests read this table too, so the alternative (not writing the row) would take the objective
+    /// progress with it. False here is an authored decision; <see cref="IsFlagged"/> is a suspicion.
+    /// </para>
+    /// </summary>
+    public bool CountsForRanking { get; set; } = true;
+
+    /// <summary>
+    /// The event this result belongs to, when it was played in one. A board bound to an event takes
+    /// only results carrying its id, and no result is invented for an event that was not played.
+    /// </summary>
+    public Guid? EventId { get; set; }
 
     /// <summary>The lesson, session or operation this came from. Deliberately not a foreign key.</summary>
     public Guid SourceId { get; set; }

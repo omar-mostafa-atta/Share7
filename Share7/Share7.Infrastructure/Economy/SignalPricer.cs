@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Share7.Application.Economy.Interfaces;
 using Share7.Application.Economy.Models;
@@ -101,6 +101,12 @@ public class SignalPricer : ISignalPricer
             // it never declared what its own payout should be. Applied to an already-capped count, so
             // it scales a bounded number rather than an open one.
             var net = paidFace * Math.Max(1, request.Multiplier);
+
+            // Step 5b. The economy profile, last of all — the mode or event this session was played
+            // under keeps some fraction of what it earned. Rounded down: rounding up hands out
+            // currency nobody authored, and at one coin a farming loop repeats that all day.
+            if (request.PayoutPercent != 100)
+                net = request.PayoutPercent <= 0 ? 0 : (long)((decimal)net * request.PayoutPercent / 100m);
 
             if (net <= 0)
                 continue;

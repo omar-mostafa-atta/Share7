@@ -1,4 +1,4 @@
-namespace Share7.Domain.Leaderboards;
+﻿namespace Share7.Domain.Leaderboards;
 
 /// <summary>
 /// What a plausible result looks like for one game and metric. **Authored as data**, so tightening
@@ -23,6 +23,16 @@ public class LeaderboardMetricBound
 
     /// <summary>Null applies the bound to every game that raises this metric.</summary>
     public Guid? GameId { get; set; }
+
+    /// <summary>
+    /// Null applies the bound to every mode of that game. Set to bound one mode's results on their own.
+    /// <para>
+    /// Modes are exactly why a per-game bound is not enough: sudden death cannot plausibly produce a
+    /// forty-minute run and endless can, so a single ceiling is either too loose for one or tight
+    /// enough to flag every honest player of the other.
+    /// </para>
+    /// </summary>
+    public Guid? ModeId { get; set; }
 
     public string Metric { get; set; } = string.Empty;
 

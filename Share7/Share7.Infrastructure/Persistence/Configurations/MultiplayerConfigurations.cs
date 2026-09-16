@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Share7.Domain.Multiplayer;
 using Share7.Infrastructure.Identity;
@@ -92,6 +92,21 @@ public class MultiplayerSessionConfiguration : IEntityTypeConfiguration<Multipla
             .IncludeProperties(s => new { s.CurrentPlayerCount, s.MaxPlayers, s.LastHeartbeatAtUtc, s.CreatedAtUtc })
             .HasDatabaseName("IX_MultiplayerSession_Matchmaking");
 
+        // The subject-scoped candidate query: same game, state, visibility, ranked flag and protocol
+        // as the index above, then the four columns that decide whether two children can actually
+        // play together — the subject they chose, the language their questions are in, the mode, and
+        // the event. LessonId is not in it: a subject-scoped session has none until its roster forms.
+        builder.HasIndex(s => new
+            {
+                s.GameId, s.State, s.Visibility, s.IsRanked, s.ProtocolVersion,
+                s.SubjectId, s.LangId, s.ModeId, s.EventId
+            })
+            .IncludeProperties(s => new
+            {
+                s.CurrentPlayerCount, s.MaxPlayers, s.LastHeartbeatAtUtc, s.CreatedAtUtc, s.LessonId
+            })
+            .HasDatabaseName("IX_MultiplayerSession_SubjectMatchmaking");
+
         // The sweeper's only query: everything non-terminal that has stopped heartbeating.
         builder.HasIndex(s => new { s.State, s.LastHeartbeatAtUtc })
             .HasDatabaseName("IX_MultiplayerSession_Sweep");
@@ -114,6 +129,43 @@ public class MultiplayerSessionConfiguration : IEntityTypeConfiguration<Multipla
             .WithMany()
             .HasForeignKey(s => s.HostUserId)
             .OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+/// <summary>
+/// The running intersection of what every seated player can play.
+/// <para>
+/// Cascades from the session — the set describes a match and is meaningless once it is gone — and
+/// restricts from the lesson, so removing a lesson from the curriculum cannot silently empty the
+/// candidate set of a match in progress.
+/// </para>
+/// </summary>
+public class MultiplayerSessionEligibleLessonConfiguration
+    : IEntityTypeConfiguration<MultiplayerSessionEligibleLesson>
+{
+    public void Configure(EntityTypeBuilder<MultiplayerSessionEligibleLesson> builder)
+    {
+        builder.ToTable("MultiplayerSessionEligibleLessons");
+        builder.HasKey(l => new { l.SessionId, l.LessonId });
+
+        builder.HasOne(l => l.Session)
+            .WithMany(s => s.EligibleLessons)
+            .HasForeignKey(l => l.SessionId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(l => l.Lesson)
+            .WithMany()
+            .HasForeignKey(l => l.LessonId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // "Which lesson should this match play" — the set of one session, least-practised first.
+        builder.HasIndex(l => new { l.SessionId, l.SummedBestPercent })
+            .HasDatabaseName("IX_SessionEligibleLesson_Pick");
+
+        // The candidate search asks the mirror-image question: which sessions could play a lesson
+        // this caller can. Without this it is a scan of every live session's set.
+        builder.HasIndex(l => l.LessonId)
+            .HasDatabaseName("IX_SessionEligibleLesson_Lesson");
     }
 }
 

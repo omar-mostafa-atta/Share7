@@ -9,6 +9,7 @@ using Share7.Domain.Games;
 using Share7.Domain.Leaderboards;
 using Share7.Domain.LookUps;
 using Share7.Domain.Multiplayer;
+using Share7.Domain.Play;
 using Share7.Domain.Progress;
 using Share7.Domain.Objectives;
 using Share7.Domain.Progression;
@@ -64,6 +65,30 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, Applicati
 
     public DbSet<Game> Games => Set<Game>();
     public DbSet<GameTranslation> GameTranslations => Set<GameTranslation>();
+
+    // The Mode axis. One row per rule-set a game offers, carrying the half of a mode a shipped
+    // client must not be the authority on — whether it is offered, to whom, and what it may pay.
+    public DbSet<GameMode> GameModes => Set<GameMode>();
+    public DbSet<GameModeTranslation> GameModeTranslations => Set<GameModeTranslation>();
+
+    /// <summary>How much of what a session earns is actually paid. Referenced by modes and events.</summary>
+    public DbSet<EconomyProfile> EconomyProfiles => Set<EconomyProfile>();
+
+    // The World axis. Policy rows only — the art is client content, and this server never resolves it.
+    public DbSet<GameWorld> GameWorlds => Set<GameWorld>();
+    public DbSet<GameWorldTranslation> GameWorldTranslations => Set<GameWorldTranslation>();
+
+    // Events, and what winning one is worth. The window lives on the bound leaderboard cycle, never here.
+    public DbSet<PlayEvent> PlayEvents => Set<PlayEvent>();
+    public DbSet<PlayEventTranslation> PlayEventTranslations => Set<PlayEventTranslation>();
+    public DbSet<EventPrizeTier> EventPrizeTiers => Set<EventPrizeTier>();
+    public DbSet<EventPrizeTierTranslation> EventPrizeTierTranslations => Set<EventPrizeTierTranslation>();
+
+    /// <summary>What a placing won. Append-once per (event, cohort, user); never rewritten by a rebuild.</summary>
+    public DbSet<EventAward> EventAwards => Set<EventAward>();
+
+    /// <summary>Fulfilment of a real-world prize, carrying no personal data by design.</summary>
+    public DbSet<PrizeClaim> PrizeClaims => Set<PrizeClaim>();
 
     // Progress is per (user, game). Nothing above lesson level is stored — chapter, subject and
     // term progress are GROUP BY queries over UserLessonProgress.

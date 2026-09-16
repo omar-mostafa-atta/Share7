@@ -1,7 +1,11 @@
-using Microsoft.Data.SqlClient;
+﻿using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Share7.Application.Common.Models;
+using Share7.Application.Play.Interfaces;
+using Share7.Application.Play.Models;
+using Share7.Domain.Play;
+using Share7.Application.Curriculum.Interfaces;
 using Share7.Application.Multiplayer.Interfaces;
 using Share7.Application.Multiplayer.Models;
 using Share7.Domain.Multiplayer;
@@ -23,6 +27,9 @@ public class MultiplayerSessionService : IMultiplayerSessionService
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly MultiplayerRequestLogStore _log;
+    private readonly ISessionLessonMatcher _lessons;
+    private readonly IPlaySelectionResolver _play;
+    private readonly ILanguageService _languageService;
     private readonly MultiplayerOptions _options;
 
     /// <summary>
@@ -39,10 +46,16 @@ public class MultiplayerSessionService : IMultiplayerSessionService
     public MultiplayerSessionService(
         ApplicationDbContext dbContext,
         MultiplayerRequestLogStore log,
+        ISessionLessonMatcher lessons,
+        IPlaySelectionResolver play,
+        ILanguageService languageService,
         IOptions<MultiplayerOptions> options)
     {
         _dbContext = dbContext;
         _log = log;
+        _lessons = lessons;
+        _play = play;
+        _languageService = languageService;
         _options = options.Value;
     }
 
@@ -99,6 +112,35 @@ public class MultiplayerSessionService : IMultiplayerSessionService
             ? SessionVisibility.Private
             : SessionVisibility.Public;
 
+        // Which rules, and whether this account may play them with this many seats. The same gate a
+        // solo run passes, run once here so a match cannot be formed in a mode nobody may enter.
+        var selection = await _play.ResolveAsync(
+            userId,
+            new PlaySelectionRequest
+            {
+                GameId = game.Id,
+                ModeKey = request.ModeKey,
+                ContextKey = request.EventId is null ? null : PlayContextTokens.Event,
+                EventId = request.EventId,
+                PlayerCount = maxPlayers
+            },
+            cancellationToken);
+
+        if (!selection.Succeeded)
+            return new ServiceResult<MultiplayerSessionDto>
+            {
+                ErrorKind = selection.ErrorKind,
+                Errors = selection.Errors,
+                Error = selection.Error,
+                Details = selection.Details
+            };
+
+        var play = selection.Value!;
+
+        // The language the host is playing in. Questions exist per language, so it is part of what
+        // makes two players able to share a lesson at all.
+        var langId = await _languageService.ResolveCurrentAsync(cancellationToken);
+
         var now = DateTime.UtcNow;
 
         var session = new MultiplayerSession
@@ -121,10 +163,42 @@ public class MultiplayerSessionService : IMultiplayerSessionService
             ProtocolVersion = request.ProtocolVersion,
             CurriculumPathJson = MultiplayerMappings.SerializePath(request.CurriculumPath),
             LessonId = request.CurriculumPath?.LessonId,
+
+            // Subject-scoped only when no lesson was named: a client that still picks the exact
+            // lesson keeps the behaviour it always had, down to the same candidate index.
+            SubjectId = request.CurriculumPath?.LessonId is null ? request.CurriculumPath?.SubjectId : null,
+            LangId = langId,
+            ModeId = play.ModeId,
+            EventId = play.EventId,
             IsRanked = request.IsRanked,
             CreatedAtUtc = now,
             LastHeartbeatAtUtc = now
         };
+
+        // The candidate set starts as everything the host themselves can play, and only ever narrows
+        // from there. A host with nothing playable in the subject is refused here rather than left
+        // hosting a room nobody can ever match into.
+        if (session.SubjectId is { } subjectId)
+        {
+            var eligible = await _lessons.EligibleLessonsAsync(
+                userId, game.Id, subjectId, langId, cancellationToken);
+
+            if (eligible.Count == 0)
+                return ServiceResult<MultiplayerSessionDto>.Failure(
+                    ApiErrors.PlayNoSharedLesson,
+                    ServiceErrorKind.Conflict,
+                    "You have no unlocked lessons with questions in this subject yet.");
+
+            foreach (var lesson in eligible)
+            {
+                session.EligibleLessons.Add(new MultiplayerSessionEligibleLesson
+                {
+                    SessionId = session.Id,
+                    LessonId = lesson.LessonId,
+                    SummedBestPercent = lesson.BestPercent
+                });
+            }
+        }
 
         _dbContext.MultiplayerSessions.Add(session);
         _dbContext.MultiplayerSessionPlayers.Add(new MultiplayerSessionPlayer
@@ -360,6 +434,27 @@ public class MultiplayerSessionService : IMultiplayerSessionService
             try
             {
                 await _dbContext.SaveChangesAsync(cancellationToken);
+
+                // What this player can still play, intersected with what everyone already seated
+                // can. Inside the seat's own transaction: a player who turns out to share no lesson
+                // must not be left holding a seat in a match that cannot start, and matchmaking
+                // reads the refusal as "try the next session".
+                var narrowed = await _lessons.NarrowForSeatAsync(sessionId, userId, cancellationToken);
+
+                if (!narrowed.Succeeded)
+                {
+                    await transaction.RollbackAsync(cancellationToken);
+                    Detach();
+
+                    return new ServiceResult<MultiplayerSessionDto>
+                    {
+                        ErrorKind = narrowed.ErrorKind,
+                        Errors = narrowed.Errors,
+                        Error = narrowed.Error,
+                        Details = narrowed.Details
+                    };
+                }
+
                 await transaction.CommitAsync(cancellationToken);
             }
             catch (DbUpdateException exception) when (IsUniqueViolation(exception))

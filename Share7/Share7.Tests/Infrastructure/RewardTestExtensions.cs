@@ -13,6 +13,7 @@ using Share7.Domain.Rewards;
 using Share7.Infrastructure.Curriculum;
 using Share7.Infrastructure.Economy;
 using Share7.Infrastructure.Persistence;
+using Share7.Infrastructure.Play;
 using Share7.Infrastructure.Progress;
 using Share7.Infrastructure.Progression;
 using Share7.Infrastructure.Rewards;
@@ -127,7 +128,10 @@ public static class RewardTestExtensions
             // The real pricer: an attempt's variable XP is granted through it, inside the attempt's
             // own transaction, and a stub would hide the only part of that worth testing.
             new SignalPricer(context, new EarnCeilingService(context), Options.Create(new RunOptions())),
-            new ObjectiveProjector(context, NullLogger<ObjectiveProjector>.Instance));
+            new ObjectiveProjector(context, NullLogger<ObjectiveProjector>.Instance),
+            // The real resolver: whether an attempt moves mastery at all is its decision, and a stub
+            // would let every test pass under a policy nothing ships.
+            new PlaySelectionResolver(context, new LevelService(context)));
     }
 
     /// <summary>

@@ -5,6 +5,7 @@ import {
   Database,
   History,
   Boxes,
+  Layers,
   Coins,
   Gamepad2,
   Gauge,
@@ -101,6 +102,13 @@ export const NAV: NavGroup[] = [
         icon: Gamepad2,
         blurb: 'Mini-game catalogue, player counts, lobby and matchmaking flags',
       },
+      {
+        to: '/modes',
+        label: 'Modes & Worlds',
+        icon: Layers,
+        blurb:
+          'Rule-sets a game offers, what each counts for, payout profiles, and how a world is unlocked or bought',
+      },
     ],
   },
   {
@@ -117,6 +125,13 @@ export const NAV: NavGroup[] = [
         label: 'Leaderboards',
         icon: BarChart3,
         blurb: 'Boards, cycles, metric bounds and flagged results awaiting a verdict',
+      },
+      {
+        to: '/live-events',
+        label: 'Live events',
+        icon: Trophy,
+        blurb:
+          'Competitions, their ladders, entry rules and prize tables — in-game or real-world — and the prize claim queue',
       },
       {
         to: '/progression',

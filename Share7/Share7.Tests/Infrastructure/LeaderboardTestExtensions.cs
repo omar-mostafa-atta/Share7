@@ -2,6 +2,8 @@
 using Microsoft.Extensions.Options;
 using Share7.Application.Leaderboards.Models;
 using Share7.Domain.Leaderboards;
+using Share7.Domain.Play;
+using Share7.Application.Leaderboards.Interfaces;
 using Share7.Infrastructure.Leaderboards;
 using Share7.Infrastructure.Economy;
 using Share7.Infrastructure.Persistence;
@@ -61,11 +63,18 @@ public static class LeaderboardTestExtensions
     /// is the single most important thing about this code, and only the real engine — with its
     /// unique idempotency index — can answer it.
     /// </summary>
+    /// <param name="observers">
+    /// What else runs on final ranks — an event's prize table, in production. Empty by default, so a
+    /// leaderboard test stays a leaderboard test; the event tests pass the real award service.
+    /// </param>
     public static LeaderboardSettlementService CreateSettlement(
-        ApplicationDbContext context, LeaderboardOptions? options = null) =>
+        ApplicationDbContext context,
+        LeaderboardOptions? options = null,
+        params ICycleSettlementObserver[] observers) =>
         new(context,
             CreateProjector(context, options),
             new RewardService(context, new WalletService(context), new LevelService(context), new Share7.Infrastructure.Commerce.EntitlementService(context)),
+            observers,
             NullLogger<LeaderboardSettlementService>.Instance);
 
     /// <summary>A board with one open cycle covering all of time unless bounded.</summary>
@@ -151,6 +160,8 @@ public static class LeaderboardTestExtensions
         DateTime? occurredAtUtc = null,
         Guid? gradeId = null,
         bool isFlagged = false,
+        Guid? modeId = null,
+        Guid? eventId = null,
         CancellationToken cancellationToken = default)
     {
         var result = new GameResult
@@ -165,6 +176,12 @@ public static class LeaderboardTestExtensions
             SourceId = Guid.NewGuid(),
             GradeId = gradeId,
             IsFlagged = isFlagged,
+
+            // Which mode and event this was earned in, for the boards that select on them. Null is
+            // the ordinary case and means "an unscoped board takes it".
+            ModeId = modeId,
+            EventId = eventId,
+            Context = eventId is null ? PlayContextKind.Curriculum : PlayContextKind.Event,
             CreatedAtUtc = DateTime.UtcNow
         };
 

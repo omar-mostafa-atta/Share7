@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Share7.Application.Leaderboards.Interfaces;
 using Share7.Domain.Leaderboards;
@@ -37,6 +37,8 @@ public class LeaderboardProjector : ILeaderboardProjector
     {
         // Oldest first, so a cycle boundary is crossed in the order the results actually happened
         // rather than the order the database felt like returning them.
+        // Unranked results are claimed here too rather than filtered out of the query: a row nothing
+        // will ever project would otherwise sit unclaimed and be re-read on every single pass.
         var pending = await _dbContext.GameResults
             .Where(r => r.ProjectedAtUtc == null && !r.IsFlagged)
             .OrderBy(r => r.OccurredAtUtc)
@@ -68,7 +70,12 @@ public class LeaderboardProjector : ILeaderboardProjector
 
         foreach (var result in pending)
         {
-            foreach (var board in boards)
+            // A mode that posts to no board still writes its results, because quests read this same
+            // table. Claimed below like any other row, so it never comes back around.
+            IReadOnlyList<LeaderboardBoard> applicable =
+                result.CountsForRanking ? boards : Array.Empty<LeaderboardBoard>();
+
+            foreach (var board in applicable)
             {
                 if (!Selects(board, result))
                     continue;
@@ -276,6 +283,9 @@ public class LeaderboardProjector : ILeaderboardProjector
             .Where(r => r.OccurredAtUtc >= cycle.StartsAtUtc
                         && r.OccurredAtUtc < cycle.EndsAtUtc.Add(grace)
                         && (cycle.Board.GameId == null || r.GameId == cycle.Board.GameId)
+                        && (cycle.Board.ModeId == null || r.ModeId == cycle.Board.ModeId)
+                        && (cycle.Board.EventId == null || r.EventId == cycle.Board.EventId)
+                        && r.CountsForRanking
                         && r.Metric == cycle.Board.Metric)
             .ExecuteUpdateAsync(
                 update => update.SetProperty(r => r.ProjectedAtUtc, (DateTime?)null),
@@ -304,6 +314,17 @@ public class LeaderboardProjector : ILeaderboardProjector
             return false;
 
         if (board.GameId is { } gameId && gameId != result.GameId)
+            return false;
+
+        // A board scoped to one mode takes only that mode's results, which is what keeps a
+        // three-heart run and a one-heart run off the same ladder.
+        if (board.ModeId is { } modeId && modeId != result.ModeId)
+            return false;
+
+        // An event's board takes only that event's results. The converse is deliberately *not*
+        // true: an ordinary board still counts an event entry, because the child did play it, and
+        // hiding their event week from the weekly ladder would punish taking part.
+        if (board.EventId is { } eventId && eventId != result.EventId)
             return false;
 
         if (board.GradeId is { } gradeId && gradeId != result.GradeId)

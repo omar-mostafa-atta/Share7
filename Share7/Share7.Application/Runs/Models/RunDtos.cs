@@ -24,6 +24,27 @@ public class StartRunRequest
     public Guid? SessionId { get; set; }
 
     /// <summary>
+    /// Which rule-set is being played, e.g. <c>runner.mode.classic</c>.
+    /// <para>
+    /// **Optional on the wire, resolved to the game's default when absent**, so a client that
+    /// predates modes keeps working unchanged. A key that names no mode is refused rather than
+    /// defaulted — a silent default is how every run of a mis-spelled mode ends up priced as Classic.
+    /// </para>
+    /// </summary>
+    [MaxLength(128)]
+    public string? ModeKey { get; set; }
+
+    /// <summary>
+    /// Why it is being played: <c>curriculum</c> (the default), <c>freeplay</c>, <c>practice</c> or
+    /// <c>event</c>. With the mode, this is what the server prices the run by.
+    /// </summary>
+    [MaxLength(32)]
+    public string? ContextKey { get; set; }
+
+    /// <summary>Required when <see cref="ContextKey"/> is <c>event</c>, refused otherwise.</summary>
+    public Guid? EventId { get; set; }
+
+    /// <summary>
     /// Optional idempotency key. Generate one per run and **reuse it for every retry of that start** —
     /// a retry returns the same <c>runId</c> and the same <c>seed</c> rather than opening a second run,
     /// which matters because the client generates its track from that seed and two seeds is two tracks.

@@ -1,4 +1,4 @@
-namespace Share7.Application.Admin.Interfaces;
+﻿namespace Share7.Application.Admin.Interfaces;
 
 /// <summary>
 /// Fills an empty database with a complete, playable world: the platform catalogues the client
@@ -56,6 +56,10 @@ public sealed class ContentSeedReport
     public int LeaderboardBoards { get; set; }
     public int LeaderboardCycles { get; set; }
 
+    public int EconomyProfiles { get; set; }
+    public int GameModes { get; set; }
+    public int GameWorlds { get; set; }
+
     public int Terms { get; set; }
     public int Subjects { get; set; }
     public int Chapters { get; set; }
@@ -66,22 +70,28 @@ public sealed class ContentSeedReport
     public int DemoPlayers { get; set; }
     public int LeaderboardEntries { get; set; }
 
+    public int PlayEvents { get; set; }
+    public int PlayEventsSettled { get; set; }
+
     public TimeSpan Elapsed { get; set; }
 
     public bool WroteAnything =>
         Currencies + Games + LevelThresholds + SignalValuations + MetricBounds + RewardRules
         + Products + Offers + Objectives + ObjectiveGroups + LeaderboardBoards + LeaderboardCycles
+        + EconomyProfiles + GameModes + GameWorlds
         + Terms + Subjects + Chapters + Lessons + Questions + RecoveryQuestions
-        + DemoPlayers + LeaderboardEntries > 0;
+        + DemoPlayers + LeaderboardEntries + PlayEvents + PlayEventsSettled > 0;
 
     public override string ToString() =>
         Skipped
             ? "content seed skipped (ContentSeed:Enabled is false)"
             : $"currencies={Currencies} games={Games} levels={LevelThresholds} valuations={SignalValuations} "
               + $"metricBounds={MetricBounds} rewardRules={RewardRules} products={Products} offers={Offers} "
+              + $"economyProfiles={EconomyProfiles} modes={GameModes} worlds={GameWorlds} "
               + $"objectives={Objectives} objectiveGroups={ObjectiveGroups} boards={LeaderboardBoards} "
               + $"cycles={LeaderboardCycles} terms={Terms} subjects={Subjects} chapters={Chapters} "
               + $"lessons={Lessons} questions={Questions} recoveryQuestions={RecoveryQuestions} "
               + $"demoPlayers={DemoPlayers} leaderboardEntries={LeaderboardEntries} "
+              + $"events={PlayEvents} eventsSettled={PlayEventsSettled} "
               + $"in {Elapsed.TotalSeconds:F1}s";
 }

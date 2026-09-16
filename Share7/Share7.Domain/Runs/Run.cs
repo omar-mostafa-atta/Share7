@@ -1,3 +1,5 @@
+﻿using Share7.Domain.Play;
+
 namespace Share7.Domain.Runs;
 
 /// <summary>
@@ -36,6 +38,26 @@ public class Run
     /// can corroborate the claim against the session registry that already exists; not checked yet.
     /// </summary>
     public Guid? SessionId { get; set; }
+
+    /// <summary>
+    /// Which rule-set was played. **Stamped at start, never re-read at settlement** — the same
+    /// reasoning as <see cref="LayoutVersion"/>: a run begun under one mode's policy must settle
+    /// under that policy, not under whatever an operator edited while it was in flight.
+    /// <para>
+    /// Null only for runs recorded before modes existed, and for a client too old to send one; both
+    /// resolve to the game's default mode at start, so a null here is history rather than a hole.
+    /// </para>
+    /// </summary>
+    public Guid? ModeId { get; set; }
+
+    /// <summary>
+    /// Why it was played: curriculum, free play, practice or an event. With the mode, this is what
+    /// decides whether the run moves mastery, pays, and ranks — see <c>PlayAccounting</c>.
+    /// </summary>
+    public PlayContextKind Context { get; set; } = PlayContextKind.Curriculum;
+
+    /// <summary>The event this run was entered into, when <see cref="Context"/> is an event.</summary>
+    public Guid? EventId { get; set; }
 
     public DateTime StartedAtUtc { get; set; }
 

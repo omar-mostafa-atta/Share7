@@ -1,4 +1,4 @@
-using Microsoft.Data.SqlClient;
+﻿using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Share7.Application.Common.Models;
@@ -33,17 +33,20 @@ public class LeaderboardSettlementService : ILeaderboardSettlementService
     private readonly ApplicationDbContext _dbContext;
     private readonly ILeaderboardProjector _projector;
     private readonly IRewardService _rewards;
+    private readonly IEnumerable<ICycleSettlementObserver> _observers;
     private readonly ILogger<LeaderboardSettlementService> _logger;
 
     public LeaderboardSettlementService(
         ApplicationDbContext dbContext,
         ILeaderboardProjector projector,
         IRewardService rewards,
+        IEnumerable<ICycleSettlementObserver> observers,
         ILogger<LeaderboardSettlementService> logger)
     {
         _dbContext = dbContext;
         _projector = projector;
         _rewards = rewards;
+        _observers = observers;
         _logger = logger;
     }
 
@@ -81,10 +84,27 @@ public class LeaderboardSettlementService : ILeaderboardSettlementService
         var settled = await FreezeAsync(cycle, cancellationToken);
         var paid = await PayAsync(cycle, cancellationToken);
 
-        cycle.State = LeaderboardCycleState.Settled;
-        cycle.SettledAtUtc = DateTime.UtcNow;
+        // Everything else that pays out on final ranks — today, an event's own prize table. Run
+        // **before** the cycle is marked settled and allowed to throw: the job is retried, and a
+        // prize nobody received is worth retrying. Each observer is idempotent, so the retry costs a
+        // pass over rows it has already written rather than a second payment.
+        foreach (var observer in _observers)
+            await observer.OnCycleSettlingAsync(cycle.Id, cancellationToken);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+
+        // Written by id rather than through `cycle`. A batch that collided with a previous run's
+        // rows — which is what a retry is — clears the change tracker, and that detaches `cycle`:
+        // assigning its state then saved nothing, the cycle stayed Closed, and the job settled it
+        // again on every retry while logging success. Guarded on Closed so a concurrent worker
+        // that got there first is left alone.
+        await _dbContext.LeaderboardCycles
+            .Where(c => c.Id == cycleId && c.State == LeaderboardCycleState.Closed)
+            .ExecuteUpdateAsync(
+                update => update
+                    .SetProperty(c => c.State, LeaderboardCycleState.Settled)
+                    .SetProperty(c => c.SettledAtUtc, DateTime.UtcNow),
+                cancellationToken);
 
         _logger.LogInformation(
             "Settled cycle {CycleId} of {BoardKey}: {Settled} placings frozen, {Paid} paid.",

@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Share7.Application.Leaderboards.Interfaces;
 using Share7.Application.Leaderboards.Models;
@@ -63,8 +63,11 @@ public class GameResultRecorder : IGameResultRecorder
             // bound tight enough to catch a modified client also catches a child with a wrong
             // clock or a dropped connection. Flagged rows are excluded from projection and left
             // for a person, which is reversible; deleting a genuine run is not.
+            // Bounds are asked per mode as well as per game: sudden death cannot plausibly produce a
+            // forty-minute run and endless can, so one per-game ceiling is either too loose for the
+            // first or tight enough to flag every honest player of the second.
             var flagReason = await _plausibility.ReasonToFlagAsync(
-                context.UserId, context.GameId, draft.Metric, draft.Value,
+                context.UserId, context.GameId, context.ModeId, draft.Metric, draft.Value,
                 context.OccurredAtUtc, cancellationToken);
 
             // A producer that already judged this gameplay suspect wins over a per-metric bound
@@ -95,6 +98,10 @@ public class GameResultRecorder : IGameResultRecorder
                 RequestId = context.RequestId,
                 GradeId = context.GradeId,
                 LangId = context.LangId,
+                ModeId = context.ModeId,
+                Context = context.Context,
+                EventId = context.EventId,
+                CountsForRanking = context.CountsForRanking,
                 IsFlagged = flagReason is not null,
                 FlagReason = flagReason,
                 CreatedAtUtc = now

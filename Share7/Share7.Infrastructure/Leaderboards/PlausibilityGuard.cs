@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Share7.Application.Leaderboards.Interfaces;
 using Share7.Infrastructure.Persistence;
 
@@ -37,20 +37,30 @@ public class PlausibilityGuard : IPlausibilityGuard
     public async Task<string?> ReasonToFlagAsync(
         Guid userId,
         Guid gameId,
+        Guid? modeId,
         string metric,
         long value,
         DateTime occurredAtUtc,
         CancellationToken cancellationToken = default)
     {
-        var bounds = await _dbContext.LeaderboardMetricBounds
+        var candidates = await _dbContext.LeaderboardMetricBounds
             .AsNoTracking()
             .Where(b => b.Enabled
                         && b.Metric == metric
-                        && (b.GameId == null || b.GameId == gameId))
+                        && (b.GameId == null || b.GameId == gameId)
+                        && (b.ModeId == null || b.ModeId == modeId))
             .ToListAsync(cancellationToken);
 
-        if (bounds.Count == 0)
+        if (candidates.Count == 0)
             return null;
+
+        // **The most specific bound wins outright rather than composing with the looser ones.** A
+        // mode exists precisely because its numbers are different, so a per-mode row is a statement
+        // that the game-wide ceiling does not apply here — and applying both would mean the tighter
+        // general bound still flagged every honest endless run.
+        var bounds = candidates.Any(b => b.ModeId is not null)
+            ? candidates.Where(b => b.ModeId is not null).ToList()
+            : candidates;
 
         // A future timestamp is not a bound violation, it is a broken clock — and it is worth
         // catching separately because it would otherwise land the result in a cycle that has not

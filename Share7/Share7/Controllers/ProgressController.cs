@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Share7.API.Extensions;
@@ -77,7 +77,15 @@ public class ProgressController : ControllerBase
             return Unauthorized();
 
         var result = await _progressService.SubmitAttemptAsync(userId, request, cancellationToken);
-        return result.Succeeded ? Ok(result.Value) : result.ToErrorResult();
+
+        if (result.Succeeded)
+            return Ok(result.Value);
+
+        // Two envelopes, chosen by whether the refusal carries a machine code. The refusals this
+        // route has always had keep their `{errors:[...]}` shape, because a shipping client parses
+        // it; the play-context refusals (PC_*) are new and answer in the coded envelope the client
+        // already resolves every other new refusal through. Additive, so nothing existing moves.
+        return result.Error is not null ? result.ToApiErrorResult() : result.ToErrorResult();
     }
 
     /// <summary>

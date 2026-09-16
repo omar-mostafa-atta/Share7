@@ -1300,3 +1300,287 @@ export interface QuestionSearchResultDto {
   lessonCount: number
   items: QuestionSearchItemDto[]
 }
+
+// ---- play context: modes, worlds, events (Share7.Application.Play.Models) --
+//
+// The five axes the platform runs a session by. What lives here is the policy
+// half — the client ships the rules a match is played by, and this catalogue
+// decides whether it is offered, to whom, and what it is worth.
+
+export interface GameModeTranslationRequest {
+  langId: string
+  name: string
+  description: string
+}
+
+export interface GameModeAdminDto {
+  modeId: string
+  gameId: string
+  gameKey: string
+  modeKey: string
+  /** `["solo","versus"]`. Co-op is declared in the schema and refused at authoring. */
+  topologies: string[]
+  minPlayers: number
+  maxPlayers: number
+  isActive: boolean
+  /** Exactly one per game: what a client that sends no mode key resolves to. */
+  isDefault: boolean
+  availableFromUtc: string | null
+  availableToUtc: string | null
+  requiresEntitlement: boolean
+  entitlementProductId: string | null
+  entitlementSku: string | null
+  minGradeOrder: number
+  countsTowardMastery: boolean
+  settlesEconomy: boolean
+  countsTowardRanking: boolean
+  economyProfileId: string | null
+  economyProfileKey: string
+  sortOrder: number
+  name: string
+  description: string
+  langId: string
+  translations: GameModeTranslationRequest[]
+  /** How many runs have been recorded in this mode — what deleting it would detach. */
+  runCount: number
+}
+
+export interface SaveGameModeRequest {
+  gameId: string
+  modeKey: string
+  topologies: string[]
+  minPlayers: number
+  maxPlayers: number
+  isActive: boolean
+  isDefault: boolean
+  availableFromUtc: string | null
+  availableToUtc: string | null
+  requiresEntitlement: boolean
+  entitlementProductId: string | null
+  minGradeOrder: number
+  countsTowardMastery: boolean
+  settlesEconomy: boolean
+  countsTowardRanking: boolean
+  economyProfileId: string | null
+  sortOrder: number
+  translations: GameModeTranslationRequest[]
+}
+
+export interface GameWorldTranslationRequest {
+  langId: string
+  name: string
+  description: string
+}
+
+export interface GameWorldAdminDto {
+  worldId: string
+  gameId: string
+  gameKey: string
+  /** The client's own environment id, e.g. `runner.env.desert`. */
+  worldKey: string
+  /** `free` | `purchase` | `level` | `grade` | `reward`. */
+  unlockKind: string
+  productId: string | null
+  sku: string | null
+  minLevel: number
+  minGradeOrder: number
+  sortOrder: number
+  isActive: boolean
+  /** The fallback a session runs in when no world was chosen. Always free. */
+  isDefault: boolean
+  name: string
+  description: string
+  langId: string
+  translations: GameWorldTranslationRequest[]
+}
+
+export interface SaveGameWorldRequest {
+  gameId: string
+  worldKey: string
+  unlockKind: string
+  productId: string | null
+  minLevel: number
+  minGradeOrder: number
+  sortOrder: number
+  isActive: boolean
+  isDefault: boolean
+  translations: GameWorldTranslationRequest[]
+}
+
+export interface EconomyProfileDto {
+  profileId: string
+  profileKey: string
+  name: string
+  payoutPercent: number
+  paysRuleRewards: boolean
+  isDefault: boolean
+  usedByModes: number
+  usedByEvents: number
+}
+
+export interface SaveEconomyProfileRequest {
+  profileKey: string
+  name: string
+  payoutPercent: number
+  paysRuleRewards: boolean
+  isDefault: boolean
+}
+
+export interface PlayEventTranslationRequest {
+  langId: string
+  name: string
+  description: string
+  /** How to win, in the entrant's language. Authored per event, not a client string key. */
+  rules: string
+}
+
+export interface EventPrizeTierTranslationRequest {
+  langId: string
+  title: string
+  description: string
+}
+
+/** One thing an in-game tier hands over: an amount of a currency, or a product. */
+export interface EventPrizeGrantRequest {
+  currency: string | null
+  amount: number
+  productId: string | null
+}
+
+export interface EventPrizeTierAdminDto {
+  tierId: string
+  fromRank: number
+  toRank: number
+  /** `in_game` | `real_world`. */
+  kind: string
+  quantity: number | null
+  sortOrder: number
+  declaredValueMinor: number | null
+  valueCurrencyCode: string | null
+  grants: EventPrizeGrantRequest[]
+  translations: EventPrizeTierTranslationRequest[]
+}
+
+export interface SaveEventPrizeTierRequest {
+  tierId?: string | null
+  fromRank: number
+  toRank: number
+  kind: string
+  grants: EventPrizeGrantRequest[]
+  declaredValueMinor: number | null
+  valueCurrencyCode: string | null
+  quantity: number | null
+  sortOrder: number
+  translations: EventPrizeTierTranslationRequest[]
+}
+
+export interface PlayEventAdminDto {
+  eventId: string
+  eventKey: string
+  gameId: string
+  gameKey: string
+  modeId: string
+  modeKey: string
+  worldKey: string | null
+  grantsWorldForDuration: boolean
+  boardId: string
+  boardKey: string
+  cycleId: string
+  metric: string
+  /** The window lives on the bound cycle — there are no date columns on the event itself. */
+  startsAtUtc: string
+  endsAtUtc: string
+  /** `SCHEDULED` | `OPEN` | `CLOSED` | `SETTLED` — the cycle's own state. */
+  state: string
+  prizeCohort: string
+  maxEntriesPerDay: number | null
+  maxEntriesTotal: number | null
+  minGradeOrder: number
+  maxGradeOrder: number
+  minLevel: number
+  entryProductId: string | null
+  claimWindowDays: number
+  economyProfileId: string | null
+  economyProfileKey: string
+  bannerAddress: string | null
+  accentColor: string | null
+  sortOrder: number
+  isActive: boolean
+  cancelledAtUtc: string | null
+  cancelReason: string | null
+  participants: number
+  awardsIssued: number
+  translations: PlayEventTranslationRequest[]
+  prizeTiers: EventPrizeTierAdminDto[]
+}
+
+export interface SavePlayEventRequest {
+  eventKey: string
+  gameId: string
+  modeId: string
+  worldKey: string | null
+  grantsWorldForDuration: boolean
+  metric: string
+  aggregation: string
+  startsAtUtc: string
+  endsAtUtc: string
+  prizeCohort: string
+  maxEntriesPerDay: number | null
+  maxEntriesTotal: number | null
+  minGradeOrder: number
+  maxGradeOrder: number
+  minLevel: number
+  entryProductId: string | null
+  claimWindowDays: number
+  economyProfileId: string | null
+  bannerAddress: string | null
+  accentColor: string | null
+  sortOrder: number
+  isActive: boolean
+  translations: PlayEventTranslationRequest[]
+  prizeTiers: SaveEventPrizeTierRequest[]
+}
+
+export interface EventAwardDto {
+  awardId: string
+  eventId: string
+  eventName: string
+  prizeTitle: string
+  prizeDescription: string
+  kind: string
+  finalRank: number
+  value: number
+  /** `GRANTED` | `AWAITING_CLAIM` | `FULFILLED` | `FORFEITED` | `VOID`. */
+  state: string
+  claimState: string | null
+  claimExpiresAtUtc: string | null
+  awardedAtUtc: string
+  seenAtUtc: string | null
+}
+
+export interface PrizeClaimAdminDto {
+  claimId: string
+  awardId: string
+  eventId: string
+  eventKey: string
+  eventName: string
+  userId: string
+  /** The player's public handle. This system holds no real names. */
+  displayName: string
+  prizeTitle: string
+  declaredValueMinor: number | null
+  valueCurrencyCode: string | null
+  finalRank: number
+  state: string
+  expiresAtUtc: string
+  createdAtUtc: string
+  reviewedAtUtc: string | null
+  fulfilledAtUtc: string | null
+  reviewNote: string | null
+  reviewedByUserId: string | null
+}
+
+export interface UpdatePrizeClaimRequest {
+  state: string
+  note: string | null
+}

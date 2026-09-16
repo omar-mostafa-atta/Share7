@@ -1,6 +1,10 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Share7.Application.Common.Models;
+using Share7.Application.Play.Interfaces;
+using Share7.Application.Play.Models;
+using Share7.Domain.Play;
+using Share7.Application.Curriculum.Interfaces;
 using Share7.Application.Multiplayer.Interfaces;
 using Share7.Application.Multiplayer.Models;
 using Share7.Domain.Multiplayer;
@@ -16,17 +20,26 @@ public class MatchmakingService : IMatchmakingService
     private readonly ApplicationDbContext _dbContext;
     private readonly MultiplayerSessionService _sessions;
     private readonly MultiplayerRequestLogStore _log;
+    private readonly ISessionLessonMatcher _lessons;
+    private readonly IPlaySelectionResolver _play;
+    private readonly ILanguageService _languageService;
     private readonly MultiplayerOptions _options;
 
     public MatchmakingService(
         ApplicationDbContext dbContext,
         MultiplayerSessionService sessions,
         MultiplayerRequestLogStore log,
+        ISessionLessonMatcher lessons,
+        IPlaySelectionResolver play,
+        ILanguageService languageService,
         IOptions<MultiplayerOptions> options)
     {
         _dbContext = dbContext;
         _sessions = sessions;
         _log = log;
+        _lessons = lessons;
+        _play = play;
+        _languageService = languageService;
         _options = options.Value;
     }
 
@@ -61,7 +74,56 @@ public class MatchmakingService : IMatchmakingService
                 ServiceErrorKind.Conflict,
                 "The caller already holds a seat in a session that has not ended.");
 
-        foreach (var candidateId in await FindCandidatesAsync(request, cancellationToken))
+        // The axes this search is scoped by, checked once: an unknown or withdrawn mode, a closed
+        // event or a grade-gated one is refused here rather than after a room has been created.
+        var selection = await _play.ResolveAsync(
+            userId,
+            new PlaySelectionRequest
+            {
+                GameId = request.GameId,
+                ModeKey = request.ModeKey,
+                ContextKey = request.EventId is null ? null : PlayContextTokens.Event,
+                EventId = request.EventId,
+
+                // Two, because matchmaking is by definition looking for company: a mode offered only
+                // solo has nothing to match into.
+                PlayerCount = 2
+            },
+            cancellationToken);
+
+        if (!selection.Succeeded)
+            return new ServiceResult<MatchmakeResponse>
+            {
+                ErrorKind = selection.ErrorKind,
+                Errors = selection.Errors,
+                Error = selection.Error,
+                Details = selection.Details
+            };
+
+        var play = selection.Value!;
+        var langId = await _languageService.ResolveCurrentAsync(cancellationToken);
+
+        // Subject-scoped matchmaking: the caller named a subject and no lesson, so the server works
+        // out what they can play and looks for somebody they overlap with. This is the whole reason a
+        // child can now match at all — requiring both players to have chosen the same lesson meant
+        // matching only with somebody at exactly the same point in the curriculum.
+        IReadOnlyList<Guid> myLessons = [];
+
+        if (request.CurriculumPath?.LessonId is null && request.CurriculumPath?.SubjectId is { } subjectId)
+        {
+            var eligible = await _lessons.EligibleLessonsAsync(
+                userId, request.GameId, subjectId, langId, cancellationToken);
+
+            if (eligible.Count == 0)
+                return ServiceResult<MatchmakeResponse>.Failure(
+                    ApiErrors.PlayNoSharedLesson,
+                    ServiceErrorKind.Conflict,
+                    "You have no unlocked lessons with questions in this subject yet.");
+
+            myLessons = eligible.Select(l => l.LessonId).ToList();
+        }
+
+        foreach (var candidateId in await FindCandidatesAsync(request, play, langId, myLessons, cancellationToken))
         {
             var seated = await _sessions.SeatAsync(userId, candidateId, request.ProtocolVersion, cancellationToken);
 
@@ -106,6 +168,8 @@ public class MatchmakingService : IMatchmakingService
             IsRanked = request.IsRanked,
             ProtocolVersion = request.ProtocolVersion,
             CurriculumPath = request.CurriculumPath,
+            ModeKey = request.ModeKey,
+            EventId = request.EventId,
 
             // **No request id passed through.** The create has to be idempotent under *this* call's
             // key, not under its own — and the matchmake log entry written below is what protects
@@ -137,8 +201,25 @@ public class MatchmakingService : IMatchmakingService
     /// seating somebody into it would put them in a room that is already dying.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// The sessions this caller could join, best first.
+    /// <para>
+    /// Two shapes, and the difference is what the caller asked for. An exact lesson matches only
+    /// sessions playing that lesson — unchanged behaviour, and still right for a direct invite. A
+    /// subject matches sessions whose players share a lesson with this one: either the session has
+    /// already stamped a lesson this caller can play, or it has stamped none and its remaining
+    /// candidates overlap theirs.
+    /// </para>
+    /// <para>
+    /// Mode and event are filtered either way. Matching a child into a session playing different
+    /// rules would be worse than not matching them at all.
+    /// </para>
+    /// </summary>
     private async Task<IReadOnlyList<Guid>> FindCandidatesAsync(
         MatchmakeRequest request,
+        PlaySelection play,
+        Guid langId,
+        IReadOnlyList<Guid> myLessons,
         CancellationToken cancellationToken)
     {
         var freshCutoff = DateTime.UtcNow.AddSeconds(-_options.SessionTimeoutSeconds);
@@ -151,12 +232,24 @@ public class MatchmakingService : IMatchmakingService
                         && s.IsRanked == request.IsRanked
                         && s.ProtocolVersion == request.ProtocolVersion
                         && s.CurrentPlayerCount < s.MaxPlayers
-                        && s.LastHeartbeatAtUtc > freshCutoff);
+                        && s.LastHeartbeatAtUtc > freshCutoff
+                        && s.ModeId == play.ModeId
+                        && s.EventId == play.EventId);
 
-        // The one curriculum filter for v1, agreed with the Unity dev. It reads a real column rather
-        // than the JSON blob precisely so this stays an index seek.
         if (request.CurriculumPath?.LessonId is { } lessonId)
+        {
+            // Reads the real column rather than the JSON blob, precisely so this stays an index seek.
             query = query.Where(s => s.LessonId == lessonId);
+        }
+        else if (request.CurriculumPath?.SubjectId is { } subjectId && myLessons.Count > 0)
+        {
+            query = query.Where(s =>
+                s.SubjectId == subjectId
+                && s.LangId == langId
+                && (s.LessonId == null
+                    ? s.EligibleLessons.Any(l => myLessons.Contains(l.LessonId))
+                    : myLessons.Contains(s.LessonId.Value)));
+        }
 
         return await query
             .OrderByDescending(s => s.CurrentPlayerCount)

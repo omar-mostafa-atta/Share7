@@ -1,4 +1,4 @@
-using Share7.Domain.Economy;
+﻿using Share7.Domain.Economy;
 
 namespace Share7.Application.Economy.Models;
 
@@ -36,6 +36,17 @@ public sealed record SignalPricingRequest
     /// Applied to an already-capped count, so it scales a bounded number rather than an open one.
     /// </summary>
     public long Multiplier { get; init; } = 1;
+
+    /// <summary>
+    /// The economy profile's percentage, applied after every cap and after the modifier. 100 is
+    /// "pay exactly what the valuations say", which is what every caller that has no profile sends.
+    /// <para>
+    /// Applied here rather than by the caller so the <c>RunPayout</c> rows record the number that
+    /// actually moved the balance — a caller that scaled the result afterwards would leave the
+    /// ledger explaining a payout nobody received.
+    /// </para>
+    /// </summary>
+    public int PayoutPercent { get; init; } = 100;
 
     /// <summary>
     /// Skips the account's daily currency ceiling. Used by nothing today and present so the one

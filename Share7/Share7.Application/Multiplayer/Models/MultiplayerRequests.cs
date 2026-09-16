@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using Share7.Domain.Multiplayer;
 
 namespace Share7.Application.Multiplayer.Models;
@@ -26,6 +26,20 @@ public abstract class MultiplayerRequest
 public class CreateMultiplayerSessionRequest : MultiplayerRequest
 {
     public Guid GameId { get; set; }
+
+    /// <summary>
+    /// Which rule-set the match is played under. Absent resolves to the game's default mode, so a
+    /// client that predates modes creates exactly the session it always did.
+    /// <para>
+    /// Matchmaking never mixes two modes: a session created under one is invisible to a caller
+    /// looking for another.
+    /// </para>
+    /// </summary>
+    [MaxLength(128)]
+    public string? ModeKey { get; set; }
+
+    /// <summary>The event this match is an entry in, when it is one.</summary>
+    public Guid? EventId { get; set; }
 
     /// <summary>
     /// The Photon room name, minted client-side. Must be unique among live sessions; a collision is
@@ -139,6 +153,13 @@ public enum HostTransferReason
 public class MatchmakeRequest : MultiplayerRequest
 {
     public Guid GameId { get; set; }
+
+    /// <summary>The mode to match in. Absent means the game's default, and never "any".</summary>
+    [MaxLength(128)]
+    public string? ModeKey { get; set; }
+
+    /// <summary>Match only into entries of this event.</summary>
+    public Guid? EventId { get; set; }
 
     public int ProtocolVersion { get; set; }
 

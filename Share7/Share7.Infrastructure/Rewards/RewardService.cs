@@ -164,7 +164,11 @@ public class RewardService : IRewardService
 
         // One placing is one payout, whatever the rule's repeat policy says. The key is the
         // placing itself, so a retried settlement job finds the key already spent.
-        var placing = $"{context.CycleId}:{context.Cohort}:{context.CohortKey}:{context.UserId}";
+        //
+        // Guids without hyphens: the ledger's IdempotencyKey column is 128 characters, and three
+        // hyphenated Guids behind "LEADERBOARD_SETTLED:" came to 136 — a failed insert, not a
+        // truncation, so every band payout threw. This form is 124.
+        var placing = $"{context.CycleId:N}:{context.Cohort}:{context.CohortKey:N}:{context.UserId:N}";
 
         var target = new PayoutTarget(
             UserId: context.UserId,
@@ -182,6 +186,56 @@ public class RewardService : IRewardService
             }));
 
         return await PayWithLevelUpsAsync(rules, target, transaction, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<RewardDto>> EvaluateEventPrizeAsync(
+        EventPrizeRewardContext context,
+        CancellationToken cancellationToken = default)
+    {
+        var transaction = _dbContext.Database.CurrentTransaction
+            ?? throw new InvalidOperationException(
+                "Event prizes must be evaluated inside an open transaction so the payout and the award row commit together.");
+
+        // Named by id, not matched by key: the tier owns this rule, and a prize table authored for
+        // one event must never pay in another.
+        var rule = await _dbContext.RewardRules
+            .AsNoTracking()
+            .Include(r => r.Grants)
+            .ThenInclude(g => g.Currency)
+            .Include(r => r.EntitlementGrants)
+            .ThenInclude(g => g.Product)
+            .FirstOrDefaultAsync(
+                r => r.Id == context.RewardRuleId
+                     && r.Enabled
+                     && r.EventType == RewardEventType.EventPrize,
+                cancellationToken);
+
+        if (rule is null) return [];
+
+        // One placing wins one prize, ever. The key is the placing itself, so a settlement job that
+        // is retried — which it is, by design — finds it already spent.
+        //
+        // Guids without hyphens for the reason the leaderboard placing gives: hyphenated, this key
+        // was 134 characters against the ledger's 128 and every in-game prize threw at settlement.
+        // This form is 122.
+        var placing = $"event:{context.EventId:N}:{context.Cohort}:{context.CohortKey:N}:{context.UserId:N}";
+
+        var target = new PayoutTarget(
+            UserId: context.UserId,
+            SourceType: LedgerSourceType.System,
+            SourceId: context.EventId.ToString(),
+            OnceKey: placing,
+            SubmissionKey: placing,
+            Metadata: JsonSerializer.Serialize(new
+            {
+                eventId = context.EventId,
+                tierId = context.TierId,
+                cohort = context.Cohort,
+                rank = context.FinalRank,
+                value = context.Value
+            }));
+
+        return await PayWithLevelUpsAsync([rule], target, transaction, cancellationToken);
     }
 
     public async Task<IReadOnlyList<RewardDto>> EvaluateRunSettlementAsync(

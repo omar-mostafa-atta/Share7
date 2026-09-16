@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 
 namespace Share7.Application.Common.Models;
 
@@ -372,6 +372,96 @@ public static class ApiErrors
     /// <summary>The game exists but is retired, so no new run may be opened against it.</summary>
     public static readonly ApiErrorCode GameInactive =
         new("GAME_INACTIVE", "games.game.inactive");
+
+    // ---- play context: modes, contexts, worlds and events ----------------------------------
+
+    /// <summary>The <c>modeKey</c> names no row. Never defaulted silently — a default here would
+    /// price every run of an unknown mode as Classic and nobody would find out.</summary>
+    public static readonly ApiErrorCode PlayModeUnknown =
+        new("PC_MODE_UNKNOWN", "play.mode.unknown");
+
+    /// <summary>Withdrawn by an operator, or outside its authored window.</summary>
+    public static readonly ApiErrorCode PlayModeInactive =
+        new("PC_MODE_INACTIVE", "play.mode.inactive");
+
+    /// <summary>The mode is sold, and this account does not own it.</summary>
+    public static readonly ApiErrorCode PlayModeNotEntitled =
+        new("PC_MODE_NOT_ENTITLED", "play.mode.not_entitled");
+
+    /// <summary>The player's grade is below the mode's <c>minGradeOrder</c>.</summary>
+    public static readonly ApiErrorCode PlayModeGradeGated =
+        new("PC_MODE_GRADE_GATED", "play.mode.grade_gated");
+
+    /// <summary>The mode belongs to another game than the one the session names.</summary>
+    public static readonly ApiErrorCode PlayModeWrongGame =
+        new("PC_MODE_WRONG_GAME", "play.mode.wrong_game");
+
+    /// <summary>Unknown <c>contextKey</c>, an <c>event</c> context with no event, or an event id
+    /// sent with a context that is not an event.</summary>
+    public static readonly ApiErrorCode PlayContextInvalid =
+        new("PC_CONTEXT_INVALID", "play.context.invalid");
+
+    /// <summary>The player count is outside what the mode's topologies allow.</summary>
+    public static readonly ApiErrorCode PlayTopologyMismatch =
+        new("PC_TOPOLOGY_MISMATCH", "play.topology.mismatch");
+
+    public static readonly ApiErrorCode PlayEventUnknown =
+        new("PC_EVENT_UNKNOWN", "play.event.unknown");
+
+    /// <summary>The event's cycle is not open — it has not started, or it has finished.</summary>
+    public static readonly ApiErrorCode PlayEventClosed =
+        new("PC_EVENT_CLOSED", "play.event.closed");
+
+    /// <summary>The event is running, but this account may not enter it: grade, level or entitlement.</summary>
+    public static readonly ApiErrorCode PlayEventNotEligible =
+        new("PC_EVENT_NOT_ELIGIBLE", "play.event.not_eligible");
+
+    /// <summary>The account has already played this event as many times today as its rules allow.</summary>
+    public static readonly ApiErrorCode PlayEventEntryLimit =
+        new("PC_EVENT_ENTRY_LIMIT", "play.event.entry_limit");
+
+    /// <summary>The session names a mode the event does not run.</summary>
+    public static readonly ApiErrorCode PlayEventModeMismatch =
+        new("PC_EVENT_MODE_MISMATCH", "play.event.mode_mismatch");
+
+    /// <summary>The event could not be authored as asked — bad window, prize table or rules.</summary>
+    public static readonly ApiErrorCode PlayEventInvalid =
+        new("PC_EVENT_INVALID", "play.event.invalid");
+
+    /// <summary>The mode could not be authored as asked. <c>details</c> carries what was wrong.</summary>
+    public static readonly ApiErrorCode PlayModeInvalid =
+        new("PC_MODE_INVALID", "play.mode.invalid");
+
+    /// <summary>Another mode already uses that key. Keys are immutable, so this is never a rename.</summary>
+    public static readonly ApiErrorCode PlayModeKeyTaken =
+        new("PC_MODE_KEY_TAKEN", "play.mode.key_taken");
+
+    /// <summary>The world names no row for this game, or the mode may not run in it.</summary>
+    public static readonly ApiErrorCode PlayWorldUnknown =
+        new("PC_WORLD_UNKNOWN", "play.world.unknown");
+
+    /// <summary>The world exists but this account has not unlocked it.</summary>
+    public static readonly ApiErrorCode PlayWorldLocked =
+        new("PC_WORLD_LOCKED", "play.world.locked");
+
+    /// <summary>The world could not be authored as asked.</summary>
+    public static readonly ApiErrorCode PlayWorldInvalid =
+        new("PC_WORLD_INVALID", "play.world.invalid");
+
+    /// <summary>
+    /// The players in a session have no lesson in common in the subject they chose — nothing both
+    /// has unlocked with questions in the language each is playing.
+    /// </summary>
+    public static readonly ApiErrorCode PlayNoSharedLesson =
+        new("PC_NO_SHARED_LESSON", "play.lesson.none_shared");
+
+    /// <summary>No prize claim with that id belongs to this account.</summary>
+    public static readonly ApiErrorCode PlayPrizeClaimNotFound =
+        new("PC_CLAIM_NOT_FOUND", "play.claim.not_found");
+
+    /// <summary>The claim cannot move to that state from the one it is in.</summary>
+    public static readonly ApiErrorCode PlayPrizeClaimInvalidTransition =
+        new("PC_CLAIM_INVALID_TRANSITION", "play.claim.invalid_transition");
 
     // ---- generic -------------------------------------------------------------------------
 

@@ -1,4 +1,4 @@
-namespace Share7.Domain.Leaderboards;
+﻿namespace Share7.Domain.Leaderboards;
 
 /// <summary>
 /// A board definition. **Always data, never code** — adding a board is an INSERT, with no
@@ -35,6 +35,27 @@ public class LeaderboardBoard
 
     /// <summary>The metric being ranked. Validated against <c>LeaderboardMetrics.Known</c>.</summary>
     public string Metric { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Restricts the board to results played in one mode. Null ranks every mode of the game together.
+    /// <para>
+    /// **This is why difficulty belongs to the mode and never to the world.** A board that mixed a
+    /// three-heart run with a one-heart run would rank the easier rules, so a mode that changes what
+    /// a run is worth gets its own board — and a world, which changes only what it looks like, never does.
+    /// </para>
+    /// </summary>
+    public Guid? ModeId { get; set; }
+
+    /// <summary>
+    /// Binds the board to one event, so only results earned inside that event can reach it. Null is
+    /// an ordinary board, which takes no event's results.
+    /// <para>
+    /// An event owns its board rather than borrowing the weekly one: its prize table pays against
+    /// final ranks, and a ladder that also contained ordinary play would be paying for gameplay the
+    /// entrants never agreed to compete in.
+    /// </para>
+    /// </summary>
+    public Guid? EventId { get; set; }
 
     public LeaderboardSortDirection SortDirection { get; set; }
 
