@@ -1,0 +1,18 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Secrets — never commit real values for these
+appsettings.Production.json
+appsettings.*.local.json
+*.pfx
+*.pem
+
+# Publish output
+publish/
+PublishProfiles/*.pubxml.user

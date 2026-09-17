@@ -1,0 +1,28 @@
+using Share7.Application.Curriculum.Models;
+
+namespace Share7.Application.Curriculum.Interfaces;
+
+public interface ILessonQuestionService
+{
+    /// <summary>Version-only lookup. Returns null when the lesson does not exist.</summary>
+    Task<LessonVersionDto?> GetVersionAsync(Guid lessonId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Batch version lookup so the client can validate its whole cache in one round trip
+    /// instead of one call per lesson. Unknown lesson ids are omitted from the result.
+    /// </summary>
+    Task<IReadOnlyList<LessonVersionDto>> GetVersionsAsync(IEnumerable<Guid> lessonIds, CancellationToken cancellationToken = default);
+
+    /// <summary>Active question set for a lesson. Returns null when the lesson does not exist.</summary>
+    Task<LessonQuestionsDto?> GetQuestionsAsync(Guid lessonId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Active question set for a lesson in a **named** language rather than the caller's own.
+    /// <para>
+    /// For the admin console, which edits one language while the admin's own token says another —
+    /// the sheet upload has always taken an explicit <c>langId</c> for the same reason, and an
+    /// editor that loaded the wrong language would republish it over the one being edited.
+    /// </para>
+    /// </summary>
+    Task<LessonQuestionsDto?> GetQuestionsAsync(Guid lessonId, Guid langId, CancellationToken cancellationToken = default);
+}
