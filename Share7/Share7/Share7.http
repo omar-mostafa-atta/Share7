@@ -1,6 +1,0 @@
-@Share7_HostAddress = http://localhost:5215
-
-GET {{Share7_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###
