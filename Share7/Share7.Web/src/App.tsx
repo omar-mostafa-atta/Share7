@@ -10,6 +10,7 @@ import { Currencies } from './routes/Currencies'
 import { Curriculum } from './routes/Curriculum'
 import { Events } from './routes/Events'
 import { Games } from './routes/Games'
+import { Guidance } from './routes/Guidance'
 import { Leaderboards } from './routes/Leaderboards'
 import { LiveEvents } from './routes/LiveEvents'
 import { Login } from './routes/Login'
@@ -81,6 +82,7 @@ export function App() {
               already have bookmarked. */}
           <Route path="/live-events" element={<LiveEvents />} />
           <Route path="/progression" element={<Progression />} />
+          <Route path="/guidance" element={<Guidance />} />
 
           <Route path="/currencies" element={<Currencies />} />
           <Route path="/signals" element={<Signals />} />

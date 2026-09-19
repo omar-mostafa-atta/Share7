@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -23,10 +23,12 @@ using Share7.Application.Rewards.Interfaces;
 using Share7.Application.Runs.Interfaces;
 using Share7.Application.Runs.Models;
 using Share7.Application.Users.Interfaces;
+using Share7.Application.Guidance.Interfaces;
 using Share7.Infrastructure.Commerce;
 using Share7.Infrastructure.Curriculum;
 using Share7.Infrastructure.Economy;
 using Share7.Infrastructure.Equipment;
+using Share7.Infrastructure.Guidance;
 using Share7.Infrastructure.Users;
 using Share7.Infrastructure.Games;
 using Share7.Infrastructure.Identity;
@@ -152,6 +154,9 @@ public static class DependencyInjection
         services.AddScoped<IPurchaseService, PurchaseService>();
         services.AddScoped<IAccountDeletionService, AccountDeletionService>();
         services.AddScoped<IUserProfileService, UserProfileService>();
+        services.AddScoped<IGuidanceStateService, GuidanceStateService>();
+        services.AddScoped<IGuidanceAdminService, GuidanceAdminService>();
+        services.AddScoped<IGuidanceCatalogService, GuidanceCatalogService>();
 
         services.Configure<RunOptions>(configuration.GetSection(RunOptions.SectionName));
         services.AddScoped<IEarnCeilingService, EarnCeilingService>();

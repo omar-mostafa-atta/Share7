@@ -185,7 +185,7 @@ public class RunSettlementTests
         Assert.True(settled.Succeeded);
 
         var reward = Assert.Single(settled.Value!.Rewards);
-        Assert.Equal("pickup:coin", reward.Source);
+        Assert.Equal("signal:coin", reward.Source);
         Assert.Equal(141, reward.Amount);
         Assert.Equal(coins.Key, reward.Currency);
 
@@ -266,12 +266,12 @@ public class RunSettlementTests
         // The client must be able to say *why* it paid 20 after showing 47. Paying less in silence is
         // how a child learns the game is unfair.
         Assert.True(settled.Value.CapReached);
-        Assert.Equal("pickup_limit", settled.Value.CapMessage);
+        Assert.Equal("signal_limit", settled.Value.CapMessage);
 
         await using var check = _fixture.CreateContext();
         var run = await check.Runs.SingleAsync(r => r.Id == started.Value.RunId);
         Assert.True(run.IsFlagged);
-        Assert.Contains("pickup_capped", run.FlagReason);
+        Assert.Contains("signal_capped", run.FlagReason);
 
         // Flagged for review, capped, and *paid* — never thrown away with an error.
         Assert.Equal(RunState.Settled, run.State);
@@ -536,7 +536,7 @@ public class RunSettlementTests
         // Two mechanisms, one wallet: a variable payout that scales with what was collected, and a
         // fixed bonus a rule can express. The source is how the results screen tells them apart.
         Assert.Equal(2, settled.Value!.Rewards.Count);
-        Assert.Equal(10, settled.Value.Rewards.Single(r => r.Source == "pickup:coin").Amount);
+        Assert.Equal(10, settled.Value.Rewards.Single(r => r.Source == "signal:coin").Amount);
         Assert.Equal(25, settled.Value.Rewards.Single(r => r.Source == $"rule:{rule.Id}").Amount);
         Assert.Equal(35, settled.Value.Balances.AmountOf(coins.Key));
 

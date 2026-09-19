@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Share7.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using Share7.Infrastructure.Persistence;
 namespace Share7.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260919051705_AddUserGuidanceState")]
+    partial class AddUserGuidanceState
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1327,175 +1330,6 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.HasIndex("LangId");
 
                     b.ToTable("GameTranslations", (string)null);
-                });
-
-            modelBuilder.Entity("Share7.Domain.Guidance.GuidanceAuditLog", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Action")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<string>("DetailsJson")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<Guid?>("FlowId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("TimestampUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("UserEmail")
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.Property<Guid?>("UserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TimestampUtc");
-
-                    b.HasIndex("FlowId", "TimestampUtc");
-
-                    b.ToTable("GuidanceAuditLogs", (string)null);
-                });
-
-            modelBuilder.Entity("Share7.Domain.Guidance.GuidanceFlow", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("ActiveVersionNumber")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasDefaultValue(0);
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(1024)
-                        .HasColumnType("nvarchar(1024)")
-                        .HasDefaultValue("");
-
-                    b.Property<bool>("IsKillSwitched")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(false);
-
-                    b.Property<string>("Key")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.Property<string>("Kind")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)")
-                        .HasDefaultValue("Tour");
-
-                    b.Property<int>("Priority")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasDefaultValue(3);
-
-                    b.Property<int>("ReplayPolicy")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasDefaultValue(0);
-
-                    b.Property<bool>("Resumable")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(false);
-
-                    b.Property<int>("SkipAfterStep")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasDefaultValue(2);
-
-                    b.Property<bool>("Skippable")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(true);
-
-                    b.Property<string>("TargetAudienceJson")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.Property<DateTime>("UpdatedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("IsKillSwitched");
-
-                    b.HasIndex("Key")
-                        .IsUnique();
-
-                    b.ToTable("GuidanceFlows", (string)null);
-                });
-
-            modelBuilder.Entity("Share7.Domain.Guidance.GuidanceFlowVersion", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("ChangeSummary")
-                        .HasMaxLength(512)
-                        .HasColumnType("nvarchar(512)");
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid>("FlowId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("PublishedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("PublishedByUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
-                        .HasDefaultValue("Draft");
-
-                    b.Property<string>("StepsJson")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("TriggerConditionsJson")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("VersionNumber")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Status");
-
-                    b.HasIndex("FlowId", "VersionNumber")
-                        .IsUnique();
-
-                    b.ToTable("GuidanceFlowVersions", (string)null);
                 });
 
             modelBuilder.Entity("Share7.Domain.Guidance.UserGuidanceState", b =>
@@ -5784,27 +5618,6 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.Navigation("Language");
                 });
 
-            modelBuilder.Entity("Share7.Domain.Guidance.GuidanceAuditLog", b =>
-                {
-                    b.HasOne("Share7.Domain.Guidance.GuidanceFlow", "Flow")
-                        .WithMany("AuditLogs")
-                        .HasForeignKey("FlowId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
-                    b.Navigation("Flow");
-                });
-
-            modelBuilder.Entity("Share7.Domain.Guidance.GuidanceFlowVersion", b =>
-                {
-                    b.HasOne("Share7.Domain.Guidance.GuidanceFlow", "Flow")
-                        .WithMany("Versions")
-                        .HasForeignKey("FlowId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Flow");
-                });
-
             modelBuilder.Entity("Share7.Domain.Guidance.UserGuidanceState", b =>
                 {
                     b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
@@ -6536,13 +6349,6 @@ namespace Share7.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Share7.Domain.Games.Game", b =>
                 {
                     b.Navigation("Translations");
-                });
-
-            modelBuilder.Entity("Share7.Domain.Guidance.GuidanceFlow", b =>
-                {
-                    b.Navigation("AuditLogs");
-
-                    b.Navigation("Versions");
                 });
 
             modelBuilder.Entity("Share7.Domain.Leaderboards.LeaderboardBoard", b =>

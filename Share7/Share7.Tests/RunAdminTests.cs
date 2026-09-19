@@ -347,7 +347,7 @@ public class RunAdminTests
         var mine = Assert.Single(queued, r => r.RunId == started.Value.RunId);
 
         // The queue has to answer "why did they only get 20?" without a second query.
-        Assert.Contains("pickup_capped", mine.FlagReason);
+        Assert.Contains("signal_capped", mine.FlagReason);
         Assert.Equal(47, Assert.Single(mine.Collected).Count);
 
         var payout = Assert.Single(mine.Payouts);
@@ -364,7 +364,7 @@ public class RunAdminTests
         // **The flag stays.** It records what happened to the run; the review records a judgement
         // about it. Clearing it would tidy the queue at the cost of the payout being explicable.
         Assert.True(reviewed.Value.IsFlagged);
-        Assert.Contains("pickup_capped", reviewed.Value.FlagReason);
+        Assert.Contains("signal_capped", reviewed.Value.FlagReason);
 
         Assert.DoesNotContain(
             await admin.GetFlaggedRunsAsync(take: 200), r => r.RunId == started.Value.RunId);

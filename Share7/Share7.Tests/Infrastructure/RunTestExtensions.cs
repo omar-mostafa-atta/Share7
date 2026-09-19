@@ -41,6 +41,12 @@ public static class RunTestExtensions
     {
         var resolved = wallet ?? new WalletService(context);
 
+        // One options object for the service and the pricer. The pricer is where the per-second bound
+        // is applied, so handing it plain defaults while the service got Permissive() reinstated the
+        // very clamp Permissive exists to lift: every run here settles milliseconds after it starts,
+        // and 20 a second over a one-second floor capped every claim above 20.
+        var runOptions = options ?? Permissive();
+
         return new RunService(
             context,
             resolved,
@@ -48,7 +54,7 @@ public static class RunTestExtensions
             new EarnCeilingService(context),
             // The real pricer, for the same reason the recorder below is real: it reads and writes the
             // counters the settlement's caps depend on, inside the same transaction.
-            new SignalPricer(context, new EarnCeilingService(context), Options.Create(options ?? new RunOptions())),
+            new SignalPricer(context, new EarnCeilingService(context), Options.Create(runOptions)),
             new LevelService(context),
             new RunLayoutVerifier(generators),
             // The real recorder, not a stub: it writes into the same DbContext and therefore the
@@ -63,7 +69,7 @@ public static class RunTestExtensions
             // The real resolver too: a run's mode, context and event decide what it settles as, and
             // a stub here would make every one of these tests pass under a policy nothing shipped.
             new PlaySelectionResolver(context, new LevelService(context)),
-            Options.Create(options ?? Permissive()));
+            Options.Create(runOptions));
     }
 
     public static RunAdminService CreateRunAdminService(ApplicationDbContext context) => new(context);

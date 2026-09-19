@@ -1,4 +1,4 @@
-﻿# Starts the API and the console dev server together, each in its own window.
+# Starts the API and the console dev server together, each in its own window.
 #
 #   .\dev.ps1           dev loop  — Vite on :5173 proxying /api to the API on :7147
 #   .\dev.ps1 -Built    prod path — builds the SPA into wwwroot, API serves it on :7147
@@ -36,20 +36,23 @@ if ($Built) {
     Write-Host 'Starting the API. It serves the console:' -ForegroundColor Green
     Write-Host '  https://localhost:7147/' -ForegroundColor Green
     Write-Host ''
+    $env:DOTNET_ROLL_FORWARD = 'LatestMajor'
     dotnet run --project $api --launch-profile https
     return
 }
 
 Write-Host 'Starting the API on :7147 in a new window...' -ForegroundColor Cyan
 Start-Process powershell -ArgumentList @(
+    '-ExecutionPolicy', 'Bypass',
     '-NoExit', '-Command',
-    "Write-Host 'Share7 API' -ForegroundColor Cyan; dotnet run --project '$api' --launch-profile https"
+    "`$env:DOTNET_ROLL_FORWARD = 'LatestMajor'; Write-Host 'Share7 API' -ForegroundColor Cyan; dotnet run --project '$api' --launch-profile https"
 )
 
 Write-Host 'Starting the Vite dev server on :5173 in a new window...' -ForegroundColor Cyan
 Start-Process powershell -ArgumentList @(
+    '-ExecutionPolicy', 'Bypass',
     '-NoExit', '-Command',
-    "Write-Host 'Share7.Web (dev)' -ForegroundColor Magenta; Set-Location '$web'; npm run dev"
+    "Write-Host 'Share7.Web (dev)' -ForegroundColor Magenta; Set-Location '$web'; npm.cmd run dev"
 )
 
 Write-Host ''

@@ -7,6 +7,7 @@ import {
   Boxes,
   Layers,
   Coins,
+  Compass,
   Gamepad2,
   Gauge,
   Gift,
@@ -138,6 +139,13 @@ export const NAV: NavGroup[] = [
         label: 'Progression',
         icon: Gauge,
         blurb: 'The XP level curve — cumulative thresholds per level',
+      },
+      {
+        to: '/guidance',
+        label: 'Guidance',
+        icon: Compass,
+        blurb:
+          'Remote guidance CMS — walkthroughs, onboarding tours, drafts, version publishing and emergency kill-switch',
       },
     ],
   },

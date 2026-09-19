@@ -32,6 +32,7 @@ import { toast } from '../store/toast'
 import { useAuth } from '../store/auth'
 import { useProducts } from '../features/shop/data'
 import { listVariants } from '../components/ui/motion'
+import { GuidanceUserTab } from '../features/guidance/GuidanceUserTab'
 import type {
   AdminUserDetailDto,
   AdminUserEntitlementDto,
@@ -43,7 +44,7 @@ import type {
 } from '../types/api'
 
 /** Which panel of the detail drawer is open. Each fetches only when selected. */
-type DrawerTab = 'profile' | 'wallet' | 'progression' | 'items' | 'runs'
+type DrawerTab = 'profile' | 'wallet' | 'progression' | 'items' | 'runs' | 'guidance'
 
 // ===========================================================================
 // Users
@@ -380,6 +381,7 @@ function UserDrawer({
                 { value: 'progression', label: 'Progression' },
                 { value: 'items', label: 'Items' },
                 { value: 'runs', label: 'Runs' },
+                { value: 'guidance', label: 'Guidance' },
               ]}
             />
 
@@ -695,6 +697,8 @@ function UserDrawer({
                 </div>
               )
             ) : null}
+
+            {tab === 'guidance' ? <GuidanceUserTab userId={user.userId} /> : null}
           </div>
         )}
       </Drawer>

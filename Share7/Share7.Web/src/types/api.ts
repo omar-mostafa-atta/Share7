@@ -1584,3 +1584,179 @@ export interface UpdatePrizeClaimRequest {
   state: string
   note: string | null
 }
+
+// ---- guidance (Share7.Application.Guidance.Models) ------------------------
+
+export interface GuidanceFlowAdminDto {
+  id: string
+  key: string
+  title: string
+  description: string
+  kind: string
+  priority: number
+  replayPolicy: number
+  skippable: boolean
+  skipAfterStep: number
+  resumable: boolean
+  isKillSwitched: boolean
+  activeVersionNumber: number
+  targetAudienceJson: string | null
+  createdAtUtc: string
+  updatedAtUtc: string
+  activeVersion: GuidanceFlowVersionAdminDto | null
+  draftVersion: GuidanceFlowVersionAdminDto | null
+  versions: GuidanceFlowVersionAdminDto[]
+}
+
+export interface GuidanceFlowVersionAdminDto {
+  id: string
+  flowId: string
+  versionNumber: number
+  status: 'Draft' | 'Published' | 'Archived'
+  stepsJson: string
+  triggerConditionsJson: string | null
+  changeSummary: string | null
+  createdAtUtc: string
+  publishedAtUtc: string | null
+  publishedByUserId: string | null
+}
+
+export interface CreateGuidanceFlowRequest {
+  key: string
+  title: string
+  description: string
+  kind: string
+  priority: number
+  replayPolicy: number
+  skippable: boolean
+  skipAfterStep: number
+  resumable: boolean
+  targetAudienceJson?: string | null
+  initialStepsJson: string
+  initialTriggerConditionsJson?: string | null
+}
+
+export interface UpdateGuidanceFlowDraftRequest {
+  title?: string
+  description?: string
+  kind?: string
+  priority?: number
+  replayPolicy?: number
+  skippable?: boolean
+  skipAfterStep?: number
+  resumable?: boolean
+  targetAudienceJson?: string | null
+  stepsJson: string
+  triggerConditionsJson?: string | null
+  changeSummary?: string | null
+}
+
+export interface PublishGuidanceFlowRequest {
+  changeSummary?: string | null
+}
+
+export interface ToggleKillSwitchRequest {
+  isKillSwitched: boolean
+  reason: string
+}
+
+export interface ResetUserGuidanceRequest {
+  reason: string
+}
+
+export interface GuidanceAuditLogDto {
+  id: string
+  flowId: string | null
+  flowKey: string | null
+  action: string
+  userId: string | null
+  userEmail: string | null
+  timestampUtc: string
+  detailsJson: string | null
+}
+
+export interface GuidanceFlowStateSnapshot {
+  id: string
+  furthestStep: number
+  completedVersion: number
+  completion: number
+  finished: boolean
+}
+
+export interface GuidanceShownStateSnapshot {
+  id: string
+  count: number
+  sessionOrdinal: number
+  hasServerTime: boolean
+  serverTicksUtc: number
+  dayKey: string
+  dayCount: number
+}
+
+export interface GuidanceStateSnapshot {
+  schemaVersion: number
+  sessionOrdinal: number
+  lastSessionDayUtc: string
+  flows: GuidanceFlowStateSnapshot[]
+  shown: GuidanceShownStateSnapshot[]
+  suppressed: string[]
+  revision: number
+}
+
+export interface GuidanceStateResponseDto {
+  generation: number
+  snapshot: GuidanceStateSnapshot
+}
+
+export interface GuidanceStepFunnelDto {
+  stepIndex: number
+  stepId: string
+  anchor?: string | null
+  locKey?: string | null
+  reachedCount: number
+  dropOffCount: number
+  dropOffRate: number
+  conversionFromStart: number
+  conversionFromPrevious: number
+  averageDurationMs: number
+}
+
+export interface GuidanceFlowFunnelDto {
+  flowId: string
+  flowKey: string
+  flowTitle: string
+  version?: number | null
+  fromDayUtc: string
+  toDayUtc: string
+  totalStarted: number
+  totalCompleted: number
+  totalAbandoned: number
+  totalSkipped: number
+  completionRate: number
+  averageDurationSeconds: number
+  steps: GuidanceStepFunnelDto[]
+}
+
+export interface GuidanceMissingAnchorSummaryDto {
+  anchorId: string
+  flowKey: string
+  stepIndex: number
+  occurrenceCount: number
+  firstSeenUtc: string
+  lastSeenUtc: string
+  platforms: string[]
+  appVersions: string[]
+}
+
+export interface GuidanceFlowSummaryStatsDto {
+  flowId: string
+  flowKey: string
+  title: string
+  activeVersion: number
+  isKillSwitched: boolean
+  totalStarted: number
+  totalCompleted: number
+  completionRate: number
+  missingAnchorCount: number
+  lastActivityUtc: string | null
+}

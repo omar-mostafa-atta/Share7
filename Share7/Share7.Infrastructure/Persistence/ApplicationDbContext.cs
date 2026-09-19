@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Share7.Domain.Commerce;
 using Share7.Domain.Curriculum;
@@ -15,6 +15,7 @@ using Share7.Domain.Objectives;
 using Share7.Domain.Progression;
 using Share7.Domain.Rewards;
 using Share7.Domain.Runs;
+using Share7.Domain.Guidance;
 using Share7.Domain.Telemetry;
 using Share7.Infrastructure.Identity;
 
@@ -62,6 +63,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, Applicati
     // Avatar outfits. One row per user — the two lists are JSON columns rather than child tables
     // because they are only ever read and written whole.
     public DbSet<UserEquipment> Equipments => Set<UserEquipment>();
+
+    /// <summary>Guidance journal state. One row per user, containing the CRDT state snapshot.</summary>
+    public DbSet<UserGuidanceState> UserGuidanceStates => Set<UserGuidanceState>();
 
     public DbSet<Game> Games => Set<Game>();
     public DbSet<GameTranslation> GameTranslations => Set<GameTranslation>();
@@ -267,6 +271,11 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, Applicati
     /// becoming four thousand event names nobody can tell apart.
     /// </summary>
     public DbSet<TelemetryEventSchema> TelemetryEventSchemas => Set<TelemetryEventSchema>();
+
+    // Guidance Framework & Remotely Manageable CMS
+    public DbSet<GuidanceFlow> GuidanceFlows => Set<GuidanceFlow>();
+    public DbSet<GuidanceFlowVersion> GuidanceFlowVersions => Set<GuidanceFlowVersion>();
+    public DbSet<GuidanceAuditLog> GuidanceAuditLogs => Set<GuidanceAuditLog>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
