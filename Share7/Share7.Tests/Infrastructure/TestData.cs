@@ -1,8 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using Share7.Domain.Constants;
+using Share7.Domain.Content;
 using Share7.Domain.Curriculum;
 using Share7.Domain.Games;
 using Share7.Infrastructure.Identity;
+using Share7.Infrastructure.Content;
 using Share7.Infrastructure.Persistence;
 
 namespace Share7.Tests.Infrastructure;
@@ -68,9 +70,24 @@ public static class TestData
         var chapter = new Chapter { Id = Guid.NewGuid(), SubjectId = subject.Id, Order = NextOrder() };
         var lesson = new Lesson { Id = Guid.NewGuid(), ChapterId = chapter.Id, Order = NextOrder() };
 
+        context.Terms.Add(term);
+        context.Subjects.Add(subject);
+        context.Chapters.Add(chapter);
+
+        // Identity comes from the real minter, so the fixture cannot produce a question that the
+        // production importer could not: no item, no measurement, and the evidence recorder would
+        // skip it.
+        context.Lessons.Add(lesson);
+        await context.SaveChangesAsync(cancellationToken);
+
+        var itemVersion = await new ItemIdentityMinter(context).ResolveForLessonRowAsync(
+            lesson.Id, 1, 1, NodeItemRole.Core, DateTime.UtcNow, cancellationToken);
+
         var question = new Question
         {
             Id = Guid.NewGuid(),
+            ItemVersionId = itemVersion.Id,
+            ItemVersion = itemVersion,
             LessonId = lesson.Id,
             LangId = LanguageIds.English,
             Text = "Symbol for iron?",
@@ -96,10 +113,6 @@ public static class TestData
             GameKey = $"g_{Guid.NewGuid():N}"[..20]
         };
 
-        context.Terms.Add(term);
-        context.Subjects.Add(subject);
-        context.Chapters.Add(chapter);
-        context.Lessons.Add(lesson);
         context.Questions.Add(question);
         context.Games.Add(game);
 

@@ -306,7 +306,10 @@ public class ManualQuestionEntryTests
 
     // ---- helpers ---------------------------------------------------------------------------
 
-    private static QuestionImportService Service(ApplicationDbContext context) => new(context);
+    // The real minter, so a test publishes exactly what production publishes: a question with no
+    // item identity is unmeasurable, and the schema refuses it.
+    private static QuestionImportService Service(ApplicationDbContext context) =>
+        new(context, new Share7.Infrastructure.Content.ItemIdentityMinter(context));
 
     private static ManualQuestionInput Question(
         string text, string correct, string wrong1 = "wrong one", string wrong2 = "wrong two") =>

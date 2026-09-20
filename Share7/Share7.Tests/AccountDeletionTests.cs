@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Share7.Domain.Economy;
 using Share7.Domain.Commerce;
@@ -145,8 +145,13 @@ public class AccountDeletionTests
             var entityType = check.Model.FindEntityType(clrType)!;
             var table = entityType.GetTableName();
 
+            // The owning column, from the same resolver the purge uses — the evidence log calls
+            // it LearnerId, and a hard-coded "UserId" here would have this test pass by throwing
+            // on a table it never checked.
+            var column = UserOwnedData.UserKeyColumn(entityType);
+
             var orphans = await check.Database
-                .SqlQueryRaw<int>($"SELECT COUNT(*) AS [Value] FROM [{table}] t LEFT JOIN [AspNetUsers] u ON u.[Id] = t.[UserId] WHERE u.[Id] IS NULL")
+                .SqlQueryRaw<int>($"SELECT COUNT(*) AS [Value] FROM [{table}] t LEFT JOIN [AspNetUsers] u ON u.[Id] = t.[{column}] WHERE u.[Id] IS NULL")
                 .SingleAsync();
 
             Assert.True(orphans == 0, $"{table} still holds {orphans} row(s) with no owning account.");

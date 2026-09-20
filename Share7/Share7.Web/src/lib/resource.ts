@@ -41,6 +41,10 @@ export function useResource<T>(
   const selectRef = useRef(select)
   selectRef.current = select
 
+  // Held in a ref for the same reason as `select`: callers pass an inline literal.
+  const fallbackRef = useRef(fallback)
+  fallbackRef.current = fallback
+
   // Guards against a slow first response overwriting a newer one. Two loads can
   // be in flight after a fast reload, and without this the older reply wins
   // whenever it happens to land second.
@@ -57,7 +61,21 @@ export function useResource<T>(
         const raw = await api.get<unknown>(path)
         if (mine !== generation.current) return
 
-        setData(selectRef.current ? selectRef.current(raw) : (raw as T))
+        const next = selectRef.current ? selectRef.current(raw) : (raw as T)
+
+        // A payload of the wrong *shape* is not data, and handing it on is how one mistyped path
+        // takes a whole page down: every list here is rendered with `.map`, so a body that is not
+        // an array throws during render rather than at the fetch, and the error boundary replaces
+        // the page. The fallback tells us what the caller expects, so when the answer disagrees
+        // with it, keep the empty state and say so — the failed request has already been toasted
+        // by the global handler, and an empty table beside that toast is a diagnosis where a
+        // blank page is a mystery.
+        if (Array.isArray(fallbackRef.current) && !Array.isArray(next)) {
+          console.error(`[useResource] ${path} answered with a non-array; keeping the fallback`, next)
+          return
+        }
+
+        setData(next)
       } catch {
         // Already surfaced by the global error handler in App.tsx. Swallowing
         // here keeps the previous data on screen rather than blanking the page

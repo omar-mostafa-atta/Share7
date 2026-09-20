@@ -1,11 +1,16 @@
 import { MotionConfig, useReducedMotion } from 'motion/react'
 import { useEffect } from 'react'
+import { useDocumentHasBeenVisible } from './lib/visibility'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/layout/AppShell'
 import { Toaster } from './components/ui/Toaster'
 import { setApiErrorHandler } from './lib/client'
 import { useToasts } from './store/toast'
 import { Analytics } from './routes/Analytics'
+import { ContentQuality } from './routes/ContentQuality'
+import { Organizations } from './routes/Organizations'
+import { Exams } from './routes/Exams'
+import { LearningTargets } from './routes/LearningTargets'
 import { Currencies } from './routes/Currencies'
 import { Curriculum } from './routes/Curriculum'
 import { Events } from './routes/Events'
@@ -32,6 +37,11 @@ import { Users } from './routes/Users'
 
 export function App() {
   const reduced = useReducedMotion()
+
+  // Marks the document as having been looked at, which releases the stylesheet's resting-state
+  // override. See lib/visibility.ts — without it the console is blank in any tab that loads while
+  // hidden, which is every tab opened from a link in the background.
+  useDocumentHasBeenVisible()
 
   // Wiring the client's error sink to the toast store here, once, reproduces the old console's
   // behaviour — where api() toasted every failure itself — without the fetch layer importing UI.
@@ -71,6 +81,14 @@ export function App() {
           <Route path="/trace" element={<UserTrace />} />
 
           <Route path="/curriculum" element={<Curriculum />} />
+
+          {/* Its own page rather than a tab on Curriculum. The tree answers "what
+              content exists"; this answers "is the content any good", which is a
+              different question asked by a different person at a different time. */}
+          <Route path="/quality" element={<ContentQuality />} />
+          <Route path="/targets" element={<LearningTargets />} />
+            <Route path="/organizations" element={<Organizations />} />
+            <Route path="/exams" element={<Exams />} />
           <Route path="/games" element={<Games />} />
           <Route path="/modes" element={<PlayModes />} />
 

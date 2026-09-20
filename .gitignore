@@ -4,3 +4,13 @@ Share7/Auth.md
 Share7/UnityIntegration.md
 Share7/Share7/wwwroot/auth-test.html
 /client
+
+# Deployment artefacts and scripts that carry live MonsterASP credentials in their
+# parameter defaults (FTP password, production SQL connection string). They are kept
+# out of the repository until the secrets are moved to environment variables — a
+# password pushed once is a password to rotate, whether or not the commit is reverted.
+Share7/Deploy-ToMonsterASP.ps1
+Share7/Migrate-DatabaseToMonsterASP.ps1
+Share7/Upload-ViaCurl.ps1
+Share7/publish_output/
+Share7/share7_backend_publish.zip

@@ -43,4 +43,12 @@ public static class ProjectionConsumers
     /// second stream with its own cursor, which is exactly the generality this table was built for.
     /// </summary>
     public const string Telemetry = "telemetry";
+
+    /// <summary>
+    /// The observation projector. Reads <c>LearnerResponses</c> — a third stream with its own
+    /// cursor, which is the generality this table was built for. The watermark bounds the scan
+    /// for the global sweep; the per-learner path finds its work by anti-join instead, so the two
+    /// cannot fold the same response twice.
+    /// </summary>
+    public const string Observations = "observations";
 }

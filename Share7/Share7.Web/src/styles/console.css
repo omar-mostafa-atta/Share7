@@ -1755,3 +1755,332 @@ body { background-color: var(--s7-bg); }
   margin-bottom: 6px;
   font-size: 12px;
 }
+
+/* ---------------------------------------------------------------------------
+   Content Quality
+   ---------------------------------------------------------------------------
+   Two elements the rest of the console has no equivalent of.
+
+   `s7-kv` is a label/value list where the label needs a sentence under it —
+   almost every figure on that page is meaningless without one, because the
+   difference between "answers recorded" and "observations" is the difference
+   between a fact and an interpretation of it.
+
+   `s7-choice-bars` is the distractor breakdown: which answer learners actually
+   picked, not merely how many were right. It is the genuinely new thing the
+   evidence log made possible, and a bar per choice reads at a glance in a way
+   three numbers in a row does not.
+   --------------------------------------------------------------------------- */
+
+.s7-kv { display: flex; flex-direction: column; gap: 0.55rem; }
+
+.s7-kv-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.s7-kv-label { font-size: 0.85rem; color: var(--s7-ink); }
+.s7-kv-hint { margin-top: 0.1rem; font-size: 0.74rem; color: var(--s7-muted); max-width: 34rem; }
+.s7-kv-value { font-variant-numeric: tabular-nums; font-size: 0.95rem; font-weight: 600; white-space: nowrap; }
+
+.s7-text-warning { color: var(--s7-warning, #d98324); }
+.s7-text-brand { color: var(--s7-brand, #6366f1); }
+
+.s7-cell-strong { font-size: 0.86rem; color: var(--s7-ink); }
+.s7-cell-sub { margin-top: 0.12rem; font-size: 0.72rem; color: var(--s7-muted); }
+
+.s7-badge-row { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.s7-row-actions { display: flex; gap: 0.25rem; justify-content: flex-end; }
+
+.s7-choice-bars { display: flex; flex-direction: column; gap: 0.2rem; min-width: 12rem; }
+
+.s7-choice-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.12rem 0.4rem;
+  border-radius: 0.3rem;
+  overflow: hidden;
+  font-size: 0.72rem;
+}
+
+.s7-choice-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: color-mix(in srgb, var(--s7-muted) 26%, transparent);
+  border-radius: 0.3rem;
+}
+
+.s7-choice-correct { background: color-mix(in srgb, var(--s7-success, #15803d) 28%, transparent); }
+
+.s7-choice-label { position: relative; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.s7-choice-count { position: relative; font-variant-numeric: tabular-nums; color: var(--s7-muted); }
+
+/* ===========================================================================
+   Assessment, blueprints and learning targets
+
+   `s7-muted`, `s7-small` and `s7-strong` were already being used by four
+   existing pages and defined nowhere, so those spans have been inheriting the
+   colour of whatever contained them. Defining them here rather than in the new
+   pages' own block, because they are not new — they were simply missing.
+   =========================================================================== */
+
+.s7-muted   { color: var(--s7-muted); }
+.s7-small   { font-size: 0.78rem; }
+.s7-strong  { font-weight: 600; color: var(--s7-ink); }
+.s7-success { color: var(--s7-success-ink, var(--s7-success)); }
+.s7-danger  { color: var(--s7-danger-ink, var(--s7-danger)); }
+
+.s7-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.s7-empty-hint {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--s7-muted);
+  max-width: 38rem;
+}
+
+/* --- blueprints ---------------------------------------------------------- */
+
+.s7-blueprints { display: flex; flex-direction: column; gap: 0.6rem; }
+
+.s7-blueprint {
+  border: 1px solid var(--s7-line);
+  border-radius: 0.6rem;
+  overflow: hidden;
+  background: var(--s7-surface-2, transparent);
+}
+
+.s7-blueprint-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.7rem 0.85rem;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+}
+
+.s7-blueprint-head:hover { background: var(--s7-hover, rgba(127, 127, 127, 0.06)); }
+
+.s7-blueprint-title { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+.s7-blueprint-badges { display: flex; gap: 0.35rem; flex-shrink: 0; }
+
+.s7-blueprint-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0 0.85rem 0.9rem;
+  border-top: 1px solid var(--s7-line);
+}
+
+/* The provenance line. Sits above the numbers because it changes how they
+   should be read — a blueprint nobody authored is an assumption with a schema. */
+.s7-source-note {
+  display: flex;
+  gap: 0.45rem;
+  align-items: flex-start;
+  margin-top: 0.75rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--s7-muted);
+}
+
+.s7-source-note svg { flex-shrink: 0; margin-top: 0.15rem; }
+
+.s7-areas { display: flex; flex-direction: column; gap: 0.6rem; }
+
+.s7-area {
+  border: 1px solid var(--s7-line);
+  border-radius: 0.5rem;
+  padding: 0.55rem 0.7rem;
+}
+
+.s7-area-head { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.4rem; }
+
+.s7-lines { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.25rem; }
+
+.s7-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.84rem;
+  padding: 0.2rem 0;
+}
+
+/* A line naming a lesson placeholder is the one thing on this card that blocks
+   publication, so it is marked on the line itself rather than only in a count. */
+.s7-line-placeholder { color: var(--s7-danger-ink, var(--s7-danger)); }
+
+.s7-line-meta { display: flex; align-items: center; gap: 0.4rem; flex-shrink: 0; }
+
+.s7-thresholds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.1rem;
+  font-size: 0.78rem;
+  color: var(--s7-muted);
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--s7-line);
+}
+
+/* --- promotion ----------------------------------------------------------- */
+
+.s7-replacing {
+  list-style: none;
+  margin: 0 0 0.9rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--s7-line);
+  border-radius: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-height: 11rem;
+  overflow-y: auto;
+}
+
+.s7-replacing li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.83rem;
+}
+
+/* The calibration row puts a count and a badge in one value cell, and `s7-kv-value`
+   was written for a bare number. Without this they render as "0 / 200200 more needed". */
+.s7-kv-value { display: inline-flex; align-items: center; gap: 0.45rem; }
+
+/* =========================================================================
+   Organizations
+   ========================================================================= */
+
+.s7-stack-tight { display: flex; flex-direction: column; gap: 0.15rem; }
+
+.s7-row-end {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.s7-subhead {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--s7-muted);
+}
+
+/* --- cohorts ------------------------------------------------------------- */
+
+.s7-org-cohorts { display: flex; flex-direction: column; gap: 0.6rem; }
+
+.s7-org-cohort {
+  border: 1px solid var(--s7-line);
+  border-radius: 0.6rem;
+  overflow: hidden;
+  transition: border-color 0.15s ease;
+}
+
+.s7-org-cohort.is-open { border-color: var(--s7-brand); }
+
+.s7-org-cohort-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.7rem 0.85rem;
+  background: none;
+  border: 0;
+  text-align: start;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
+.s7-org-cohort-head:hover { background: var(--s7-surface-2, rgba(127, 127, 127, 0.06)); }
+
+.s7-org-cohort-counts { display: inline-flex; align-items: center; gap: 0.4rem; flex-shrink: 0; }
+
+.s7-org-cohort-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.4rem;
+  padding: 0.9rem 0.85rem 1.1rem;
+  border-top: 1px dashed var(--s7-line);
+}
+
+/* --- learners ------------------------------------------------------------ */
+
+.s7-org-learners { display: flex; flex-direction: column; gap: 0.4rem; }
+
+.s7-org-learner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--s7-line);
+  border-radius: 0.5rem;
+}
+
+.s7-org-learner-verdicts {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+/* A caption that carries an inline icon — the surveillance note under the roster. */
+.s7-org-cohort-body .s7-small svg { vertical-align: -2px; margin-inline-end: 0.2rem; }
+
+/* ==========================================================================
+   Resting state for a document nobody has looked at yet
+
+   Motion refuses to start an entrance while the document is hidden — the
+   document timeline is frozen, so no animation is ever created and every
+   element mounted with initial="hidden" stays there. For cards and stat tiles
+   that is opacity: 0, and the console renders blank.
+
+   Until `useDocumentHasBeenVisible` marks the document, hold the animated
+   furniture at the end of its entrance instead of the start. `!important`
+   because Motion writes the hidden state inline, and this has to win against
+   it; it stops applying the instant the attribute appears, at which point the
+   animation owns these properties again and plays normally.
+
+   The elements are listed rather than matched with `*` on purpose: a blanket
+   opacity override would also brighten disabled controls and muted captions.
+   ========================================================================== */
+html:not([data-motion='ready']) :is(
+  .s7-page-title,
+  .s7-stat,
+  .s7-card,
+  .s7-stack > *,
+  .s7-stack-tight > *,
+  .s7-org-cohort,
+  .s7-org-learner,
+  .s7-table tbody tr
+) {
+  opacity: 1 !important;
+  transform: none !important;
+}

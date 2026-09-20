@@ -14,6 +14,24 @@ public class Question
 {
     public Guid Id { get; set; }
 
+    /// <summary>
+    /// The immutable item revision this row is a rendering of.
+    /// <para>
+    /// **This row is an item localization, not an item version.** The distinction is the one that
+    /// took a correction to get right: a republish creates a new version, but a *translation* does
+    /// not — the English and Arabic rows share a key, a difficulty and a history, and differ only in
+    /// text. Both rows therefore point at the same <see cref="Content.ItemVersion"/>, which is what
+    /// makes a child's evidence continuous across a language switch (§10.3).
+    /// </para>
+    /// <para>
+    /// Required, and minted by whoever writes the row. A question with no item identity cannot be
+    /// measured, cannot accumulate statistics and cannot be mapped to a learning target — so it is
+    /// a schema constraint rather than a convention somebody has to remember.
+    /// </para>
+    /// </summary>
+    public Guid ItemVersionId { get; set; }
+    public Content.ItemVersion? ItemVersion { get; set; }
+
     public Guid LessonId { get; set; }
     public Lesson? Lesson { get; set; }
 

@@ -11,6 +11,8 @@ using Share7.Application.Leaderboards.Models;
 using Share7.Application.Play.Interfaces;
 using Share7.Application.Play.Models;
 using Share7.Application.Progress.Interfaces;
+using Share7.Application.Evidence.Interfaces;
+using Share7.Application.Evidence.Models;
 using Share7.Application.Progress.Models;
 using Share7.Application.Objectives.Interfaces;
 using Share7.Application.Progression.Interfaces;
@@ -18,6 +20,7 @@ using Share7.Application.Rewards.Interfaces;
 using Share7.Application.Rewards.Models;
 using Share7.Domain.Leaderboards;
 using Share7.Domain.Play;
+using Share7.Domain.Evidence;
 using Share7.Domain.Progress;
 using Share7.Infrastructure.Persistence;
 
@@ -35,6 +38,39 @@ namespace Share7.Infrastructure.Progress;
 /// </summary>
 public class ProgressService : IProgressService
 {
+    /// <summary>
+    /// What one answer's conditions were, carried from the request to the evidence log without
+    /// passing through anything that scores.
+    /// </summary>
+    private readonly record struct AnswerConditions(
+        bool Answered,
+        int? ElapsedMs,
+        int HintsUsed,
+        int? TimeLimitMs,
+        bool? RetryPermitted);
+
+    /// <summary>
+    /// One graded answer plus the conditions it was given under, as the evidence log wants it.
+    /// <para>
+    /// The grader nulls <c>ChoiceId</c> both for a question that was never reached and for one
+    /// answered with a choice belonging to some other question. Those are very different things —
+    /// the second is the fingerprint of a stale cached question set — so the request's own view of
+    /// whether an answer was submitted is what separates them.
+    /// </para>
+    /// </summary>
+    private static EvidenceAnswer ToEvidence(AnswerResultDto graded, AnswerConditions conditions) =>
+        new()
+        {
+            ItemLocalizationId = graded.QuestionId,
+            ChoiceId = graded.ChoiceId,
+            IsCorrect = graded.IsCorrect,
+            WasUnrecognised = graded.ChoiceId is null && conditions.Answered,
+            ElapsedMs = conditions.ElapsedMs,
+            HintsUsed = conditions.HintsUsed,
+            TimeLimitMs = conditions.TimeLimitMs,
+            RetryPermitted = conditions.RetryPermitted
+        };
+
     /// <summary>A lesson counts as passed at half marks. This is also the unlock threshold.</summary>
     private const int PassPercent = 50;
 
@@ -61,6 +97,7 @@ public class ProgressService : IProgressService
     private readonly ISignalPricer _pricer;
     private readonly IObjectiveProjector _objectives;
     private readonly IPlaySelectionResolver _play;
+    private readonly IEvidenceRecorder _evidence;
 
     public ProgressService(
         ApplicationDbContext dbContext,
@@ -72,7 +109,8 @@ public class ProgressService : IProgressService
         ILevelService levels,
         ISignalPricer pricer,
         IObjectiveProjector objectives,
-        IPlaySelectionResolver play)
+        IPlaySelectionResolver play,
+        IEvidenceRecorder evidence)
     {
         _dbContext = dbContext;
         _languageService = languageService;
@@ -84,6 +122,7 @@ public class ProgressService : IProgressService
         _pricer = pricer;
         _objectives = objectives;
         _play = play;
+        _evidence = evidence;
     }
 
     // ------------------------------------------------------------- writing
@@ -174,6 +213,7 @@ public class ProgressService : IProgressService
                 ModeKey = request.ModeKey,
                 ContextKey = request.ContextKey,
                 EventId = request.EventId,
+                AssignmentId = request.AssignmentId,
                 PlayerCount = 1
             },
             cancellationToken);
@@ -200,6 +240,18 @@ public class ProgressService : IProgressService
         // a score because there is no field in which to assert one.
         var picked = request.Answers.ToDictionary(a => a.QuestionId, a => a.ChoiceId);
         var choicesByQuestion = questions.ToDictionary(q => q.Id, q => q.ChoiceIds.ToHashSet());
+
+        // The conditions the answer was given under, kept beside the grading rather than derived
+        // from it. A question absent from the payload has no conditions at all — it was never
+        // reached — and defaults to an unanswered record rather than to a zero-millisecond one.
+        var conditionsByQuestion = request.Answers.ToDictionary(
+            a => a.QuestionId,
+            a => new AnswerConditions(
+                Answered: a.ChoiceId is not null,
+                ElapsedMs: a.ElapsedMs,
+                HintsUsed: a.HintsUsed,
+                TimeLimitMs: a.TimeLimitMs,
+                RetryPermitted: a.RetryPermitted));
 
         var answerResults = new List<AnswerResultDto>(questions.Count);
         var correctQuestionIds = new HashSet<Guid>();
@@ -244,11 +296,42 @@ public class ProgressService : IProgressService
 
         var now = DateTime.UtcNow;
 
+        // **The evidence log, written before the settlement split and on every path through it.**
+        //
+        // This is the one thing every attempt does regardless of what it is worth. Scoring, unlocks
+        // and rewards are settlement decisions and differ by context; *what the child actually
+        // answered* is a historical fact and does not. Practice runs in particular produced no
+        // educational record at all before this — they returned below without touching a table —
+        // which discarded the single richest diagnostic signal the product collects.
+        //
+        // Added to the ambient transaction and deliberately not saved here: evidence that survived
+        // a rolled-back attempt would describe gameplay that never happened.
+        await _evidence.RecordAsync(
+            new EvidenceRecordingContext
+            {
+                LearnerId = userId,
+                LangId = langId,
+                PlayContext = play.Context,
+                GameId = request.GameId,
+                ModeId = play.ModeId,
+                EventId = play.EventId,
+                NodeId = request.LessonId,
+                ContentVersion = lesson.Version,
+                DeliveryMode = EvidenceDeliveryMode.Solo,
+                IdempotencyKey = request.RequestId?.Trim(),
+                ReceivedAtUtc = now
+            },
+            [.. answerResults.Select(a => ToEvidence(a, conditionsByQuestion.GetValueOrDefault(a.QuestionId)))],
+            cancellationToken);
+
         // **Graded in full, recorded as nothing.** A practice run, a free-play replay or an event
         // entry is answered with the same breakdown a curriculum attempt gets — the child still sees
         // what they got right — but it moves no progress, unlocks nothing and pays nothing. That is
         // the whole point of the context axis, and it is enforced here rather than trusted to the
         // client's copy of the rule.
+        //
+        // Note what is *above* this line now: the evidence. "Worth nothing" is a settlement verdict,
+        // not a reason to forget what happened.
         if (!play.Policy.AffectsMastery)
             return await RecordUnscoredAttemptAsync(
                 userId, request, play, langId, gradeId, lesson.Version,
@@ -589,6 +672,14 @@ public class ProgressService : IProgressService
             LevelsGained = []
         };
 
+        // **The evidence the caller queued, persisted.** This path used to write nothing at all, so
+        // it could reach the commit below without ever calling SaveChanges — and an attempt with no
+        // requestId then committed an empty transaction. That is no longer true: the caller records
+        // a response per question before the settlement split, and practice is the context those
+        // responses matter most in. Saving here rather than relying on the requestId branch below,
+        // which a client is not obliged to send.
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
         if (!string.IsNullOrWhiteSpace(request.RequestId))
         {
             var log = new ProgressRequestLog
@@ -610,7 +701,8 @@ public class ProgressService : IProgressService
             catch (DbUpdateException)
             {
                 // Another retry of this same submission won the race. Hand back their answer, so two
-                // in-flight retries still produce exactly one recorded entry.
+                // in-flight retries still produce exactly one recorded entry. The rollback takes the
+                // evidence saved above with it, which is what keeps one run to one set of responses.
                 _dbContext.Entry(log).State = EntityState.Detached;
                 await transaction.RollbackAsync(cancellationToken);
 

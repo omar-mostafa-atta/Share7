@@ -1,8 +1,10 @@
 using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
+using Share7.Application.Content.Interfaces;
 using Share7.Application.Curriculum.Interfaces;
 using Share7.Application.Curriculum.Models;
 using Share7.Domain.Constants;
+using Share7.Domain.Content;
 using Share7.Domain.Curriculum;
 using Share7.Infrastructure.Persistence;
 
@@ -12,8 +14,13 @@ namespace Share7.Infrastructure.Curriculum;
 public class LessonSheetService : ILessonSheetService
 {
     private readonly ApplicationDbContext _dbContext;
+    private readonly IItemIdentityMinter _items;
 
-    public LessonSheetService(ApplicationDbContext dbContext) => _dbContext = dbContext;
+    public LessonSheetService(ApplicationDbContext dbContext, IItemIdentityMinter items)
+    {
+        _dbContext = dbContext;
+        _items = items;
+    }
 
     private static readonly Guid En = LanguageIds.English;
     private static readonly Guid Ar = LanguageIds.Arabic;
@@ -357,9 +364,15 @@ public class LessonSheetService : ILessonSheetService
 
         foreach (var row in mainRows)
         {
-            AddMain(lessonId, En, mainVersion, row.RowNumber, now,
+            // One item version per sheet row, shared by both languages. **This is the identity
+            // fix**: before it, the English and Arabic renderings of one question were unrelated
+            // rows and a child's history was severed by switching language.
+            var itemVersion = await _items.ResolveForLessonRowAsync(
+                lessonId, row.RowNumber, mainVersion, NodeItemRole.Core, now, cancellationToken);
+
+            AddMain(lessonId, En, mainVersion, row.RowNumber, now, itemVersion,
                 row.QuestionEn, row.CorrectEn, row.WrongEn1, row.WrongEn2);
-            AddMain(lessonId, Ar, mainVersion, row.RowNumber, now,
+            AddMain(lessonId, Ar, mainVersion, row.RowNumber, now, itemVersion,
                 row.QuestionAr, row.CorrectAr, row.WrongAr1, row.WrongAr2);
         }
 
@@ -469,11 +482,14 @@ public class LessonSheetService : ILessonSheetService
 
     private void AddMain(
         Guid lessonId, Guid langId, int version, int rowNumber, DateTime now,
+        ItemVersion itemVersion,
         string text, string correct, string wrong1, string wrong2)
     {
         var question = new Question
         {
             Id = Guid.NewGuid(),
+            ItemVersionId = itemVersion.Id,
+            ItemVersion = itemVersion,
             LessonId = lessonId,
             LangId = langId,
             Text = text,

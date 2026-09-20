@@ -212,9 +212,14 @@ public class SubjectMatchmakingTests
         context.Lessons.Add(lesson);
         await context.SaveChangesAsync();
 
+        var itemVersion = await new Share7.Infrastructure.Content.ItemIdentityMinter(context)
+            .ResolveForLessonRowAsync(
+                lesson.Id, 1, 1, Share7.Domain.Content.NodeItemRole.Core, DateTime.UtcNow);
+
         context.Questions.Add(new Question
         {
             Id = Guid.NewGuid(),
+            ItemVersionId = itemVersion.Id,
             LessonId = lesson.Id,
             LangId = LanguageIds.Arabic,
             Text = "سؤال",

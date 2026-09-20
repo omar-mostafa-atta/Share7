@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using Share7.Application.Content.Interfaces;
 using Share7.Application.Curriculum.Interfaces;
 using Share7.Application.Curriculum.Models;
+using Share7.Domain.Content;
 using Share7.Domain.Curriculum;
 using Share7.Infrastructure.Persistence;
 
@@ -24,10 +26,12 @@ namespace Share7.Infrastructure.Curriculum;
 public class QuestionImportService : IQuestionImportService
 {
     private readonly ApplicationDbContext _dbContext;
+    private readonly IItemIdentityMinter _items;
 
-    public QuestionImportService(ApplicationDbContext dbContext)
+    public QuestionImportService(ApplicationDbContext dbContext, IItemIdentityMinter items)
     {
         _dbContext = dbContext;
+        _items = items;
     }
 
     public async Task<QuestionImportResult> ImportAsync(
@@ -156,9 +160,21 @@ public class QuestionImportService : IQuestionImportService
 
         foreach (var row in rows)
         {
+            // **This path publishes one language at a time**, and its version counter is
+            // per (lesson, language) — so English can be on version 3 while Arabic is on 2. The
+            // item version is minted at this language's new number, which means the two renderings
+            // can legitimately point at different versions of the same item. That is not a defect
+            // being papered over: when only the English sheet is republished, the English question
+            // genuinely changed and the Arabic one genuinely did not. The paired sheet path
+            // (LessonSheetService) publishes both at one number and brings them back together.
+            var itemVersion = await _items.ResolveForLessonRowAsync(
+                lessonId, row.RowNumber, newVersion, NodeItemRole.Core, now, cancellationToken);
+
             var question = new Question
             {
                 Id = Guid.NewGuid(),
+                ItemVersionId = itemVersion.Id,
+                ItemVersion = itemVersion,
                 LessonId = lessonId,
                 LangId = langId,
                 Text = row.QuestionText,

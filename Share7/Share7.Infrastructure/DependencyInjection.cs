@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -7,7 +7,13 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using Share7.Application.Auth.Interfaces;
 using Share7.Application.Commerce.Interfaces;
+using Share7.Application.Content.Interfaces;
 using Share7.Application.Curriculum.Interfaces;
+using Share7.Application.Assessment.Interfaces;
+using Share7.Application.Competency.Interfaces;
+using Share7.Application.Organizations.Interfaces;
+using Share7.Application.Measurement.Interfaces;
+using Share7.Application.Structure.Interfaces;
 using Share7.Application.Economy.Interfaces;
 using Share7.Application.Equipment.Interfaces;
 using Share7.Application.Equipment.Models;
@@ -15,6 +21,7 @@ using Share7.Application.Games.Interfaces;
 using Share7.Application.Multiplayer.Interfaces;
 using Share7.Application.Multiplayer.Models;
 using Share7.Application.Play.Interfaces;
+using Share7.Application.Evidence.Interfaces;
 using Share7.Application.Progress.Interfaces;
 using Share7.Application.Objectives.Interfaces;
 using Share7.Infrastructure.Objectives;
@@ -25,6 +32,12 @@ using Share7.Application.Runs.Models;
 using Share7.Application.Users.Interfaces;
 using Share7.Application.Guidance.Interfaces;
 using Share7.Infrastructure.Commerce;
+using Share7.Infrastructure.Content;
+using Share7.Infrastructure.Assessment;
+using Share7.Infrastructure.Competency;
+using Share7.Infrastructure.Organizations;
+using Share7.Infrastructure.Measurement;
+using Share7.Infrastructure.Structure;
 using Share7.Infrastructure.Curriculum;
 using Share7.Infrastructure.Economy;
 using Share7.Infrastructure.Equipment;
@@ -47,6 +60,7 @@ using Share7.Application.Telemetry.Models;
 using Share7.Infrastructure.Telemetry;
 using Share7.Infrastructure.Persistence;
 using Share7.Infrastructure.Play;
+using Share7.Infrastructure.Evidence;
 using Share7.Infrastructure.Progress;
 using Share7.Infrastructure.Rewards;
 using Share7.Infrastructure.Runs;
@@ -137,6 +151,51 @@ public static class DependencyInjection
         services.AddScoped<IEconomyProfileAdminService, EconomyProfileAdminService>();
         services.AddScoped<IUnlockService, UnlockService>();
         services.AddScoped<IProgressService, ProgressService>();
+
+        // The only writer of educational evidence. Scoped alongside ProgressService because it
+        // shares its DbContext and therefore its transaction — evidence that survived a rolled-back
+        // attempt would describe gameplay that never happened.
+        services.AddScoped<IEvidenceRecorder, EvidenceRecorder>();
+
+        // Scoped, and the lifetime is load-bearing: the minter caches the items it has created
+        // within one unit of work, because the two language renderings of one sheet row must
+        // resolve to the same item version and a query cannot see rows that are added but unsaved.
+        services.AddScoped<IItemIdentityMinter, ItemIdentityMinter>();
+
+        // The only writer of CurriculumNodes. Scoped so a tree edit and the projection that
+        // follows it share one DbContext and therefore one transaction.
+        services.AddScoped<ICurriculumProjector, CurriculumProjector>();
+
+        // The measurement layer. Scoped like everything else that shares a unit of work: a
+        // projection and the measurements computed from it commit together or not at all.
+        services.AddScoped<IObservationProjector, ObservationProjector>();
+        services.AddScoped<IMeasurementService, MeasurementService>();
+        services.AddScoped<IContentQualityService, ContentQualityService>();
+
+        // Assessment. The selector is the seam adaptive delivery arrives behind in Phase 5; today
+        // it walks a fixed form in order, and registering it by interface is the whole point.
+        services.AddScoped<IItemSelector, FixedFormSelector>();
+        services.AddScoped<IAssessmentService, AssessmentService>();
+        services.AddScoped<IBlueprintAuthoringService, BlueprintAuthoringService>();
+        services.AddScoped<IExamCoverageService, ExamCoverageService>();
+        services.AddScoped<IExamOutcomeService, ExamOutcomeService>();
+
+        // Authoring real targets over the lesson placeholders. Scoped because a promotion moves
+        // mappings and rebuilds observations in one unit of work: a remap that committed without
+        // its reprojection would leave every affected learner measured against a claim nothing
+        // points at any more.
+        services.AddScoped<ITargetAuthoringService, TargetAuthoringService>();
+
+        // Organizations. The access service is the one that matters: every org-side, teacher-side
+        // and guardian-side read in the platform resolves through it, because 9.3 is one sentence
+        // and one sentence deserves one implementation. A second place deciding who may see a child
+        // would be a second answer, and the two would diverge on the first feature that forgot one.
+        services.AddScoped<IEducationalAccessService, EducationalAccessService>();
+        services.AddScoped<IOrganizationService, OrganizationService>();
+        services.AddScoped<ICohortService, CohortService>();
+        services.AddScoped<IGuardianService, GuardianService>();
+        services.AddScoped<IEducationalReportingService, EducationalReportingService>();
+        services.AddScoped<ICurriculumOverlayService, CurriculumOverlayService>();
         services.AddScoped<IWalletService, WalletService>();
         services.AddScoped<ICurrencyAdminService, CurrencyAdminService>();
         services.AddScoped<ILevelService, LevelService>();

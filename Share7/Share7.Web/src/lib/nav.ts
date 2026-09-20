@@ -3,6 +3,10 @@ import {
   BarChart3,
   CalendarRange,
   Database,
+  FlaskConical,
+  GraduationCap,
+  Building2,
+  Target,
   History,
   Boxes,
   Layers,
@@ -96,6 +100,34 @@ export const NAV: NavGroup[] = [
         label: 'Curriculum',
         icon: Network,
         blurb: 'Grades, terms, subjects, chapters, lessons and their question pools',
+      },
+      {
+        to: '/quality',
+        label: 'Content Quality',
+        icon: FlaskConical,
+        blurb:
+          'What learners answers say about the questions: mis-keyed items, dead distractors, facility, difficulty, anchors, unmapped content',
+      },
+      {
+        to: '/targets',
+        label: 'Learning targets',
+        icon: Target,
+        blurb:
+          'Replace lesson placeholders with real claims a child can be said to have met — remapping questions and re-interpreting every historical answer',
+      },
+      {
+        to: '/organizations',
+        label: 'Organizations',
+        icon: Building2,
+        blurb:
+          'Schools, districts and tutoring centres: cohorts, rosters, teacher and admin roles, guardian links, curriculum overlays, assignments, and exactly how much of a learner an organization can see',
+      },
+      {
+        to: '/exams',
+        label: 'Examinations',
+        icon: GraduationCap,
+        blurb:
+          'Blueprints, exam specifications, coverage thresholds and how far each exam is from a calibration that could predict an outcome',
       },
       {
         to: '/games',

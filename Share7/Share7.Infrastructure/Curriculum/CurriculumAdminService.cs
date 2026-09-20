@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Share7.Application.Common.Models;
 using Share7.Application.Curriculum.Interfaces;
+using Share7.Application.Structure.Interfaces;
 using Share7.Application.Curriculum.Models;
 using Share7.Domain.Curriculum;
 using Share7.Infrastructure.Persistence;
@@ -17,10 +18,20 @@ public class CurriculumAdminService : ICurriculumAdminService
     private readonly ApplicationDbContext _dbContext;
     private readonly ILanguageService _languageService;
 
-    public CurriculumAdminService(ApplicationDbContext dbContext, ILanguageService languageService)
+    /// <summary>
+    /// Every tree mutation here is followed by a projection sync. The node table is derived from
+    /// these rows, and a tree edit that did not reach it would leave new content invisible to
+    /// everything built on nodes — including the measurement layer, which is where it would be
+    /// noticed far too late.
+    /// </summary>
+    private readonly ICurriculumProjector _nodes;
+
+    public CurriculumAdminService(ApplicationDbContext dbContext, ILanguageService languageService,
+        ICurriculumProjector nodes)
     {
         _dbContext = dbContext;
         _languageService = languageService;
+        _nodes = nodes;
     }
 
     // ---------------------------------------------------------------- adds
@@ -60,6 +71,7 @@ public class CurriculumAdminService : ICurriculumAdminService
 
         _dbContext.Terms.Add(term);
         await _dbContext.SaveChangesAsync(cancellationToken);
+        await _nodes.SyncAsync(cancellationToken);
 
         var callerLangId = await _languageService.ResolveCurrentAsync(cancellationToken);
         return ServiceResult<TermDto>.Success(new TermDto
@@ -107,6 +119,7 @@ public class CurriculumAdminService : ICurriculumAdminService
 
         _dbContext.Subjects.Add(subject);
         await _dbContext.SaveChangesAsync(cancellationToken);
+        await _nodes.SyncAsync(cancellationToken);
 
         var callerLangId = await _languageService.ResolveCurrentAsync(cancellationToken);
         return ServiceResult<SubjectDto>.Success(new SubjectDto
@@ -154,6 +167,7 @@ public class CurriculumAdminService : ICurriculumAdminService
 
         _dbContext.Chapters.Add(chapter);
         await _dbContext.SaveChangesAsync(cancellationToken);
+        await _nodes.SyncAsync(cancellationToken);
 
         var callerLangId = await _languageService.ResolveCurrentAsync(cancellationToken);
         return ServiceResult<ChapterDto>.Success(new ChapterDto
@@ -201,6 +215,7 @@ public class CurriculumAdminService : ICurriculumAdminService
 
         _dbContext.Lessons.Add(lesson);
         await _dbContext.SaveChangesAsync(cancellationToken);
+        await _nodes.SyncAsync(cancellationToken);
 
         var callerLangId = await _languageService.ResolveCurrentAsync(cancellationToken);
 
@@ -238,6 +253,7 @@ public class CurriculumAdminService : ICurriculumAdminService
 
         _dbContext.Terms.Remove(term);
         await _dbContext.SaveChangesAsync(cancellationToken);
+        await _nodes.SyncAsync(cancellationToken);
         return ServiceResult<CurriculumNodeChildCounts>.Success(counts);
     }
 
@@ -255,6 +271,7 @@ public class CurriculumAdminService : ICurriculumAdminService
 
         _dbContext.Subjects.Remove(subject);
         await _dbContext.SaveChangesAsync(cancellationToken);
+        await _nodes.SyncAsync(cancellationToken);
         return ServiceResult<CurriculumNodeChildCounts>.Success(counts);
     }
 
@@ -279,6 +296,7 @@ public class CurriculumAdminService : ICurriculumAdminService
 
         _dbContext.Chapters.Remove(chapter);
         await _dbContext.SaveChangesAsync(cancellationToken);
+        await _nodes.SyncAsync(cancellationToken);
         return ServiceResult<CurriculumNodeChildCounts>.Success(counts);
     }
 
@@ -301,6 +319,7 @@ public class CurriculumAdminService : ICurriculumAdminService
         // lesson along with the questions.
         _dbContext.Lessons.Remove(lesson);
         await _dbContext.SaveChangesAsync(cancellationToken);
+        await _nodes.SyncAsync(cancellationToken);
         return ServiceResult<CurriculumNodeChildCounts>.Success(counts);
     }
 

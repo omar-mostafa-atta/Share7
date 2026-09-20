@@ -4,6 +4,7 @@ using Share7.Application.Play.Interfaces;
 using Share7.Application.Play.Models;
 using Share7.Application.Progression.Interfaces;
 using Share7.Domain.Leaderboards;
+using Share7.Domain.Organizations;
 using Share7.Domain.Play;
 using Share7.Domain.Runs;
 using Share7.Infrastructure.Persistence;
@@ -42,11 +43,19 @@ public class PlaySelectionResolver : IPlaySelectionResolver
                 ServiceErrorKind.Validation,
                 $"'{request.ContextKey}' is not a context this server knows.");
 
-        if (context == PlayContextKind.Assignment)
+        if (context == PlayContextKind.Assignment && request.AssignmentId is null)
             return Refuse(
                 ApiErrors.PlayContextInvalid,
                 ServiceErrorKind.Validation,
-                "Assignments are not implemented: there is no class relation to resolve one against.");
+                "An assignment context must name the assignment it is being played for.");
+
+        if (context != PlayContextKind.Assignment && request.AssignmentId is not null)
+            return Refuse(
+                ApiErrors.PlayContextInvalid,
+                ServiceErrorKind.Validation,
+                "An assignment id was sent with a context that is not an assignment. Nothing would " +
+                "have been credited to that assignment, so the selection is refused rather than " +
+                "silently ignored.");
 
         if (context == PlayContextKind.Event && request.EventId is null)
             return Refuse(
@@ -165,6 +174,19 @@ public class PlaySelectionResolver : IPlaySelectionResolver
             playEvent = eventResult.Value!;
         }
 
+        // ---- assignment ------------------------------------------------------------------
+        Assignment? assignment = null;
+
+        if (context == PlayContextKind.Assignment)
+        {
+            var assignmentResult = await ResolveAssignmentAsync(userId, request, cancellationToken);
+
+            if (!assignmentResult.Succeeded)
+                return Propagate(assignmentResult);
+
+            assignment = assignmentResult.Value!;
+        }
+
         // ---- what it is worth -------------------------------------------------------------
         var policy = mode is null
             // No modes authored for this game: the platform behaves exactly as it did before modes
@@ -180,6 +202,7 @@ public class PlaySelectionResolver : IPlaySelectionResolver
             Mode = mode,
             Context = context,
             Event = playEvent,
+            Assignment = assignment,
             Policy = policy,
             Profile = profile
         });
@@ -216,10 +239,61 @@ public class PlaySelectionResolver : IPlaySelectionResolver
     private static PlaySettlementPolicy LegacyPolicyFor(PlayContextKind context) => context switch
     {
         PlayContextKind.Practice => PlaySettlementPolicy.Nothing,
-        PlayContextKind.Assignment => PlaySettlementPolicy.Nothing,
+
+        // An assignment is curriculum work with a teacher's name on it. It settles as curriculum
+        // does, because withholding stars and coins for the work a school set would teach a child
+        // that school work is the unrewarding kind.
+        PlayContextKind.Assignment => new PlaySettlementPolicy(true, true, true),
         PlayContextKind.Curriculum => new PlaySettlementPolicy(true, true, true),
         _ => new PlaySettlementPolicy(false, true, true)
     };
+
+    /// <summary>
+    /// The assignment this session claims to be fulfilling, if the caller may actually play it.
+    ///
+    /// <para><b>Three checks, and the roster one is the point.</b> The assignment must exist and be
+    /// open; the caller must be a current learner in the cohort it was set for; and when the
+    /// assignment names a lesson, the session must be playing that lesson. Without the second, any
+    /// client could credit its work to any class — which is precisely the kind of claim the play
+    /// boundary exists to refuse (§17.4).</para>
+    ///
+    /// <para><b>What it deliberately does not do is change what the session is worth.</b> A child
+    /// doing homework their teacher set is doing their own curriculum work, and withholding stars
+    /// and coins for it would teach them that school work is the unrewarding kind. The honesty
+    /// lives in the evidence contract, where an assignment context is admitted or not and its
+    /// strength follows the conditions actually recorded — not in the payout.</para>
+    /// </summary>
+    private async Task<ServiceResult<Assignment>> ResolveAssignmentAsync(
+        Guid userId,
+        PlaySelectionRequest request,
+        CancellationToken cancellationToken)
+    {
+        var assignment = await _dbContext.Assignments
+            .AsNoTracking()
+            .FirstOrDefaultAsync(a => a.Id == request.AssignmentId, cancellationToken);
+
+        if (assignment is null || assignment.WithdrawnAtUtc is not null)
+            return ServiceResult<Assignment>.Failure(
+                ApiErrors.PlayContextInvalid,
+                ServiceErrorKind.NotFound,
+                "No open assignment with that id.");
+
+        var onRoster = await _dbContext.CohortMemberships
+            .AsNoTracking()
+            .AnyAsync(cm => cm.CohortId == assignment.CohortId
+                            && cm.UserId == userId
+                            && cm.Role == CohortRole.Learner
+                            && cm.LeftAtUtc == null,
+                cancellationToken);
+
+        if (!onRoster)
+            return ServiceResult<Assignment>.Failure(
+                ApiErrors.PlayContextInvalid,
+                ServiceErrorKind.Validation,
+                "That assignment was set for a cohort you are not in.");
+
+        return ServiceResult<Assignment>.Success(assignment);
+    }
 
     private async Task<ServiceResult<PlayEvent>> ResolveEventAsync(
         Guid userId,

@@ -5,6 +5,12 @@ using Share7.Domain.Curriculum;
 using Share7.Domain.Economy;
 using Share7.Domain.Entities;
 using Share7.Domain.Equipment;
+using Share7.Domain.Competency;
+using Share7.Domain.Content;
+using Share7.Domain.Evidence;
+using Share7.Domain.Assessment;
+using Share7.Domain.Measurement;
+using Share7.Domain.Structure;
 using Share7.Domain.Games;
 using Share7.Domain.Leaderboards;
 using Share7.Domain.LookUps;
@@ -12,6 +18,7 @@ using Share7.Domain.Multiplayer;
 using Share7.Domain.Play;
 using Share7.Domain.Progress;
 using Share7.Domain.Objectives;
+using Share7.Domain.Organizations;
 using Share7.Domain.Progression;
 using Share7.Domain.Rewards;
 using Share7.Domain.Runs;
@@ -99,6 +106,92 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, Applicati
     public DbSet<UserQuestionProgress> UserQuestionProgress => Set<UserQuestionProgress>();
     public DbSet<UserLessonProgress> UserLessonProgress => Set<UserLessonProgress>();
     public DbSet<UserNodeUnlock> UserNodeUnlocks => Set<UserNodeUnlock>();
+
+    // Educational evidence. LearnerResponses is the append-only truth every educational capability
+    // is derived from — the counterpart to CurrencyLedgerEntries, which the education domain went
+    // without until Phase 0 of the rebuild. The progress tables above are projections of it, kept
+    // because stars and unlocks are legitimately per-game; knowledge is not.
+    //
+    // EvidenceContracts are the only bridge from gameplay to education: LearnerResponse names a
+    // published contract version, non-nullably, so no interaction becomes evidence without one.
+    public DbSet<EvidenceContract> EvidenceContracts => Set<EvidenceContract>();
+    public DbSet<EvidenceContractVersion> EvidenceContractVersions => Set<EvidenceContractVersion>();
+    public DbSet<LearnerResponse> LearnerResponses => Set<LearnerResponse>();
+
+    // Item identity. An Item is a question as a thing that exists, across rewrites and languages;
+    // an ItemVersion is one frozen revision; today's Question row is a per-language rendering of
+    // one. Evidence names all three, and only the rendering is allowed to disappear.
+    public DbSet<ItemBank> ItemBanks => Set<ItemBank>();
+    public DbSet<Item> Items => Set<Item>();
+    public DbSet<ItemVersion> ItemVersions => Set<ItemVersion>();
+
+    // Competency. LearningTarget is the only thing proficiency can be about; everything in the
+    // measurement layer is keyed by one.
+    public DbSet<CompetencyFramework> CompetencyFrameworks => Set<CompetencyFramework>();
+    public DbSet<LearningTarget> LearningTargets => Set<LearningTarget>();
+    public DbSet<LearningTargetTranslation> LearningTargetTranslations => Set<LearningTargetTranslation>();
+    public DbSet<LearningTargetEdge> LearningTargetEdges => Set<LearningTargetEdge>();
+    public DbSet<LearningTargetAlignment> LearningTargetAlignments => Set<LearningTargetAlignment>();
+    public DbSet<ItemTargetMapping> ItemTargetMappings => Set<ItemTargetMapping>();
+    public DbSet<NodeTargetMapping> NodeTargetMappings => Set<NodeTargetMapping>();
+
+    // Curriculum structure as data. CurriculumNodes is a derived projection of the legacy typed
+    // tree preserving its exact ids, so both shapes resolve to the same identifiers.
+    public DbSet<CurriculumAuthority> CurriculumAuthorities => Set<CurriculumAuthority>();
+    public DbSet<Domain.Structure.Curriculum> Curricula => Set<Domain.Structure.Curriculum>();
+    public DbSet<CurriculumVersion> CurriculumVersions => Set<CurriculumVersion>();
+    public DbSet<CurriculumNodeKind> CurriculumNodeKinds => Set<CurriculumNodeKind>();
+    public DbSet<CurriculumNode> CurriculumNodes => Set<CurriculumNode>();
+    public DbSet<CurriculumNodeTranslation> CurriculumNodeTranslations => Set<CurriculumNodeTranslation>();
+    public DbSet<NodeItemMapping> NodeItemMappings => Set<NodeItemMapping>();
+    public DbSet<Enrollment> Enrollments => Set<Enrollment>();
+
+    // Organizations. Five tables and one scoping column, which is the whole of multi-tenancy here:
+    // an org sees a learner's evidence through enrolments it owns (Enrollment.OwnerOrgId), so a
+    // school that adopts Share7 gets the work done under its own enrolment and acquires nothing
+    // retroactively from the learner's private one. Docs/EducationalArchitecture.md 9.1-9.4.
+    public DbSet<Organization> Organizations => Set<Organization>();
+    public DbSet<Membership> Memberships => Set<Membership>();
+    public DbSet<Cohort> Cohorts => Set<Cohort>();
+    public DbSet<CohortMembership> CohortMemberships => Set<CohortMembership>();
+    public DbSet<GuardianLink> GuardianLinks => Set<GuardianLink>();
+    public DbSet<Assignment> Assignments => Set<Assignment>();
+
+    // A school's edits to a curriculum it does not own, held as a diff and resolved at read time.
+    // Never a mutation of the official version - that is one of the four independent mechanisms
+    // that keep an official curriculum uncorruptible (17.2).
+    public DbSet<CurriculumOverlay> CurriculumOverlays => Set<CurriculumOverlay>();
+    public DbSet<CurriculumOverlayEdit> CurriculumOverlayEdits => Set<CurriculumOverlayEdit>();
+
+    // Measurement. Everything here is derived from LearnerResponses and rebuildable by replaying
+    // them — except ItemStatistics, which is a running aggregate on purpose so that erasing one
+    // learner cannot move another learner's numbers.
+    public DbSet<Observation> Observations => Set<Observation>();
+    public DbSet<ItemStatistics> ItemStatistics => Set<ItemStatistics>();
+    public DbSet<Domain.Measurement.Measurement> Measurements => Set<Domain.Measurement.Measurement>();
+    public DbSet<MasteryRule> MasteryRules => Set<MasteryRule>();
+    public DbSet<MasteryVerdict> MasteryVerdicts => Set<MasteryVerdict>();
+
+    // Assessment. A blueprint says what a test is supposed to measure; a form is one immutable
+    // realisation of it; an administration is one learner sitting one form under one set of
+    // conditions. The blueprint is also the object an exam board publishes, which is what lets
+    // coverage be computed against a real examination the platform does not administer.
+    public DbSet<AssessmentBlueprint> AssessmentBlueprints => Set<AssessmentBlueprint>();
+    public DbSet<AssessmentBlueprintArea> AssessmentBlueprintAreas => Set<AssessmentBlueprintArea>();
+    public DbSet<AssessmentBlueprintLine> AssessmentBlueprintLines => Set<AssessmentBlueprintLine>();
+    public DbSet<Domain.Assessment.Assessment> Assessments => Set<Domain.Assessment.Assessment>();
+    public DbSet<AssessmentForm> AssessmentForms => Set<AssessmentForm>();
+    public DbSet<AssessmentFormItem> AssessmentFormItems => Set<AssessmentFormItem>();
+    public DbSet<AssessmentAdministration> AssessmentAdministrations => Set<AssessmentAdministration>();
+
+    // Examinations Share7 does not administer, and what the platform is willing to say about them.
+    // ExamProjections are derived and disposable; ReportedExamOutcomes are not — they are the one
+    // input to calibration that cannot be reasoned into existence and must be collected.
+    public DbSet<ExamSpecification> ExamSpecifications => Set<ExamSpecification>();
+    public DbSet<ExamSpecificationVersion> ExamSpecificationVersions => Set<ExamSpecificationVersion>();
+    public DbSet<ReportedExamOutcome> ReportedExamOutcomes => Set<ReportedExamOutcome>();
+    public DbSet<ExamProjection> ExamProjections => Set<ExamProjection>();
+    public DbSet<ExamProjectionGap> ExamProjectionGaps => Set<ExamProjectionGap>();
 
     // Economy. Virtual currency only — nothing here represents real money. UserCurrencyBalances
     // is the authoritative wallet and the fast projection; CurrencyLedgerEntries is the

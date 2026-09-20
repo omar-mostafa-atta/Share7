@@ -19,6 +19,14 @@ public class QuestionConfiguration : IEntityTypeConfiguration<Question>
             .HasForeignKey(q => q.LessonId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        // Restrict, not Cascade: the lesson already cascades into this table, and a second cascade
+        // path into one table is the shape SQL Server refuses. It is also the wrong behaviour —
+        // an item version outlives every rendering of it and must not be removable through one.
+        builder.HasOne(q => q.ItemVersion)
+            .WithMany(v => v.Localizations)
+            .HasForeignKey(q => q.ItemVersionId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasOne(q => q.Language)
             .WithMany()
             .HasForeignKey(q => q.LangId)
@@ -30,5 +38,9 @@ public class QuestionConfiguration : IEntityTypeConfiguration<Question>
         // The hot path: "give me the current question set for this lesson in this language".
         // Questions stay language-partitioned even though the tree above them no longer is.
         builder.HasIndex(q => new { q.LessonId, q.LangId, q.IsActive });
+
+        // The evidence read: given an item version, which rendering did the learner see. Also the
+        // join the importer uses to recognise an item it has published before.
+        builder.HasIndex(q => new { q.ItemVersionId, q.LangId });
     }
 }
