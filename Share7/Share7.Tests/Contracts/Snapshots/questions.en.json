@@ -1,0 +1,269 @@
+[
+  {
+    "request": "GET /api/lessons/lesson:solids/questions/version",
+    "as": "student-en",
+    "requestBody": null,
+    "status": 200,
+    "body": {
+      "lessonId": "lesson:solids",
+      "langId": "lang:en",
+      "version": 2,
+      "questionCount": 3
+    }
+  },
+  {
+    "request": "POST /api/lessons/questions/versions",
+    "as": "student-en",
+    "requestBody": {
+      "lessonIds": [
+        "lesson:solids",
+        "lesson:liquids-english-only",
+        "lesson:gases-no-questions",
+        "lesson:does-not-exist"
+      ]
+    },
+    "status": 200,
+    "body": [
+      {
+        "lessonId": "lesson:liquids-english-only",
+        "langId": "lang:en",
+        "version": 1,
+        "questionCount": 2
+      },
+      {
+        "lessonId": "lesson:solids",
+        "langId": "lang:en",
+        "version": 2,
+        "questionCount": 3
+      },
+      {
+        "lessonId": "lesson:gases-no-questions",
+        "langId": "lang:en",
+        "version": 0,
+        "questionCount": 0
+      }
+    ]
+  },
+  {
+    "request": "GET /api/lessons/lesson:solids/questions",
+    "as": "student-en",
+    "requestBody": null,
+    "status": 200,
+    "body": {
+      "lessonId": "lesson:solids",
+      "langId": "lang:en",
+      "version": 2,
+      "questions": [
+        {
+          "questionId": "lesson:solids/en/q1",
+          "text": "What is ice?",
+          "correctAnswerId": "lesson:solids/en/q1/correct",
+          "answers": [
+            {
+              "id": "lesson:solids/en/q1/correct",
+              "text": "A solid"
+            },
+            {
+              "id": "lesson:solids/en/q1/wrong1",
+              "text": "A gas"
+            },
+            {
+              "id": "lesson:solids/en/q1/wrong2",
+              "text": "A liquid"
+            }
+          ]
+        },
+        {
+          "questionId": "lesson:solids/en/q2",
+          "text": "Which keeps its shape?",
+          "correctAnswerId": "lesson:solids/en/q2/correct",
+          "answers": [
+            {
+              "id": "lesson:solids/en/q2/correct",
+              "text": "A rock"
+            },
+            {
+              "id": "lesson:solids/en/q2/wrong1",
+              "text": "Water"
+            },
+            {
+              "id": "lesson:solids/en/q2/wrong2",
+              "text": "Steam"
+            }
+          ]
+        },
+        {
+          "questionId": "lesson:solids/en/q3",
+          "text": "What is iron at room temperature?",
+          "correctAnswerId": "lesson:solids/en/q3/correct",
+          "answers": [
+            {
+              "id": "lesson:solids/en/q3/correct",
+              "text": "Solid"
+            },
+            {
+              "id": "lesson:solids/en/q3/wrong1",
+              "text": "Liquid"
+            },
+            {
+              "id": "lesson:solids/en/q3/wrong2",
+              "text": "Gas"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "request": "GET /api/lessons/lesson:liquids-english-only/questions",
+    "as": "student-en",
+    "requestBody": null,
+    "status": 200,
+    "body": {
+      "lessonId": "lesson:liquids-english-only",
+      "langId": "lang:en",
+      "version": 1,
+      "questions": [
+        {
+          "questionId": "lesson:liquids-english-only/en/q1",
+          "text": "Which is a liquid?",
+          "correctAnswerId": "lesson:liquids-english-only/en/q1/correct",
+          "answers": [
+            {
+              "id": "lesson:liquids-english-only/en/q1/correct",
+              "text": "Milk"
+            },
+            {
+              "id": "lesson:liquids-english-only/en/q1/wrong1",
+              "text": "Stone"
+            },
+            {
+              "id": "lesson:liquids-english-only/en/q1/wrong2",
+              "text": "Air"
+            }
+          ]
+        },
+        {
+          "questionId": "lesson:liquids-english-only/en/q2",
+          "text": "Liquids take the shape of…",
+          "correctAnswerId": "lesson:liquids-english-only/en/q2/correct",
+          "answers": [
+            {
+              "id": "lesson:liquids-english-only/en/q2/correct",
+              "text": "Their container"
+            },
+            {
+              "id": "lesson:liquids-english-only/en/q2/wrong1",
+              "text": "A cube"
+            },
+            {
+              "id": "lesson:liquids-english-only/en/q2/wrong2",
+              "text": "Nothing"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "request": "GET /api/lessons/lesson:gases-no-questions/questions",
+    "as": "student-en",
+    "requestBody": null,
+    "status": 200,
+    "body": {
+      "lessonId": "lesson:gases-no-questions",
+      "langId": "lang:en",
+      "version": 0,
+      "questions": []
+    }
+  },
+  {
+    "request": "GET /api/lessons/lesson:does-not-exist/questions",
+    "as": "student-en",
+    "requestBody": null,
+    "status": 404,
+    "body": {
+      "type": "https://tools.ietf.org/html/rfc9110#section-15.5.5",
+      "title": "Not Found",
+      "status": 404,
+      "traceId": "<trace-id>"
+    }
+  },
+  {
+    "request": "GET /api/lessons/lesson:solids/recovery-questions/version",
+    "as": "student-en",
+    "requestBody": null,
+    "status": 200,
+    "body": {
+      "lessonId": "lesson:solids",
+      "langId": "lang:en",
+      "version": 1,
+      "questionCount": 1
+    }
+  },
+  {
+    "request": "POST /api/lessons/recovery-questions/versions",
+    "as": "student-en",
+    "requestBody": {
+      "lessonIds": [
+        "lesson:solids",
+        "lesson:liquids-english-only",
+        "lesson:gases-no-questions",
+        "lesson:does-not-exist"
+      ]
+    },
+    "status": 200,
+    "body": [
+      {
+        "lessonId": "lesson:liquids-english-only",
+        "langId": "lang:en",
+        "version": 0,
+        "questionCount": 0
+      },
+      {
+        "lessonId": "lesson:solids",
+        "langId": "lang:en",
+        "version": 1,
+        "questionCount": 1
+      },
+      {
+        "lessonId": "lesson:gases-no-questions",
+        "langId": "lang:en",
+        "version": 0,
+        "questionCount": 0
+      }
+    ]
+  },
+  {
+    "request": "GET /api/lessons/lesson:solids/recovery-questions",
+    "as": "student-en",
+    "requestBody": null,
+    "status": 200,
+    "body": {
+      "lessonId": "lesson:solids",
+      "langId": "lang:en",
+      "version": 1,
+      "questions": [
+        {
+          "questionId": "lesson:solids/en/recovery1",
+          "text": "Is a chair a solid?",
+          "correctAnswerId": "lesson:solids/en/recovery1/correct",
+          "answers": [
+            {
+              "id": "lesson:solids/en/recovery1/correct",
+              "text": "Yes"
+            },
+            {
+              "id": "lesson:solids/en/recovery1/wrong1",
+              "text": "No"
+            },
+            {
+              "id": "lesson:solids/en/recovery1/wrong2",
+              "text": "Only in winter"
+            }
+          ]
+        }
+      ]
+    }
+  }
+]

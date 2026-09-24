@@ -12,6 +12,7 @@ import {
   ShieldAlert,
   Trash2,
   Trophy,
+  UserPlus,
   UserRound,
   Users as UsersIcon,
 } from 'lucide-react'
@@ -29,8 +30,11 @@ import { useResource, useResourceList } from '../lib/resource'
 import { formatDateTime, formatDuration, formatRelative } from '../lib/time'
 import { toast } from '../store/toast'
 import { useAuth } from '../store/auth'
+import { Role, roleInfo } from '../lib/access'
 import { useProducts } from '../features/shop/data'
 import { listVariants } from '../components/ui/motion'
+import { GuidanceUserTab } from '../features/guidance/GuidanceUserTab'
+import { CreateUserModal } from '../features/users/CreateUserModal'
 import type {
   AdminUserDetailDto,
   AdminUserEntitlementDto,
@@ -42,7 +46,7 @@ import type {
 } from '../types/api'
 
 /** Which panel of the detail drawer is open. Each fetches only when selected. */
-type DrawerTab = 'profile' | 'wallet' | 'progression' | 'items' | 'runs'
+type DrawerTab = 'profile' | 'wallet' | 'progression' | 'items' | 'runs' | 'guidance'
 
 // ===========================================================================
 // Users
@@ -65,7 +69,18 @@ type DrawerTab = 'profile' | 'wallet' | 'progression' | 'items' | 'runs'
 //
 // Each panel fetches only when its tab is opened. Loading all five on every row
 // click would issue five requests to show a name and an email.
+//
+// "Add user" creates an account with a username, a password and one role —
+// the only way a staff account (the content team's, above all) comes to exist,
+// since signing up only ever makes a Student.
 // ===========================================================================
+
+
+/** A role as a badge — the same look wherever an account's roles are listed. */
+function RoleBadge({ role }: { role: string }) {
+  const info = roleInfo(role)
+  return <Badge tone={info.tone}>{info.label}</Badge>
+}
 
 export function Users() {
   const [search, setSearch] = useState('')
@@ -73,6 +88,7 @@ export function Users() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [selected, setSelected] = useState<AdminUserListItemDto | null>(null)
+  const [creating, setCreating] = useState(false)
 
   // Debouncing is deliberately absent: the search box submits on change and the
   // roster query is server-side and indexed enough for an admin-only screen.
@@ -124,9 +140,7 @@ export function Users() {
           ) : (
             <span className="s7-inline">
               {u.roles.map((r) => (
-                <Badge key={r} tone={r === 'SuperAdmin' ? 'danger' : r === 'Admin' ? 'brand' : 'muted'}>
-                  {r}
-                </Badge>
+                <RoleBadge key={r} role={r} />
               ))}
             </span>
           ),
@@ -184,7 +198,12 @@ export function Users() {
       <PageTitle
         icon={<UsersIcon size={22} />}
         title="Users"
-        subtitle="Every account on the platform. Open one to see its profile, grant a product, or delete it."
+        subtitle="Every account on the platform. Add one — a content-team member, say — or open one to see its profile, grant a product, or delete it."
+        actions={
+          <Button onClick={() => setCreating(true)}>
+            <UserPlus size={15} /> Add user
+          </Button>
+        }
       />
 
       <StatRow>
@@ -228,10 +247,11 @@ export function Users() {
               style={{ maxWidth: '11rem' }}
             >
               <option value="">Any role</option>
-              <option value="Student">Student</option>
-              <option value="Teacher">Teacher</option>
-              <option value="Admin">Admin</option>
-              <option value="SuperAdmin">SuperAdmin</option>
+              {Object.values(Role).map((r) => (
+                <option key={r} value={r}>
+                  {roleInfo(r).label}
+                </option>
+              ))}
             </Select>
           </div>
 
@@ -263,6 +283,14 @@ export function Users() {
       </Card>
 
       <UserDrawer user={selected} onClose={() => setSelected(null)} onDeleted={() => void reload()} />
+
+      <CreateUserModal
+        open={creating}
+        onClose={() => setCreating(false)}
+        // Refetched rather than spliced in: the new account belongs on page one only when no
+        // filter hides it, and the server is what knows that.
+        onCreated={() => void reload()}
+      />
     </motion.div>
   )
 }
@@ -374,6 +402,7 @@ function UserDrawer({
                 { value: 'progression', label: 'Progression' },
                 { value: 'items', label: 'Items' },
                 { value: 'runs', label: 'Runs' },
+                { value: 'guidance', label: 'Guidance' },
               ]}
             />
 
@@ -406,9 +435,7 @@ function UserDrawer({
                       {user.roles.length ? (
                         <span className="s7-inline">
                           {user.roles.map((r) => (
-                            <Badge key={r} tone={r === 'SuperAdmin' ? 'danger' : r === 'Admin' ? 'brand' : 'muted'}>
-                              {r}
-                            </Badge>
+                            <RoleBadge key={r} role={r} />
                           ))}
                         </span>
                       ) : null}
@@ -689,6 +716,8 @@ function UserDrawer({
                 </div>
               )
             ) : null}
+
+            {tab === 'guidance' ? <GuidanceUserTab userId={user.userId} /> : null}
           </div>
         )}
       </Drawer>

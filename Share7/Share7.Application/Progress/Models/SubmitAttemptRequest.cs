@@ -1,12 +1,14 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace Share7.Application.Progress.Models;
 
 /// <summary>
-/// One question and the choice the student actually picked.
+/// One answer on the wire.
 /// <para>
-/// <see cref="ChoiceId"/> is what they *chose*, right or wrong — the client makes no claim about
-/// correctness and the server does not accept one. Null means the question was shown and skipped.
+/// **Facts and conditions only.** The client says which choice was picked and what the conditions
+/// were; the server grades, derives the attempt ordinal, resolves the evidence contract and decides
+/// what any of it is worth. There is no field here in which a score, a strength or a mastery claim
+/// could be asserted — the same defence that already stops a client asserting a percentage.
 /// </para>
 /// </summary>
 public class SubmittedAnswer
@@ -14,24 +16,43 @@ public class SubmittedAnswer
     [Required]
     public Guid QuestionId { get; set; }
 
-    /// <summary>The chosen answer, or null when it was left unanswered. Either way the server grades it.</summary>
+    /// <summary>The choice picked, or null when the question was never reached.</summary>
     public Guid? ChoiceId { get; set; }
+
+    /// <summary>
+    /// How long the learner had this question in front of them, in milliseconds.
+    /// <para>
+    /// **Client-measured because the client is the only party that can measure it** — the server
+    /// sees one request carrying a whole run. Treated as a condition rather than as an input to
+    /// anything the client benefits from: it is bounded on arrival and discarded when implausible,
+    /// and no reward, score or unlock reads it.
+    /// </para>
+    /// </summary>
+    [Range(0, 30 * 60 * 1000)]
+    public int? ElapsedMs { get; set; }
+
+    /// <summary>
+    /// Hints shown before the learner committed. A hinted answer is evidence of something weaker
+    /// than an unhinted one, which is why it is recorded rather than ignored.
+    /// </summary>
+    [Range(0, 100)]
+    public int HintsUsed { get; set; }
+
+    /// <summary>The limit the game imposed on this question, or null when it was untimed.</summary>
+    [Range(0, 30 * 60 * 1000)]
+    public int? TimeLimitMs { get; set; }
+
+    /// <summary>
+    /// Whether the learner could re-answer <i>this question within this run</i> — a practice mode
+    /// that loops until correct, say. Replaying the whole lesson later is a separate administration
+    /// and is counted by the attempt ordinal instead.
+    /// <para>
+    /// Null means the game did not say, and the server infers it from the play context.
+    /// </para>
+    /// </summary>
+    public bool? RetryPermitted { get; set; }
 }
 
-/// <summary>
-/// What the game posts when a student finishes a run of a lesson.
-/// <para>
-/// **The client reports what was picked; the server decides what was right.** It sends one entry per
-/// question with the chosen choice id, and grading happens here against
-/// <c>Question.CorrectChoiceId</c>. Nothing in this payload asserts a score, so there is nothing for
-/// a modified client to inflate — which is the point of the shape.
-/// </para>
-/// <para>
-/// Questions belonging to the lesson but absent from <see cref="Answers"/> are recorded as wrong,
-/// exactly like ones answered wrongly: a run shows every question in the lesson, so not reaching one
-/// is not the same as getting it right.
-/// </para>
-/// </summary>
 public class SubmitAttemptRequest
 {
     [Required]
@@ -40,45 +61,23 @@ public class SubmitAttemptRequest
     [Required]
     public Guid LessonId { get; set; }
 
-    /// <summary>
-    /// One entry per question the student answered or skipped. A question may appear only once —
-    /// two answers for the same question is a client bug with no defensible resolution, so it is
-    /// refused rather than silently resolved.
-    /// </summary>
     public List<SubmittedAnswer> Answers { get; set; } = [];
 
-    /// <summary>
-    /// Which rule-set the lesson was played in. Absent resolves to the game's default mode, so a
-    /// client that predates modes submits exactly as it always did.
-    /// </summary>
     [MaxLength(128)]
     public string? ModeKey { get; set; }
 
-    /// <summary>
-    /// Why it was played. **This is what decides whether the attempt moves mastery**: only a
-    /// curriculum attempt of a mode that counts can, and a <c>practice</c> attempt is graded and
-    /// returned in full while changing nothing at all.
-    /// </summary>
     [MaxLength(32)]
     public string? ContextKey { get; set; }
 
-    /// <summary>Required when <see cref="ContextKey"/> is <c>event</c>, refused otherwise.</summary>
     public Guid? EventId { get; set; }
 
     /// <summary>
-    /// Optional client-generated id identifying **this submission**, so a retry after a lost
-    /// response is recognised as the same attempt rather than a new one.
-    /// <para>
-    /// Only rewards use it, and only rules that pay on every attempt are affected: without it a
-    /// resubmitted run is indistinguishable from genuinely replaying the lesson, and is paid twice.
-    /// Progress itself is unaffected either way — the score is recomputed and overwritten, not
-    /// accumulated.
-    /// </para>
-    /// <para>
-    /// Generate one id per run and **reuse it for every retry of that run**, exactly as
-    /// <c>requestId</c> works for a purchase.
-    /// </para>
+    /// Required when <see cref="ContextKey"/> is <c>assignment</c>, refused otherwise. The server
+    /// checks the caller is actually on the cohort's roster; naming an assignment is a claim, not
+    /// an instruction.
     /// </summary>
+    public Guid? AssignmentId { get; set; }
+
     [MaxLength(128)]
     public string? RequestId { get; set; }
 }

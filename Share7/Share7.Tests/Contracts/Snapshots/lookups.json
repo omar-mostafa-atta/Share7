@@ -1,0 +1,220 @@
+[
+  {
+    "request": "GET /api/languages",
+    "as": "anonymous",
+    "requestBody": null,
+    "status": 200,
+    "body": [
+      {
+        "id": "lang:en",
+        "name": "English",
+        "code": "en"
+      },
+      {
+        "id": "lang:ar",
+        "name": "العربية",
+        "code": "ar"
+      }
+    ]
+  },
+  {
+    "request": "GET /api/grades",
+    "as": "anonymous",
+    "requestBody": null,
+    "status": 200,
+    "body": [
+      {
+        "id": "grade:Kg1",
+        "name": "KG1",
+        "langId": "lang:en",
+        "order": 1
+      },
+      {
+        "id": "grade:Kg2",
+        "name": "KG2",
+        "langId": "lang:en",
+        "order": 2
+      },
+      {
+        "id": "grade:PrimaryOne",
+        "name": "Primary One",
+        "langId": "lang:en",
+        "order": 3
+      },
+      {
+        "id": "grade:PrimaryTwo",
+        "name": "Primary Two",
+        "langId": "lang:en",
+        "order": 4
+      },
+      {
+        "id": "grade:PrimaryThree",
+        "name": "Primary Three",
+        "langId": "lang:en",
+        "order": 5
+      },
+      {
+        "id": "grade:PrimaryFour",
+        "name": "Primary Four",
+        "langId": "lang:en",
+        "order": 6
+      },
+      {
+        "id": "grade:PrimaryFive",
+        "name": "Primary Five",
+        "langId": "lang:en",
+        "order": 7
+      },
+      {
+        "id": "grade:PrimarySix",
+        "name": "Primary Six",
+        "langId": "lang:en",
+        "order": 8
+      },
+      {
+        "id": "grade:PreparatoryOne",
+        "name": "Preparatory One",
+        "langId": "lang:en",
+        "order": 9
+      },
+      {
+        "id": "grade:PreparatoryTwo",
+        "name": "Preparatory Two",
+        "langId": "lang:en",
+        "order": 10
+      },
+      {
+        "id": "grade:PreparatoryThree",
+        "name": "Preparatory Three",
+        "langId": "lang:en",
+        "order": 11
+      },
+      {
+        "id": "grade:SecondaryOne",
+        "name": "Secondary One",
+        "langId": "lang:en",
+        "order": 12
+      },
+      {
+        "id": "grade:SecondaryTwo",
+        "name": "Secondary Two",
+        "langId": "lang:en",
+        "order": 13
+      },
+      {
+        "id": "grade:SecondaryThree",
+        "name": "Secondary Three",
+        "langId": "lang:en",
+        "order": 14
+      }
+    ]
+  },
+  {
+    "request": "GET /api/grades?langId=lang:ar",
+    "as": "anonymous",
+    "requestBody": null,
+    "status": 200,
+    "body": [
+      {
+        "id": "grade:Kg1",
+        "name": "الروضة الأولى",
+        "langId": "lang:ar",
+        "order": 1
+      },
+      {
+        "id": "grade:Kg2",
+        "name": "الروضة الثانية",
+        "langId": "lang:ar",
+        "order": 2
+      },
+      {
+        "id": "grade:PrimaryOne",
+        "name": "الصف الأول الابتدائي",
+        "langId": "lang:ar",
+        "order": 3
+      },
+      {
+        "id": "grade:PrimaryTwo",
+        "name": "الصف الثاني الابتدائي",
+        "langId": "lang:ar",
+        "order": 4
+      },
+      {
+        "id": "grade:PrimaryThree",
+        "name": "الصف الثالث الابتدائي",
+        "langId": "lang:ar",
+        "order": 5
+      },
+      {
+        "id": "grade:PrimaryFour",
+        "name": "الصف الرابع الابتدائي",
+        "langId": "lang:ar",
+        "order": 6
+      },
+      {
+        "id": "grade:PrimaryFive",
+        "name": "الصف الخامس الابتدائي",
+        "langId": "lang:ar",
+        "order": 7
+      },
+      {
+        "id": "grade:PrimarySix",
+        "name": "الصف السادس الابتدائي",
+        "langId": "lang:ar",
+        "order": 8
+      },
+      {
+        "id": "grade:PreparatoryOne",
+        "name": "الصف الأول الإعدادي",
+        "langId": "lang:ar",
+        "order": 9
+      },
+      {
+        "id": "grade:PreparatoryTwo",
+        "name": "الصف الثاني الإعدادي",
+        "langId": "lang:ar",
+        "order": 10
+      },
+      {
+        "id": "grade:PreparatoryThree",
+        "name": "الصف الثالث الإعدادي",
+        "langId": "lang:ar",
+        "order": 11
+      },
+      {
+        "id": "grade:SecondaryOne",
+        "name": "الصف الأول الثانوي",
+        "langId": "lang:ar",
+        "order": 12
+      },
+      {
+        "id": "grade:SecondaryTwo",
+        "name": "الصف الثاني الثانوي",
+        "langId": "lang:ar",
+        "order": 13
+      },
+      {
+        "id": "grade:SecondaryThree",
+        "name": "الصف الثالث الثانوي",
+        "langId": "lang:ar",
+        "order": 14
+      }
+    ]
+  },
+  {
+    "request": "GET /api/time",
+    "as": "anonymous",
+    "requestBody": null,
+    "status": 200,
+    "body": {
+      "utcNow": "<timestamp>"
+    }
+  },
+  {
+    "request": "GET /api/terms?gradeId=grade:PrimaryFour",
+    "as": "anonymous",
+    "requestBody": null,
+    "status": 401,
+    "body": null
+  }
+]

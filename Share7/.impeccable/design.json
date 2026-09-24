@@ -1,0 +1,664 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-23T00:00:00Z",
+  "title": "Design System: Share7 Content Studio",
+  "extensions": {
+    "colorMeta": {
+      "ground": {
+        "role": "neutral",
+        "displayName": "Board Green",
+        "canonical": "#1d3a31",
+        "whiteboard": "#f1f2ec",
+        "purpose": "The board itself, behind everything.",
+        "tonalRamp": [
+          "oklch(15% 0.033 165)",
+          "oklch(26% 0.033 165)",
+          "oklch(37% 0.033 165)",
+          "oklch(48% 0.033 165)",
+          "oklch(59% 0.033 165)",
+          "oklch(70% 0.033 165)",
+          "oklch(82% 0.028 165)",
+          "oklch(93% 0.018 165)"
+        ]
+      },
+      "ground-2": {
+        "role": "neutral",
+        "displayName": "Board Green Sheet",
+        "canonical": "#1a352c",
+        "whiteboard": "#e8eae1",
+        "purpose": "The one raised surface: a modal dialog."
+      },
+      "ground-3": {
+        "role": "neutral",
+        "displayName": "Board Green Deep",
+        "canonical": "#16302a",
+        "whiteboard": "#dfe2d8",
+        "purpose": "The frame's surfaces: the rail, the ledge, the toast, a select's option list. Also the value written into <meta name=\"theme-color\">."
+      },
+      "frame": {
+        "role": "neutral",
+        "displayName": "Aluminium",
+        "canonical": "#a7aca8",
+        "whiteboard": "#565c56",
+        "purpose": "Engraved frame labelling only: dates, captions, column heads, the name above a value. Never content.",
+        "tonalRamp": [
+          "oklch(15% 0.007 145)",
+          "oklch(26% 0.007 145)",
+          "oklch(37% 0.007 145)",
+          "oklch(48% 0.007 145)",
+          "oklch(60% 0.007 145)",
+          "oklch(72% 0.007 145)",
+          "oklch(84% 0.006 145)",
+          "oklch(95% 0.004 145)"
+        ]
+      },
+      "frame-2": {
+        "role": "neutral",
+        "displayName": "Aluminium Dim",
+        "canonical": "#7f857f",
+        "whiteboard": "#9aa09a",
+        "purpose": "The hairline seam where the frame meets the board, and a dialog's edge."
+      },
+      "ink": {
+        "role": "primary",
+        "displayName": "Chalk White",
+        "canonical": "#ecefe4",
+        "whiteboard": "#1f2c26",
+        "purpose": "Every word on the board. Headings, questions, answers, the current place, the right answer's underline.",
+        "tonalRamp": [
+          "oklch(15% 0.014 118)",
+          "oklch(26% 0.014 118)",
+          "oklch(37% 0.014 118)",
+          "oklch(48% 0.014 118)",
+          "oklch(60% 0.014 118)",
+          "oklch(72% 0.014 118)",
+          "oklch(84% 0.014 118)",
+          "oklch(95% 0.012 118)"
+        ]
+      },
+      "ink-2": {
+        "role": "primary",
+        "displayName": "Chalk, Softened",
+        "canonical": "rgba(236, 239, 228, 0.74)",
+        "whiteboard": "rgba(31, 44, 38, 0.78)",
+        "derivedFrom": "ink",
+        "purpose": "Prose, field labels, state marks at rest, a place you are not on."
+      },
+      "ink-3": {
+        "role": "primary",
+        "displayName": "Chalk, Faded",
+        "canonical": "rgba(236, 239, 228, 0.62)",
+        "whiteboard": "rgba(31, 44, 38, 0.66)",
+        "derivedFrom": "ink",
+        "purpose": "What has ended, what is placeholder, the quiet meta beside a row."
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "Ruled Line",
+        "canonical": "rgba(236, 239, 228, 0.28)",
+        "whiteboard": "rgba(31, 44, 38, 0.3)",
+        "derivedFrom": "ink",
+        "purpose": "An edge you write on or against: a field's baseline, an action's border, a table head."
+      },
+      "rule-soft": {
+        "role": "neutral",
+        "displayName": "Faint Rule",
+        "canonical": "rgba(236, 239, 228, 0.13)",
+        "whiteboard": "rgba(31, 44, 38, 0.13)",
+        "derivedFrom": "ink",
+        "purpose": "A quiet separation between things of the same kind: rows, bands, lesson lines."
+      },
+      "dust": {
+        "role": "neutral",
+        "displayName": "Chalk Dust",
+        "canonical": "rgba(236, 239, 228, 0.06)",
+        "whiteboard": "rgba(31, 44, 38, 0.05)",
+        "derivedFrom": "ink",
+        "purpose": "The wash a row or an action picks up on hover, and the radial haze at the top of the board."
+      },
+      "go": {
+        "role": "secondary",
+        "displayName": "Yellow Chalk",
+        "canonical": "#f1d35b",
+        "whiteboard": "#8a5d00",
+        "purpose": "The one action a board is for, and where you are: .act.first, the underline under the current place, a place’s count badge, the step you are on, a hovered link’s underline, the keyboard focus ring and the selection. Not the caret and not a focused field — those are chalk.",
+        "tonalRamp": [
+          "oklch(15% 0.135 95)",
+          "oklch(27% 0.135 95)",
+          "oklch(39% 0.135 95)",
+          "oklch(51% 0.135 95)",
+          "oklch(63% 0.135 95)",
+          "oklch(74% 0.135 95)",
+          "oklch(86% 0.135 95)",
+          "oklch(95% 0.075 95)"
+        ]
+      },
+      "go-on": {
+        "role": "secondary",
+        "displayName": "Ground Under Yellow",
+        "canonical": "#21332a",
+        "whiteboard": "#fffaf0",
+        "purpose": "The only text colour ever set on top of --go."
+      },
+      "bad": {
+        "role": "tertiary",
+        "displayName": "Red Chalk",
+        "canonical": "#e57f76",
+        "whiteboard": "#b8362a",
+        "purpose": "A problem, as a stroke: the double rule of a wrong mark, an invalid field's line, a leader to a problem in the margin.",
+        "tonalRamp": [
+          "oklch(15% 0.125 25)",
+          "oklch(26% 0.125 25)",
+          "oklch(37% 0.125 25)",
+          "oklch(48% 0.125 25)",
+          "oklch(59% 0.125 25)",
+          "oklch(70% 0.125 25)",
+          "oklch(82% 0.095 25)",
+          "oklch(93% 0.045 25)"
+        ]
+      },
+      "bad-ink": {
+        "role": "tertiary",
+        "displayName": "Red Chalk, Written",
+        "canonical": "#f0a79f",
+        "whiteboard": "#9c2a1f",
+        "derivedFrom": "bad",
+        "purpose": "The text tone of a problem: a wrong mark's words, a grave action's label, a margin note about something wrong."
+      },
+      "live": {
+        "role": "tertiary",
+        "displayName": "Blue Chalk",
+        "canonical": "#8cbfe0",
+        "whiteboard": "#1d6091",
+        "purpose": "What students already have, as a stroke: the leader to a reviewer's comment, a live-tone note in the margin.",
+        "tonalRamp": [
+          "oklch(15% 0.070 235)",
+          "oklch(26% 0.070 235)",
+          "oklch(37% 0.070 235)",
+          "oklch(48% 0.070 235)",
+          "oklch(59% 0.070 235)",
+          "oklch(70% 0.070 235)",
+          "oklch(82% 0.062 235)",
+          "oklch(93% 0.030 235)"
+        ]
+      },
+      "live-ink": {
+        "role": "tertiary",
+        "displayName": "Blue Chalk, Written",
+        "canonical": "#a6cfea",
+        "whiteboard": "#185177",
+        "derivedFrom": "live",
+        "purpose": "The text tone of what is already live: the live mark, a practice lesson, somebody else on the same board."
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "The name of a board that stands alone — sign-in, activation. Always with the .twice double underline. Drops to headline size below 720px."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "The h1 of a board inside the frame: the greeting, a lesson's title, the name of a place."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "A band's h2, an empty state's h3, a dialog's heading."
+      },
+      "written": {
+        "displayName": "Written",
+        "purpose": "What is read and written on the board: a lesson question, a line number, a value on the account board. Editable fields use the same size at weight 300."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "The document default. Row titles and .said prose, capped at 68ch."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "The most-used size. State marks, field labels, places, actions, explanations, times and counts."
+      },
+      "engraved": {
+        "displayName": "Engraved",
+        "purpose": "The frame talking about the board: a date, a ledge caption, a column head, the name above a value. Never content, never a kicker above a heading."
+      }
+    },
+    "strokes": [
+      {
+        "name": "written",
+        "value": "border-top: 2px solid currentColor; color: var(--ink)",
+        "purpose": "Done: approved, released, published, a language that has its questions, the live lesson."
+      },
+      {
+        "name": "writing",
+        "value": "block-size: 2px; background: linear-gradient(to right, currentColor 0 11px, transparent 11px 14px, currentColor 14px 16px, transparent 16px)",
+        "purpose": "Still being written: a draft being edited. A part-drawn line with the chalk still on it."
+      },
+      {
+        "name": "waiting",
+        "value": "border-top: 2px dashed currentColor",
+        "purpose": "Waiting on somebody: in review, building, scheduled, publishing, unread, a lesson with no questions yet."
+      },
+      {
+        "name": "ended",
+        "value": "border-top: 2px solid currentColor; color: var(--ink-3); + a 1px line through the words",
+        "purpose": "Over: discarded, cancelled, a superseded approval. It arrives already struck; the strike is only drawn in front of you when the thing ends while you are looking at it."
+      },
+      {
+        "name": "wrong",
+        "value": "border-top: 4px double currentColor; color: var(--bad-ink)",
+        "purpose": "A problem: changes requested, failed, out of date, a missing language, an overdue assignment."
+      },
+      {
+        "name": "live",
+        "value": "border-top: 2px solid currentColor; color: var(--live-ink)",
+        "purpose": "What students already have or what somebody else is doing: the live version, a practice lesson, another member on the same board."
+      }
+    ],
+    "surfaces": [
+      {
+        "name": "board",
+        "selector": ":root",
+        "purpose": "The default and the landing state: matte slate-green board, chalk-white writing. color-scheme: dark."
+      },
+      {
+        "name": "whiteboard",
+        "selector": ":root[data-surface=\"whiteboard\"]",
+        "purpose": "The whiteboard that replaced the board: same rules, same strokes, marker ink instead of chalk. color-scheme: light. Chosen in Settings and stored in localStorage under share7-studio.surface; never guessed from the system. Redefines every colour token and nothing else."
+      }
+    ],
+    "shadows": [
+      {
+        "name": "drawn-double-underline",
+        "value": "0 5px 0 -1px var(--ink-3)",
+        "purpose": "The teacher's double underline beneath the title of a standalone board (.twice). A zero-blur offset that draws a second line, not a shadow."
+      },
+      {
+        "name": "drawn-double-rule",
+        "value": "0 3px 0 -1px var(--rule)",
+        "purpose": "The double rule that separates one part of a board from another (.double-rule). The lesson's second-chance divider uses the inset form, inset 0 3px 0 -2px var(--rule)."
+      },
+      {
+        "name": "drawn-focus-rule",
+        "value": "0 1px 0 var(--ink)",
+        "purpose": "A focused field’s ruled line firming up to full chalk and thickening to two pixels. Deliberately not yellow: yellow says which action a board is for. The invalid form is 0 1px 0 var(--bad); a pressed segment is inset 0 -2px 0 var(--ink)."
+      },
+      {
+        "name": "frame-seam-top",
+        "value": "0 10px 24px -22px rgba(0, 0, 0, 0.9)",
+        "purpose": "The darkening under the rail where the aluminium meets the board. Almost entirely negative spread; the 1px --frame-2 border does most of the work."
+      },
+      {
+        "name": "frame-seam-bottom",
+        "value": "0 -12px 28px -26px rgba(0, 0, 0, 0.9)",
+        "purpose": "The same seam above the ledge."
+      },
+      {
+        "name": "lifted-told",
+        "value": "0 10px 30px -18px rgba(0, 0, 0, 0.85)",
+        "purpose": "A toast, one of only two things allowed above the board."
+      },
+      {
+        "name": "lifted-sheet",
+        "value": "0 30px 80px -40px rgba(0, 0, 0, 0.95)",
+        "purpose": "A modal dialog, over a rgba(8, 18, 15, 0.62) backdrop. The other of the two."
+      }
+    ],
+    "motion": [
+      {
+        "name": "step",
+        "value": "180ms",
+        "purpose": "Every transition and every stroke in the system. One duration, no scale."
+      },
+      {
+        "name": "ease",
+        "value": "cubic-bezier(0.16, 0.84, 0.36, 1)",
+        "purpose": "The only easing. Fast out of the gate, settling at the end, like a line drawn by hand."
+      },
+      {
+        "name": "draws",
+        "value": "@keyframes draws { from { transform: translateY(-4px) scaleX(0) } to { transform: translateY(-4px) scaleX(1) } }",
+        "purpose": "A state mark’s stroke growing from its start. Applied only under .mark[data-draws=\"yes\"], which <Mark> sets after the stroke has actually changed, so nothing is drawn on arrival. transform-origin flips to right center under :root[dir=\"rtl\"]."
+      },
+      {
+        "name": "strikes",
+        "value": "@keyframes strikes { to { transform: scaleX(1) } } — 180ms, 70ms delay",
+        "purpose": "The line drawn through the words of a state that has just ended, in front of you. Also gated on data-draws=\"yes\": a thing that was already over when the board opened arrives struck."
+      },
+      {
+        "name": "chalked",
+        "value": "@keyframes chalked { from { clip-path: inset(0 100% 0 0) } to { clip-path: inset(0 0 0 0) } }",
+        "purpose": "A toast written across rather than faded in. The mirrored chalked-rtl keyframe writes right to left under :root[dir=\"rtl\"]."
+      },
+      {
+        "name": "wipe",
+        "value": "@keyframes wipe { from { background-position: 130% 0 } to { background-position: -30% 0 } } — 1.5s infinite",
+        "purpose": "The board being wiped clean while what goes on it is fetched. The only looping animation in the system."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "@media (prefers-reduced-motion: reduce) — all animations and transitions clamped to 1ms, iteration count 1",
+        "purpose": "Every stroke still lands in its final state; none of them is drawn."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "written-margin",
+        "value": "1100px",
+        "purpose": "The written lesson gives up its 270px margin; notes move under the line they belong to, indented to the number column."
+      },
+      {
+        "name": "ruled-margin",
+        "value": "1080px",
+        "purpose": "The generic .ruled grid collapses and its sticky margin becomes a band below the work. Defined in board.css; no screen currently mounts .ruled."
+      },
+      {
+        "name": "frame-folds",
+        "value": "860px",
+        "purpose": "The rail folds to two tiers, the places take a scrolling masked line of their own, the member's name is dropped (the language switch stays), and the sheet reserves 124px for the folded ledge."
+      },
+      {
+        "name": "against-stacks",
+        "value": "760px",
+        "purpose": "Side-by-side readings — live against proposed, before against after — stack."
+      },
+      {
+        "name": "phone",
+        "value": "720px",
+        "purpose": "The spacing scale contracts in place (--s5 24→16, --s6 32→24, --s7 48→32), the display size drops to headline, a row’s two halves stack, and a row’s trailing chevron is pinned absolutely to the trailing edge so a stacked row is still visibly one row."
+      },
+      {
+        "name": "pair-stacks",
+        "value": "640px",
+        "purpose": "A .pair becomes one column."
+      }
+    ],
+    "measures": [
+      {
+        "name": "page",
+        "value": "1240px",
+        "purpose": "The sheet's maximum width (--page)."
+      },
+      {
+        "name": "said",
+        "value": "68ch",
+        "purpose": "Prose on the board."
+      },
+      {
+        "name": "question",
+        "value": "72ch",
+        "purpose": "A lesson question and its answers — a question is read, so it is set to be read."
+      },
+      {
+        "name": "reading",
+        "value": "70ch",
+        "purpose": "The handbook."
+      },
+      {
+        "name": "nothing",
+        "value": "62ch",
+        "purpose": "An empty state that teaches."
+      },
+      {
+        "name": "contents",
+        "value": "52ch",
+        "purpose": "The handbook's contents list."
+      },
+      {
+        "name": "alone-said",
+        "value": "44ch",
+        "purpose": "The subtitle under a standalone board's title."
+      },
+      {
+        "name": "alone-column",
+        "value": "min(460px, 100%) — min(660px, 100%) when roomy",
+        "purpose": "The one column of a board that stands on its own."
+      },
+      {
+        "name": "pair",
+        "value": "760px",
+        "purpose": "Two readings side by side, kept together rather than at opposite ends of a wide board."
+      },
+      {
+        "name": "rail",
+        "value": "56px",
+        "purpose": "The frame's top edge (--rail)."
+      },
+      {
+        "name": "ledge",
+        "value": "60px",
+        "purpose": "The chalk ledge along the bottom (--ledge)."
+      }
+    ],
+    "texture": [
+      {
+        "name": "grain",
+        "value": "body::before — fixed, inset 0, opacity 0.45, mix-blend-mode: overlay, an inline SVG feTurbulence fractalNoise (baseFrequency 0.9, 3 octaves, desaturated) tiled at 180×180",
+        "purpose": "The grain of a real board. Fixed and painted once, so scrolling costs nothing. Removed in print."
+      },
+      {
+        "name": "dust",
+        "value": "body::after — fixed, top 0, height 38vh, radial-gradient(120% 100% at 50% 0%, var(--dust), transparent 68%)",
+        "purpose": "The dust that gathers where a board is wiped. Removed in print."
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "State Mark",
+      "kind": "custom",
+      "refersTo": "mark",
+      "description": "The system's signature. A stroke drawn before the state's name — never a colour, dot or pill on its own. Six strokes; the component will not render without words. The stroke is a real element, not a pseudo-element, because it has to be able to be drawn again: <Mark> remounts it when the state changes and sets data-draws=\"yes\", so a mark the board was already holding arrives still and only a real change is written in front of you. (The samples below carry data-draws so the strokes are visible here.)",
+      "html": "<span class=\"ds-mark\" data-stroke=\"written\" data-draws=\"yes\"><span class=\"ds-mark-line\" aria-hidden=\"true\"></span><span class=\"ds-mark-name\">Approved</span></span>\n<span class=\"ds-mark\" data-stroke=\"writing\" data-draws=\"yes\"><span class=\"ds-mark-line\" aria-hidden=\"true\"></span><span class=\"ds-mark-name\">Being written</span></span>\n<span class=\"ds-mark\" data-stroke=\"waiting\" data-draws=\"yes\"><span class=\"ds-mark-line\" aria-hidden=\"true\"></span><span class=\"ds-mark-name\">Waiting for review</span></span>\n<span class=\"ds-mark\" data-stroke=\"ended\" data-draws=\"yes\"><span class=\"ds-mark-line\" aria-hidden=\"true\"></span><span class=\"ds-mark-name\">Discarded</span></span>\n<span class=\"ds-mark\" data-stroke=\"wrong\" data-draws=\"yes\"><span class=\"ds-mark-line\" aria-hidden=\"true\"></span><span class=\"ds-mark-name\">Changes requested</span></span>\n<span class=\"ds-mark\" data-stroke=\"live\" data-draws=\"yes\"><span class=\"ds-mark-line\" aria-hidden=\"true\"></span><span class=\"ds-mark-name\">Live in the game</span></span>",
+      "css": ".ds-mark { display: inline-flex; align-items: baseline; gap: var(--s2, 8px); font-size: var(--t-sm, 0.8125rem); color: var(--ink-2); max-inline-size: 100%; margin-inline-end: var(--s4, 16px); } .ds-mark-line { inline-size: 18px; block-size: 0; flex: none; transform: translateY(-4px); border-top: 2px solid currentColor; transform-origin: left center; } .ds-mark[data-draws=\"yes\"] .ds-mark-line { animation: ds-draws 180ms cubic-bezier(0.16, 0.84, 0.36, 1) both; } @keyframes ds-draws { from { transform: translateY(-4px) scaleX(0); } to { transform: translateY(-4px) scaleX(1); } } .ds-mark[data-stroke=\"written\"] { color: var(--ink); } .ds-mark[data-stroke=\"writing\"] { color: var(--ink-2); } .ds-mark[data-stroke=\"writing\"] .ds-mark-line { border-top: none; block-size: 2px; background: linear-gradient(to right, currentColor 0 11px, transparent 11px 14px, currentColor 14px 16px, transparent 16px); } .ds-mark[data-stroke=\"waiting\"] { color: var(--ink-2); } .ds-mark[data-stroke=\"waiting\"] .ds-mark-line { border-top-style: dashed; } .ds-mark[data-stroke=\"ended\"] { color: var(--ink-3); } .ds-mark[data-stroke=\"ended\"] .ds-mark-name { position: relative; } .ds-mark[data-stroke=\"ended\"] .ds-mark-name::after { content: \"\"; position: absolute; inset-inline: 0; top: 52%; border-top: 1px solid currentColor; transform-origin: left center; } .ds-mark[data-draws=\"yes\"][data-stroke=\"ended\"] .ds-mark-name::after { transform: scaleX(0); animation: ds-strikes 180ms cubic-bezier(0.16, 0.84, 0.36, 1) 70ms both; } @keyframes ds-strikes { to { transform: scaleX(1); } } .ds-mark[data-stroke=\"wrong\"] { color: var(--bad-ink); } .ds-mark[data-stroke=\"wrong\"] .ds-mark-line { border-top-style: double; border-top-width: 4px; } .ds-mark[data-stroke=\"live\"] { color: var(--live-ink); }"
+    },
+    {
+      "name": "Chalk Action",
+      "kind": "button",
+      "refersTo": "act",
+      "description": "The default action. A hairline-ruled rectangle in chalk white; hover washes it with chalk dust, active nudges it down a pixel.",
+      "html": "<button type=\"button\" class=\"ds-act\">Run the checks</button>",
+      "css": ".ds-act { display: inline-flex; align-items: center; justify-content: center; gap: var(--s2, 8px); padding: 10px 16px; font-family: inherit; font-size: var(--t-sm, 0.8125rem); font-weight: 400; color: var(--ink); background: none; border: 1px solid var(--rule); border-radius: 2px; cursor: pointer; white-space: nowrap; transition: border-color 180ms cubic-bezier(0.16, 0.84, 0.36, 1), color 180ms cubic-bezier(0.16, 0.84, 0.36, 1), background-color 180ms cubic-bezier(0.16, 0.84, 0.36, 1); } .ds-act:hover:not(:disabled) { border-color: var(--ink-3); background: var(--dust); } .ds-act:active:not(:disabled) { transform: translateY(1px); } .ds-act:focus-visible { outline: 2px solid var(--go); outline-offset: 3px; } .ds-act:disabled { color: var(--ink-3); border-style: dashed; border-color: var(--rule-soft); cursor: not-allowed; }"
+    },
+    {
+      "name": "The One Action",
+      "kind": "button",
+      "refersTo": "act-first",
+      "description": "Yellow chalk: the one action a board is for. At most one per board, and it lives on the ledge. Unready, it dims to a third-strength yellow rather than draining to grey, and its label stays full chalk because the fill is what says \"not ready\" — the colour has to say what the board is for before the form is filled in as well as after.",
+      "html": "<button type=\"button\" class=\"ds-act ds-act-first\">Submit for review</button>\n<button type=\"button\" class=\"ds-act ds-act-first\" disabled>Submit for review</button>",
+      "css": ".ds-act-first { color: var(--go-on); background: var(--go); border-color: var(--go); font-weight: 500; } .ds-act-first:hover:not(:disabled) { background: color-mix(in srgb, var(--go) 86%, var(--ink)); border-color: color-mix(in srgb, var(--go) 86%, var(--ink)); } .ds-act-first:focus-visible { outline: 2px solid var(--go); outline-offset: 3px; } .ds-act-first:disabled { color: var(--ink); background: color-mix(in srgb, var(--go) 34%, transparent); border-color: color-mix(in srgb, var(--go) 34%, transparent); border-style: solid; cursor: not-allowed; }"
+    },
+    {
+      "name": "Grave Action",
+      "kind": "button",
+      "refersTo": "act-grave",
+      "description": "Red chalk on a half-strength red border, for the few real deletions. Always sits in the work beside the sentence explaining what is lost — never on the ledge.",
+      "html": "<button type=\"button\" class=\"ds-act ds-act-grave\">Throw this draft away</button>",
+      "css": ".ds-act-grave { color: var(--bad-ink); border-color: color-mix(in srgb, var(--bad) 50%, transparent); } .ds-act-grave:hover:not(:disabled) { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 12%, transparent); } .ds-act-grave:focus-visible { outline: 2px solid var(--go); outline-offset: 3px; }"
+    },
+    {
+      "name": "Ruled Field",
+      "kind": "input",
+      "refersTo": "write",
+      "description": "A ruled line to write on: no box, no background, no radius. Focus firms the rule up to full chalk and thickens it to two pixels — deliberately not yellow, because yellow says which action a board is for and a focused field would out-colour the action it leads to. The explanation is chalked beneath, joined by a short leader; a problem replaces the hint rather than stacking with it.",
+      "html": "<div class=\"ds-field\">\n  <label for=\"ds-write-1\">Your username</label>\n  <input id=\"ds-write-1\" class=\"ds-write\" value=\"\" placeholder=\"\" />\n  <p class=\"ds-beside\">Accounts are made for you. If you have no username yet, ask whoever runs the team.</p>\n</div>\n<div class=\"ds-field\">\n  <label for=\"ds-write-2\">Your password</label>\n  <input id=\"ds-write-2\" class=\"ds-write\" type=\"password\" aria-invalid=\"true\" value=\"wrong\" />\n  <p class=\"ds-beside\" data-tone=\"wrong\">That username and password do not go together.</p>\n</div>",
+      "css": ".ds-field { display: grid; gap: var(--s2, 8px); margin-bottom: var(--s5, 24px); } .ds-field > label { font-size: var(--t-sm, 0.8125rem); font-weight: 400; color: var(--ink-2); } .ds-write { width: 100%; padding: 12px 0; font-family: inherit; font-size: var(--t-md, 1.0625rem); font-weight: 300; color: var(--ink); background: none; border: none; border-bottom: 1px solid var(--rule); border-radius: 0; caret-color: var(--ink); transition: border-color 180ms cubic-bezier(0.16, 0.84, 0.36, 1); } .ds-write::placeholder { color: var(--ink-3); } .ds-write:hover { border-bottom-color: var(--ink-3); } .ds-write:focus { outline: none; border-bottom-color: var(--ink); box-shadow: 0 1px 0 var(--ink); } .ds-write:disabled { color: var(--ink-3); border-bottom-style: dashed; cursor: not-allowed; } .ds-write[aria-invalid=\"true\"] { border-bottom-color: var(--bad); box-shadow: 0 1px 0 var(--bad); } .ds-beside { position: relative; padding-inline-start: var(--s4, 16px); font-size: var(--t-sm, 0.8125rem); color: var(--ink-3); } .ds-beside::before { content: \"\"; position: absolute; inset-inline-start: 0; top: 0.72em; inline-size: 9px; border-top: 1px solid var(--rule); } .ds-beside[data-tone=\"wrong\"] { color: var(--bad-ink); } .ds-beside[data-tone=\"wrong\"]::before { border-top-color: var(--bad); } .ds-beside[data-tone=\"live\"] { color: var(--live-ink); } .ds-beside[data-tone=\"live\"]::before { border-top-color: var(--live); }"
+    },
+    {
+      "name": "Places",
+      "kind": "nav",
+      "refersTo": "place",
+      "description": "The board's navigation, chalked along the top edge of the frame. The place you are on is underlined by a yellow rule that scales in from its start. There is no sidebar. At most two places ever carry a count.",
+      "html": "<nav class=\"ds-places\">\n  <a href=\"#\" class=\"ds-place\" aria-current=\"page\">Home</a>\n  <a href=\"#\" class=\"ds-place\">Curriculum</a>\n  <a href=\"#\" class=\"ds-place\">Question bank</a>\n  <a href=\"#\" class=\"ds-place\">Reviews<span class=\"ds-place-count\">3</span></a>\n  <a href=\"#\" class=\"ds-place\">Releases</a>\n</nav>",
+      "css": ".ds-places { display: flex; align-items: stretch; gap: var(--s1, 4px); min-width: 0; overflow-x: auto; scrollbar-width: none; background: var(--ground-3); padding: 0 var(--s5, 24px); min-height: 56px; border-bottom: 1px solid var(--frame-2); } .ds-places::-webkit-scrollbar { display: none; } .ds-place { position: relative; display: inline-flex; align-items: center; gap: var(--s2, 8px); padding: 8px 12px; font-size: var(--t-sm, 0.8125rem); font-weight: 300; color: var(--ink-2); text-decoration: none; white-space: nowrap; border-radius: 2px; transition: color 180ms cubic-bezier(0.16, 0.84, 0.36, 1); } .ds-place:hover { color: var(--ink); } .ds-place:focus-visible { outline: 2px solid var(--go); outline-offset: 3px; } .ds-place::after { content: \"\"; position: absolute; inset-inline: 12px; bottom: 6px; height: 2px; background: var(--go); transform: scaleX(0); transform-origin: left center; transition: transform 180ms cubic-bezier(0.16, 0.84, 0.36, 1); } .ds-place[aria-current=\"page\"] { color: var(--ink); font-weight: 500; } .ds-place[aria-current=\"page\"]::after { transform: scaleX(1); } .ds-place-count { min-inline-size: 18px; padding-inline: 5px; font-size: var(--t-xs, 0.6875rem); font-weight: 500; font-variant-numeric: tabular-nums; text-align: center; color: var(--go-on); background: var(--go); border-radius: 99px; }"
+    },
+    {
+      "name": "Register Row",
+      "kind": "card",
+      "refersTo": "row",
+      "description": "The Studio's list primitive, and its answer to the card. Two columns separated by a faint hairline — the work on one side, its state marks and times on the other. Below 720px the two halves stack.",
+      "html": "<div class=\"ds-rows\">\n  <a href=\"#\" class=\"ds-row\">\n    <span class=\"ds-row-main\">\n      <span class=\"ds-row-title\">Core Concepts: Numbers and Place Value</span>\n      <span class=\"ds-quiet\">Primary Three &middot; First Term &middot; Mathematics</span>\n    </span>\n    <span class=\"ds-row-side\">\n      <span class=\"ds-mark\" data-stroke=\"writing\"><span class=\"ds-mark-name\">Being written</span></span>\n      <time class=\"ds-quiet\">22 hours ago</time>\n    </span>\n  </a>\n  <a href=\"#\" class=\"ds-row\">\n    <span class=\"ds-row-main\">\n      <span class=\"ds-row-title\">Living Things</span>\n      <span class=\"ds-quiet\">KG1 &middot; First term &middot; Science</span>\n    </span>\n    <span class=\"ds-row-side\">\n      <span class=\"ds-mark\" data-stroke=\"waiting\"><span class=\"ds-mark-name\">Waiting for review</span></span>\n      <time class=\"ds-quiet\">21 hours ago</time>\n    </span>\n  </a>\n</div>",
+      "css": ".ds-rows { display: grid; } .ds-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--s4, 16px); padding: 12px 8px; border-bottom: 1px solid var(--rule-soft); text-decoration: none; color: inherit; transition: background-color 180ms cubic-bezier(0.16, 0.84, 0.36, 1); } .ds-row:hover { background: var(--dust); } .ds-row:focus-visible { outline: 2px solid var(--go); outline-offset: 3px; } .ds-row:last-child { border-bottom: none; } .ds-row-main { min-width: 0; display: grid; gap: 3px; } .ds-row-title { font-size: var(--t-base, 0.9375rem); color: var(--ink); overflow-wrap: anywhere; } .ds-row-side { display: flex; align-items: center; gap: var(--s4, 16px); flex: none; flex-wrap: wrap; justify-content: flex-end; } .ds-quiet { font-size: var(--t-sm, 0.8125rem); color: var(--ink-3); font-variant-numeric: tabular-nums; } @media (max-width: 720px) { .ds-row { grid-template-columns: minmax(0, 1fr); gap: var(--s2, 8px); } .ds-row-side { justify-content: flex-start; gap: var(--s3, 12px); } }"
+    },
+    {
+      "name": "The Ledge",
+      "kind": "custom",
+      "refersTo": "ledge",
+      "description": "The aluminium ledge along the bottom of the frame, where the chalk rests and the one action lives. Sticky, so it stays in sight while the board scrolls. An engraved caption on the leading edge says where you stand; the actions sit on the trailing edge, with at most one in yellow.",
+      "html": "<footer class=\"ds-ledge\">\n  <span class=\"ds-engraved\">Saved 22 hours ago</span>\n  <span class=\"ds-mark\" data-stroke=\"written\"><span class=\"ds-mark-name\">Everything checks out</span></span>\n  <div class=\"ds-ledge-end\">\n    <button type=\"button\" class=\"ds-act\">Checks</button>\n    <button type=\"button\" class=\"ds-act ds-act-first\">Submit for review</button>\n  </div>\n</footer>",
+      "css": ".ds-ledge { min-height: 60px; display: flex; align-items: center; flex-wrap: wrap; gap: 12px 16px; padding: 12px var(--s5, 24px); background: var(--ground-3); border-top: 1px solid var(--frame-2); box-shadow: 0 -12px 28px -26px rgba(0, 0, 0, 0.9); } .ds-ledge-end { margin-inline-start: auto; display: flex; align-items: center; gap: 12px; } .ds-engraved { font-size: var(--t-xs, 0.6875rem); font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--frame); }"
+    },
+    {
+      "name": "Written Lesson Line",
+      "kind": "custom",
+      "refersTo": "written-line",
+      "description": "The signature screen, one line of it. A number, the question after it, three answers indented beneath with the right one underlined, and the same question in its other language directly under it, sharing the number, in its own direction and script. Notes are chalked in the outer margin on the exact line they belong to. A question and an answer are edited where they read, and a focused one takes a yellow rule — the one place in the Studio where a field is yellow rather than chalk, because a lesson line has no label above it to say which one you are in. No cards, no panels — numbering, rules and indentation carry all of it.",
+      "html": "<div class=\"ds-written\">\n  <div class=\"ds-written-line\">\n    <span class=\"ds-written-no\">1.</span>\n    <div class=\"ds-written-body\">\n      <div class=\"ds-written-lang\" dir=\"ltr\" lang=\"en\">\n        <span class=\"ds-written-langname\">English</span>\n        <textarea class=\"ds-written-q\" rows=\"1\">Each box holds 7 pencils. How many pencils are in 3 boxes?</textarea>\n        <div class=\"ds-written-answers\">\n          <div class=\"ds-written-answer\" data-right=\"true\"><button type=\"button\" class=\"ds-written-pick\" aria-pressed=\"true\">A</button><input class=\"ds-written-a\" value=\"21\" /></div>\n          <div class=\"ds-written-answer\"><button type=\"button\" class=\"ds-written-pick\">B</button><input class=\"ds-written-a\" value=\"10\" /></div>\n          <div class=\"ds-written-answer\"><button type=\"button\" class=\"ds-written-pick\">C</button><input class=\"ds-written-a\" value=\"14\" /></div>\n        </div>\n      </div>\n      <div class=\"ds-written-lang\" dir=\"rtl\" lang=\"ar\">\n        <span class=\"ds-written-langname\">العربية</span>\n        <textarea class=\"ds-written-q\" rows=\"1\">في كل صندوق 7 أقلام. كم قلمًا في 3 صناديق؟</textarea>\n        <div class=\"ds-written-answers\">\n          <div class=\"ds-written-answer\"><button type=\"button\" class=\"ds-written-pick\">أ</button><input class=\"ds-written-a\" value=\"14\" /></div>\n          <div class=\"ds-written-answer\" data-right=\"true\"><button type=\"button\" class=\"ds-written-pick\" aria-pressed=\"true\">ب</button><input class=\"ds-written-a\" value=\"21\" /></div>\n          <div class=\"ds-written-answer\"><button type=\"button\" class=\"ds-written-pick\">ج</button><input class=\"ds-written-a\" value=\"42\" /></div>\n        </div>\n      </div>\n    </div>\n  </div>\n  <div class=\"ds-written-margin\">\n    <p class=\"ds-written-note\">Unchanged &mdash; keeps its place</p>\n    <p class=\"ds-written-note\" data-tone=\"live\"><strong>Mona</strong> &mdash; can we use a rounder number here?</p>\n  </div>\n</div>",
+      "css": ".ds-written { display: grid; grid-template-columns: minmax(0, 1fr) 270px; gap: 0 var(--s6, 32px); align-items: start; } .ds-written-line { grid-column: 1; display: grid; grid-template-columns: 2.4rem minmax(0, 1fr); gap: 0 12px; padding-block: var(--s5, 24px); border-top: 1px solid var(--rule-soft); } .ds-written-no { font-size: var(--t-md, 1.0625rem); color: var(--ink-3); padding-top: 3px; font-variant-numeric: tabular-nums; } .ds-written-body { min-width: 0; display: grid; gap: var(--s4, 16px); } .ds-written-lang { display: grid; gap: var(--s2, 8px); } .ds-written-lang + .ds-written-lang { padding-top: 12px; border-top: 1px dashed var(--rule-soft); } .ds-written-langname { font-size: var(--t-xs, 0.6875rem); font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--frame); } .ds-written-q { width: 100%; max-inline-size: 72ch; font-family: inherit; font-size: var(--t-md, 1.0625rem); font-weight: 400; line-height: 1.5; color: var(--ink); background: none; padding: 2px 0; border: none; border-bottom: 1px solid transparent; border-radius: 0; resize: none; overflow: hidden; caret-color: var(--go); } .ds-written-q:hover:not(:disabled) { border-bottom-color: var(--rule-soft); } .ds-written-q:focus { outline: none; border-bottom-color: var(--go); } .ds-written-answers { display: grid; gap: 3px; padding-inline-start: var(--s5, 24px); } .ds-written-answer { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: baseline; gap: 12px; } .ds-written-pick { padding: 2px 0; font-family: inherit; font-size: var(--t-sm, 0.8125rem); color: var(--ink-3); background: none; border: none; cursor: pointer; white-space: nowrap; } .ds-written-pick:hover:not(:disabled) { color: var(--ink-2); } .ds-written-a { width: 100%; max-inline-size: 72ch; padding: 2px 0; font-family: inherit; font-size: var(--t-base, 0.9375rem); color: var(--ink-2); background: none; border: none; border-bottom: 1px solid transparent; border-radius: 0; caret-color: var(--go); } .ds-written-a:hover:not(:disabled) { border-bottom-color: var(--rule-soft); } .ds-written-a:focus { outline: none; color: var(--ink); border-bottom-color: var(--go); } .ds-written-answer[data-right=\"true\"] .ds-written-a { color: var(--ink); text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.28em; text-decoration-color: var(--ink); } .ds-written-answer[data-right=\"true\"] .ds-written-pick { color: var(--ink); } .ds-written-margin { grid-column: 2; display: grid; gap: var(--s2, 8px); align-content: start; padding-block: var(--s5, 24px); padding-inline-start: var(--s4, 16px); border-top: 1px solid var(--rule-soft); font-size: var(--t-sm, 0.8125rem); } .ds-written-note { position: relative; padding-inline-start: var(--s4, 16px); color: var(--ink-3); } .ds-written-note::before { content: \"\"; position: absolute; inset-inline-start: 0; top: 0.72em; inline-size: 9px; border-top: 1px solid var(--rule); } .ds-written-note[data-tone=\"wrong\"] { color: var(--bad-ink); } .ds-written-note[data-tone=\"wrong\"]::before { border-top-color: var(--bad); } .ds-written-note[data-tone=\"live\"] { color: var(--live-ink); } .ds-written-note[data-tone=\"live\"]::before { border-top-color: var(--live); } @media (max-width: 1100px) { .ds-written { grid-template-columns: minmax(0, 1fr); } .ds-written-margin { grid-column: 1; padding-top: 0; padding-bottom: var(--s5, 24px); padding-inline-start: calc(2.4rem + 12px); } }"
+    },
+    {
+      "name": "Steps",
+      "kind": "custom",
+      "refersTo": "steps",
+      "description": "A journey chalked across the top of a standalone board at one scale: activation, or the second half of a 2-step sign-in. A step that is done has a solid rule, the one you are on is solid and yellow, one still ahead is dashed and faded. Every step has a name as well as a mark. The steps do not animate: a journey you are being shown is not a change you just made.",
+      "html": "<ol class=\"ds-steps\">\n  <li class=\"ds-step\" data-state=\"done\">Your password</li>\n  <li class=\"ds-step\" data-state=\"here\">Two-step code</li>\n  <li class=\"ds-step\" data-state=\"ahead\">Ready</li>\n</ol>",
+      "css": ".ds-steps { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; list-style: none; padding: 0; margin: 0; } .ds-step { display: inline-flex; align-items: center; gap: var(--s2, 8px); font-size: var(--t-sm, 0.8125rem); color: var(--ink-3); } .ds-step::before { content: \"\"; inline-size: 26px; border-top: 2px dashed currentColor; transform: translateY(-2px); } .ds-step[data-state=\"done\"] { color: var(--ink-2); } .ds-step[data-state=\"done\"]::before { border-top-style: solid; } .ds-step[data-state=\"here\"] { color: var(--ink); font-weight: 500; } .ds-step[data-state=\"here\"]::before { border-top-style: solid; border-top-color: var(--go); }"
+    },
+    {
+      "name": "What the Board Says Back",
+      "kind": "custom",
+      "refersTo": "told",
+      "description": "A message written across the board above the ledge rather than faded in, with a mirrored keyframe so an Arabic message is written right to left. A plain message carries a check and lasts 4 seconds; a problem carries a warning in red chalk and lasts 7.",
+      "html": "<div class=\"ds-telling\">\n  <div class=\"ds-told\"><svg width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M20 6 9 17l-5-5\"/></svg><span>Sent for review</span></div>\n  <div class=\"ds-told\" data-tone=\"wrong\"><svg width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3\"/><path d=\"M12 9v4\"/><path d=\"M12 17h.01\"/></svg><span>Somebody else changed this lesson while you were writing.</span></div>\n</div>",
+      "css": ".ds-telling { display: grid; justify-items: center; gap: var(--s2, 8px); padding-inline: var(--s4, 16px); } .ds-told { display: flex; align-items: center; gap: 12px; padding: 10px 16px; font-size: var(--t-sm, 0.8125rem); color: var(--ink); background: var(--ground-3); border: 1px solid var(--rule); border-radius: 2px; box-shadow: 0 10px 30px -18px rgba(0, 0, 0, 0.85); animation: ds-chalked 180ms cubic-bezier(0.16, 0.84, 0.36, 1) both; } @keyframes ds-chalked { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } } .ds-told[data-tone=\"wrong\"] { border-color: color-mix(in srgb, var(--bad) 55%, transparent); color: var(--bad-ink); }"
+    },
+    {
+      "name": "Nothing There Yet",
+      "kind": "custom",
+      "refersTo": "nothing",
+      "description": "An empty band teaches what would put something in it rather than saying \"nothing here\", and carries the action that would. Left-aligned, capped at 62ch. Inside a band whose heading has already named what is missing, it drops its own title rather than saying it twice.",
+      "html": "<div class=\"ds-nothing\">\n  <h3>You are not writing anything yet</h3>\n  <p class=\"ds-said\">Open the curriculum, find a lesson and start a draft. Nothing you write is seen by a student until a second person has approved it.</p>\n  <button type=\"button\" class=\"ds-act\">Open the curriculum</button>\n</div>",
+      "css": ".ds-nothing { display: grid; gap: 12px; justify-items: start; padding-block: var(--s2, 8px) var(--s4, 16px); max-inline-size: 62ch; } .ds-nothing h3 { font-size: var(--t-lg, 1.3125rem); font-weight: 400; line-height: 1.2; color: var(--ink); margin: 0; } .ds-said { color: var(--ink-2); max-inline-size: 68ch; text-wrap: pretty; margin: 0; }"
+    },
+    {
+      "name": "Wiping",
+      "kind": "custom",
+      "refersTo": "wiping",
+      "description": "The board being wiped clean while what goes on it is fetched — a chalk-dust sweep, not a borrowed shimmer. Rows of varying width so the placeholder has the shape of real work. The only looping animation in the system.",
+      "html": "<div class=\"ds-wiping-set\" aria-busy=\"true\">\n  <div class=\"ds-wiping\" style=\"width:100%\"></div>\n  <div class=\"ds-wiping\" style=\"width:84%\"></div>\n  <div class=\"ds-wiping\" style=\"width:62%\"></div>\n</div>",
+      "css": ".ds-wiping-set { display: grid; gap: 12px; padding: var(--s4, 16px) 0; } .ds-wiping { height: 20px; background: linear-gradient(100deg, var(--rule-soft) 30%, color-mix(in srgb, var(--ink) 9%, transparent) 50%, var(--rule-soft) 70%); background-size: 260% 100%; border-radius: 2px; animation: ds-wipe 1.5s cubic-bezier(0.16, 0.84, 0.36, 1) infinite; } @keyframes ds-wipe { from { background-position: 130% 0; } to { background-position: -30% 0; } } @media (prefers-reduced-motion: reduce) { .ds-wiping { animation-duration: 1ms; animation-iteration-count: 1; } }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Class Board",
+    "overview": "The Studio is the board a specialist writes on before the class sees it — erasable while drafting, signed off before it is shown. One matte slate-green board fills every screen, edge to edge, held in an aluminium frame, with a ledge along the bottom that carries the one action that matters. Chalk-white writes everything. Three colours of chalk are rationed to state and to the single action a board is for. The board is ruled into the same columns on every screen, so nothing moves from one place to the next.\n\nThe density is a working board, not a dashboard: thirteen-pixel labels, fifteen-pixel prose, hairline rules instead of boxes, and long unbroken columns of work. There are no cards, no panels, no containers — numbering, rules and indentation carry structure everywhere, including the lesson workspace, where a whole lesson is written out on one board the way it would be read aloud. The world was chosen against the category default it refuses: a white canvas, a left sidebar and one blue accent. It fails the moment it turns cartoonish, so there are no chalk handwriting faces, no doodles and no classroom props; it has to read as a real board used by a serious person.\n\nMotion is a stroke being drawn, and only when somebody has changed something. Nothing fades in and nothing at all is drawn on arrival: a state mark that is simply there when the board opens sits still, and the same mark grows its stroke from the start the moment the state changes in front of you — a dashed rule resolving to solid when a check passes, a line drawn through what has just ended, a message wiped across from the direction the language is read in. One authored moment per change, 180 ms, and prefers-reduced-motion clamps all of it to 1 ms.",
+    "keyCharacteristics": [
+      "State is a stroke with a name beside it, never a colour on its own",
+      "Chalk is rationed: white carries everything, three colours carry only state and the one action",
+      "Two faces — slate board and whiteboard — running exactly the same rules",
+      "Ruled, not boxed: hairline rules, numbering and indentation instead of cards",
+      "Right-to-left is structural, not a stylesheet override",
+      "A sticky aluminium frame: places along the top, the one action on the ledge at the bottom",
+      "The browser's own surfaces — selection, caret, focus ring, scrollbars — are part of the board"
+    ],
+    "rules": [
+      {
+        "name": "The Rationed Chalk Rule",
+        "body": "White chalk carries everything. --go is the one action a board is for and where you are. --bad is a problem. --live is what students already have or what somebody else has said. A colour outside those four roles is not in the system — and a screen whose only coloured thing is the button on the ledge is the normal case, not a plain one.",
+        "section": "colors"
+      },
+      {
+        "name": "The Stroke Before Colour Rule",
+        "body": "Colour never carries meaning by itself. Every state is drawn as a stroke beside the state's name in words; colour only ever confirms what the stroke and the word have already said. Four of the six strokes (written, writing, waiting, ended) use no colour at all — they are told apart by the line alone.",
+        "section": "colors"
+      },
+      {
+        "name": "The Two Faces, One Rulebook Rule",
+        "body": ":root is the slate board; :root[data-surface=\"whiteboard\"] is the light one. The whiteboard redefines every colour token and nothing else — no layout, no type, no stroke and no component rule may test the surface.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Hand Rule",
+        "body": "One family sets both scripts at every size. There is no second face, no serif for display, no mono for codes, and above all no chalk or handwriting face — the world dies the moment the type pretends to be chalk.",
+        "section": "typography"
+      },
+      {
+        "name": "The Engraved Frame Rule",
+        "body": "Small wide-tracked uppercase in aluminium grey is the frame talking about the board: a date, a caption, a column head, the name above a value. It never carries content, and it never sits above a heading as a kicker.",
+        "section": "typography"
+      },
+      {
+        "name": "The Figures Line Up Rule",
+        "body": "Anything countable is set in tabular numerals — .num, .tabular, every td and every time. A column of counts, a list of relative times and a grid of recovery codes all align without a monospace face.",
+        "section": "typography"
+      },
+      {
+        "name": "The No Sidebar Rule",
+        "body": "Navigation is chalked along the top edge of the frame and the current place is underlined in yellow. There is no sidebar and no drawer; the board's own headings are its navigation, and the work keeps the full width on every screen.",
+        "section": "layout"
+      },
+      {
+        "name": "The Ledge Rule",
+        "body": "The action a board is for lives on the ledge at the bottom of the frame, in sight while the work scrolls, and a board has at most one .act.first. A screen puts its actions there through useLedge(); the layout draws them, so it is always literally the same ledge. Destructive actions stay in the work, beside the explanation of what they destroy.",
+        "section": "layout"
+      },
+      {
+        "name": "The Logical Property Rule",
+        "body": "Right-to-left is structural. There is no left, right, margin-left or text-align: left anywhere — every edge, padding and gutter is inline-start/inline-end, so the whole interface mirrors from <html dir> alone. The few things that cannot be expressed logically are flipped explicitly under :root[dir=\"rtl\"]. And content keeps its own direction inside the mirrored interface.",
+        "section": "layout"
+      },
+      {
+        "name": "The Flat Board Rule",
+        "body": "A surface is never raised to mean something. Hierarchy comes from the stroke, the rule weight and the type size. If a new component reaches for a drop shadow to separate itself from the board, it wants a --rule-soft hairline instead.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Shadow Draws, It Does Not Light Rule",
+        "body": "A new box-shadow must be either a zero-blur offset that draws a line, a near-fully-negative-spread seam, or one of the two lifted surfaces. There is no ambient shadow vocabulary to extend.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Ruled, Not Boxed Rule",
+        "body": "No cards, no panels, no containers. A list is rows separated by hairlines; a section is a band separated by a hairline; a lesson is a numbered, indented column. If something needs to be set apart, rule it, number it or indent it.",
+        "section": "shapes"
+      },
+      {
+        "name": "The Named Mark Rule",
+        "body": "<Mark> takes the state's name as its children and renders nothing without it. A status pill, a coloured dot, a bare icon or a colour-only badge is not a thing this system has.",
+        "section": "components"
+      },
+      {
+        "name": "The Beside Rule",
+        "body": "An explanation is chalked beside the exact thing it explains, joined by a short leader. <Beside> is the only way the Studio explains anything at the point of use; there is no help page, no tooltip that is the sole carrier of a fact, and no expandable \"learn more\". The handbook exists, but nothing on the board depends on having read it.",
+        "section": "components"
+      },
+      {
+        "name": "The Drawn, Not Faded Rule",
+        "body": "A state change redraws a stroke; a state you are merely being shown does not. Transitions are limited to colour, border-colour, background-colour, transform and opacity at 180 ms on cubic-bezier(0.16, 0.84, 0.36, 1). There is no entrance animation, no stagger, and nothing at all happens on arrival — a board that animates everything it is holding the moment you open it is telling you nothing.",
+        "section": "components"
+      }
+    ],
+    "dos": [
+      "Do render every state with <Mark>, one of the six strokes, and the state's name as its children — and add a new status by mapping it to an existing stroke in src/screens/bits.tsx, not by inventing a seventh.",
+      "Do keep exactly one .act.first per board, and put it on the ledge through useLedge().",
+      "Do dim an unready primary action (34% --go behind full-strength --ink, border still solid) rather than draining it to the dashed grey disabled treatment.",
+      "Do define every new colour in both :root and :root[data-surface=\"whiteboard\"] in the same change, and reach for --go, --bad or --live only in their one role each.",
+      "Do write every edge as a logical property, and give content that is in another language its own dir and lang inside the mirrored interface.",
+      "Do chalk an explanation beside the thing it explains with <Beside>, and let a problem replace the hint rather than stack with it.",
+      "Do separate with a hairline — --rule for an edge you write against, --rule-soft for a quiet separation between like things.",
+      "Do set anything countable in tabular figures (.num, .tabular, td, time).",
+      "Do teach in an empty state: say what would put something here, and offer the action that would."
+    ],
+    "donts": [
+      "Don't let colour carry a meaning on its own, and never ship a mark, dot, pill or icon without the words beside it.",
+      "Don't add a card, a panel or any container with its own background — structure is numbering, rules and indentation.",
+      "Don't raise a surface to signal importance. The only two things allowed above the board are the toast and the dialog, and no new ambient shadow may be added.",
+      "Don't introduce a second typeface, and above all never a chalk, handwriting or blackboard display face, a doodle, or any classroom prop. The world dies the moment it looks cartoonish.",
+      "Don't write left, right, margin-left, padding-right or text-align: left. If a physical direction is genuinely unavoidable, flip it explicitly under :root[dir=\"rtl\"].",
+      "Don't fade anything in, stagger anything, or animate anything on arrival. A change is a stroke being drawn, once, at 180 ms — and a state the board was already holding is not a change.",
+      "Don't build a left sidebar, a white canvas or a single blue accent. That is the category default this world was chosen to refuse.",
+      "Don't put a primary action inline in the work, or a destructive action on the ledge.",
+      "Don't create a help page, a tour, or a tooltip that is the only place something is explained.",
+      "Don't let a radius exceed 3px, except the two pills (the place count and the scrollbar thumb) at 99px. Fields stay at 0.",
+      "Don't write a selector that tests data-surface. The two faces differ in colour tokens and nothing else."
+    ]
+  }
+}

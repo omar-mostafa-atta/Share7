@@ -1,15 +1,20 @@
 import { MotionConfig, useReducedMotion } from 'motion/react'
 import { useEffect } from 'react'
+import { useDocumentHasBeenVisible } from './lib/visibility'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/layout/AppShell'
 import { Toaster } from './components/ui/Toaster'
 import { setApiErrorHandler } from './lib/client'
+import { ADMIN_PORTAL } from './lib/portals'
 import { useToasts } from './store/toast'
 import { Analytics } from './routes/Analytics'
+import { Organizations } from './routes/Organizations'
+import { Exams } from './routes/Exams'
 import { Currencies } from './routes/Currencies'
-import { Curriculum } from './routes/Curriculum'
 import { Events } from './routes/Events'
+import { Moved } from './routes/Moved'
 import { Games } from './routes/Games'
+import { Guidance } from './routes/Guidance'
 import { Leaderboards } from './routes/Leaderboards'
 import { LiveEvents } from './routes/LiveEvents'
 import { Login } from './routes/Login'
@@ -32,6 +37,11 @@ import { Users } from './routes/Users'
 export function App() {
   const reduced = useReducedMotion()
 
+  // Marks the document as having been looked at, which releases the stylesheet's resting-state
+  // override. See lib/visibility.ts — without it the console is blank in any tab that loads while
+  // hidden, which is every tab opened from a link in the background.
+  useDocumentHasBeenVisible()
+
   // Wiring the client's error sink to the toast store here, once, reproduces the old console's
   // behaviour — where api() toasted every failure itself — without the fetch layer importing UI.
   useEffect(() => {
@@ -48,10 +58,14 @@ export function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
 
+        {/* The Admin Console. It is the only portal now: the content team's own space under
+            /content closed at cutover (plan P6) and its people work in the Content Studio, which
+            is a separate application on a separate origin. The Portal abstraction in
+            lib/portals.ts is kept — it is what a future audience would be added through. */}
         <Route
           element={
-            <ProtectedRoute>
-              <AppShell />
+            <ProtectedRoute portal={ADMIN_PORTAL}>
+              <AppShell portal={ADMIN_PORTAL} />
             </ProtectedRoute>
           }
         >
@@ -69,7 +83,17 @@ export function App() {
           <Route path="/events" element={<Events />} />
           <Route path="/trace" element={<UserTrace />} />
 
-          <Route path="/curriculum" element={<Curriculum />} />
+          {/* The authoring surface moved to the Content Studio at cutover (plan P6). These four
+              addresses answer rather than disappearing: an admin following an old link is told
+              where the work went, which a bounce to the dashboard would not do. They are not in
+              the sidebar — routes/Moved.tsx is a landing place, not a page anybody navigates to. */}
+          <Route path="/curriculum" element={<Moved />} />
+          <Route path="/quality" element={<Moved />} />
+          <Route path="/targets" element={<Moved />} />
+          <Route path="/content/*" element={<Moved />} />
+
+          <Route path="/organizations" element={<Organizations />} />
+          <Route path="/exams" element={<Exams />} />
           <Route path="/games" element={<Games />} />
           <Route path="/modes" element={<PlayModes />} />
 
@@ -81,6 +105,7 @@ export function App() {
               already have bookmarked. */}
           <Route path="/live-events" element={<LiveEvents />} />
           <Route path="/progression" element={<Progression />} />
+          <Route path="/guidance" element={<Guidance />} />
 
           <Route path="/currencies" element={<Currencies />} />
           <Route path="/signals" element={<Signals />} />
@@ -94,7 +119,8 @@ export function App() {
           <Route path="/users" element={<Users />} />
         </Route>
 
-        {/* Anything unrecognised goes to the dashboard rather than a blank screen. */}
+        {/* Anything unrecognised goes to the dashboard rather than a blank screen — or, for
+            someone who cannot open the Admin Console, on to the portal they can. */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 

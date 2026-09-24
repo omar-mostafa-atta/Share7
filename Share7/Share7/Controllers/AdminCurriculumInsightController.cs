@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Share7.API.Authorization;
 using Share7.Application.Curriculum.Interfaces;
 using Share7.Application.Curriculum.Models;
-using Share7.Domain.Constants;
 
 namespace Share7.API.Controllers;
 
@@ -17,7 +17,7 @@ namespace Share7.API.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/admin/curriculum")]
-[Authorize(Roles = $"{Roles.Admin},{Roles.SuperAdmin}")]
+[Authorize(Policy = Policies.ContentAuthoring)]
 public class AdminCurriculumInsightController : ControllerBase
 {
     private readonly ICurriculumHealthService _health;

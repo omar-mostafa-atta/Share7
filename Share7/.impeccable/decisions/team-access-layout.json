@@ -1,0 +1,70 @@
+{
+  "title": "Choose the Team & Access layout",
+  "question": "Team & Access keeps the Admin Console's look; this choice is only how the area is arranged. The roll dealt three layouts. Lock one, steer it, or re-roll.",
+  "options": [
+    {
+      "id": "activity-desk",
+      "label": "Activity desk",
+      "kicker": "THE ROLL",
+      "thesis": "The area opens on what happened: the audit trail is the main column, and the team is a compact rail beside it.",
+      "palette": ["#0f172a", "#4f46e5", "#7c3aed", "#f2f4f9"],
+      "materials": ["Admin Console tokens and components", "day-grouped timeline", "people rail with status marks"],
+      "viewport": "Left two-thirds: today's and yesterday's actions (\"Laila suspended Karim — 10:42\"), filterable by person, area and date, with Export. Right rail: Add member, counts by status, then the team; picking a person pins their card (role, scope, devices, suspend / reset / deactivate) above the rail and filters the timeline to them.",
+      "risk": "Managing people becomes secondary to reading the feed; a long team list is squeezed into a narrow rail.",
+      "wireframe": {
+        "cols": 12,
+        "rows": 10,
+        "regions": [
+          { "label": "Team & Access", "x": 0, "y": 0, "w": 12, "h": 1 },
+          { "label": "Person · area · date · Export CSV", "x": 0, "y": 1, "w": 8, "h": 1 },
+          { "label": "Activity, grouped by day", "x": 0, "y": 2, "w": 8, "h": 8, "accent": true },
+          { "label": "Add member · counts", "x": 8, "y": 1, "w": 4, "h": 1 },
+          { "label": "Selected member card", "x": 8, "y": 2, "w": 4, "h": 3 },
+          { "label": "Team", "x": 8, "y": 5, "w": 4, "h": 5 }
+        ]
+      }
+    },
+    {
+      "id": "status-directory",
+      "label": "Directory by status",
+      "thesis": "People as cards grouped by where they are: waiting for their link, active, suspended, closed.",
+      "palette": ["#0f172a", "#4f46e5", "#10b981", "#f59e0b"],
+      "materials": ["Admin Console tokens and components", "person cards", "tabs for Team, Audit log, Security"],
+      "viewport": "Tabs across the top (Team · Audit log · Security). \"Waiting for their setup link\" first, each card showing when the link expires; then Active as a grid of cards (name, job title, Studio role, scope, 2-step mark, last active); Suspended and Deactivated folded at the bottom. Add member opens a full-page four-step flow that ends on the link.",
+      "risk": "Cards compare people less easily than a table and grow long past forty members.",
+      "wireframe": {
+        "cols": 12,
+        "rows": 10,
+        "regions": [
+          { "label": "Team · Audit log · Security   [Add member]", "x": 0, "y": 0, "w": 12, "h": 1 },
+          { "label": "Waiting for their setup link", "x": 0, "y": 1, "w": 12, "h": 2 },
+          { "label": "Active — cards", "x": 0, "y": 3, "w": 12, "h": 5, "accent": true },
+          { "label": "Suspended · Deactivated (folded)", "x": 0, "y": 8, "w": 12, "h": 2 }
+        ]
+      }
+    },
+    {
+      "id": "one-ledger",
+      "label": "One ledger",
+      "thesis": "One dense table of members, where each row opens in place into that person's full record.",
+      "palette": ["#0f172a", "#4f46e5", "#ef4444", "#f8f9fc"],
+      "materials": ["Admin Console tokens and components", "sortable table", "in-place row expansion"],
+      "viewport": "Search, status filter and Add member above a table (name, role, scope, status, 2-step, last active). Opening a row expands it where it is: profile and access side by side, devices and recent sign-ins below, and the danger zone at the row's end. The audit log is a second ledger tab with the same expansion; Security is a settings sheet.",
+      "risk": "An open row pushes the rest of the list down, and linking straight to one member needs care.",
+      "wireframe": {
+        "cols": 12,
+        "rows": 10,
+        "regions": [
+          { "label": "Team · Audit log · Security", "x": 0, "y": 0, "w": 12, "h": 1 },
+          { "label": "Search · status · Add member", "x": 0, "y": 1, "w": 12, "h": 1 },
+          { "label": "Member row", "x": 0, "y": 2, "w": 12, "h": 1 },
+          { "label": "Opened row: profile | access | devices | danger zone", "x": 0, "y": 3, "w": 12, "h": 4, "accent": true },
+          { "label": "Member rows", "x": 0, "y": 7, "w": 12, "h": 3 }
+        ]
+      }
+    }
+  ],
+  "reroll": true,
+  "buildPath": { "value": "code" },
+  "steer": true
+}

@@ -16,7 +16,14 @@ public class TermConfiguration : IEntityTypeConfiguration<Term>
             .HasForeignKey(t => t.GradeId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // Unique so sibling order is never ambiguous — the unlock chain walks it.
-        builder.HasIndex(t => new { t.GradeId, t.Order }).IsUnique();
+        // Unique so sibling order is never ambiguous — the unlock chain walks it. Among live
+        // siblings only: a retired term keeps the position it had, and that must not stop a new
+        // term taking it.
+        builder.HasIndex(t => new { t.GradeId, t.Order }).IsUnique().HasFilter("[RetiredAtUtc] IS NULL");
+
+        // Retired rows are the compatibility copy of a retired node: kept (progress and evidence
+        // name them), hidden from every reader still on the typed tables. Code that must see them
+        // — the structure writer, the projector — says so with IgnoreQueryFilters().
+        builder.HasQueryFilter(t => t.RetiredAtUtc == null);
     }
 }

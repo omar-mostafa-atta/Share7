@@ -382,6 +382,27 @@ internal static class TelemetrySchemaSeed
 
         new(TelemetryNames.TelemetryQueueOverflow, "operational",
             "The client queue overflowed and dropped events, carrying how many. The honesty valve on every count.",
-            TelemetryCategory.Operational, Plat)
+            TelemetryCategory.Operational, Plat),
+
+        // ── guidance ─────────────────────────────────────────────────────
+        new(TelemetryNames.GuidanceFlowStart, "guidance",
+            "A guidance flow began. The denominator of the flow funnel.",
+            TelemetryCategory.Behavioural, $"{Plat},{Ver}", RetentionDays: 400),
+
+        new(TelemetryNames.GuidanceFlowEnd, "guidance",
+            "A guidance flow ended, carrying outcome and last_step_index.",
+            TelemetryCategory.Behavioural, $"{Plat},{Ver}", RetentionDays: 400),
+
+        new(TelemetryNames.GuidanceStep, "guidance",
+            "A guidance flow step finished, carrying step_id, step_index, and duration_ms.",
+            TelemetryCategory.Behavioural, $"{Plat},{Ver}", RetentionDays: 400),
+
+        new(TelemetryNames.GuidanceBeatShown, "guidance",
+            "A reactive guidance beat was shown, carrying guidance_id and kind.",
+            TelemetryCategory.Behavioural, Plat),
+
+        new(TelemetryNames.GuidanceAnchorMissing, "guidance",
+            "A guidance step targeted an anchor that was missing from the scene.",
+            TelemetryCategory.Operational, $"{Plat},{Ver}", RetentionDays: 90)
     ];
 }

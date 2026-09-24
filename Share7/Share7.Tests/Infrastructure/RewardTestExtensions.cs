@@ -7,11 +7,14 @@ using Microsoft.EntityFrameworkCore;
 using Share7.Application.Common.Interfaces;
 using Share7.Application.Rewards.Models;
 using Share7.Domain.Constants;
+using Share7.Domain.Content;
 using Share7.Domain.Curriculum;
 using Share7.Domain.Progress;
 using Share7.Domain.Rewards;
 using Share7.Infrastructure.Curriculum;
 using Share7.Infrastructure.Economy;
+using Share7.Infrastructure.Evidence;
+using Share7.Infrastructure.Content;
 using Share7.Infrastructure.Persistence;
 using Share7.Infrastructure.Play;
 using Share7.Infrastructure.Progress;
@@ -107,7 +110,14 @@ public static class RewardTestExtensions
     /// unlocks, rewards and the wallet all compose over **one** DbContext and therefore one
     /// transaction — a substitute for any of them would hide exactly that.
     /// </summary>
-    public static ProgressService CreateProgressService(ApplicationDbContext context, Guid userId)
+    /// <summary>
+    /// <paramref name="langId"/> is the content language the caller is treated as reading in —
+    /// what a real access token's claim would carry. It defaults to English so every existing call
+    /// site is unchanged, and is passed explicitly by the tests that care what happens when a
+    /// learner switches language mid-course.
+    /// </summary>
+    public static ProgressService CreateProgressService(
+        ApplicationDbContext context, Guid userId, Guid? langId = null)
     {
         var wallet = new WalletService(context);
 
@@ -116,8 +126,8 @@ public static class RewardTestExtensions
         // that survived a rolled-back attempt would be a rank for gameplay that never happened.
         return new ProgressService(
             context,
-            new LanguageService(context, new StubCurrentUser(userId)),
-            new UnlockService(context),
+            new LanguageService(context, new StubCurrentUser(userId, langId)),
+            EngineTest.Unlocks(context),
             new RewardService(context, wallet, new LevelService(context), new Share7.Infrastructure.Commerce.EntitlementService(context)),
             wallet,
             new GameResultRecorder(
@@ -131,7 +141,12 @@ public static class RewardTestExtensions
             new ObjectiveProjector(context, NullLogger<ObjectiveProjector>.Instance),
             // The real resolver: whether an attempt moves mastery at all is its decision, and a stub
             // would let every test pass under a policy nothing ships.
-            new PlaySelectionResolver(context, new LevelService(context)));
+            new PlaySelectionResolver(context, new LevelService(context)),
+            // The real recorder, over the same context. The evidence log is the one thing every
+            // attempt writes regardless of what it settles for, so a stub here would let a test
+            // pass while the attempt recorded nothing at all.
+            new EvidenceRecorder(context, NullLogger<EvidenceRecorder>.Instance),
+            EngineTest.Reads(context));
     }
 
     /// <summary>
@@ -169,17 +184,39 @@ public static class RewardTestExtensions
     {
         var correctChoiceIds = new List<Guid>();
 
+        // The real minter, not a stand-in. A question with no item identity cannot be measured, so
+        // the fixture goes through the same path the importer does rather than inventing ids that
+        // would let a test pass over content production could never produce.
+        var minter = new ItemIdentityMinter(context);
+        var now = DateTime.UtcNow;
+
+        // Row numbers continue past whatever the lesson already has. They are half of an item's
+        // lineage key, so reusing row 1 on a lesson that already has one would make two unrelated
+        // questions the same item — which the importer never does (it retires a set before
+        // inserting the next) and which would quietly double every attempt ordinal.
+        var firstRow = await context.Questions
+            .Where(q => q.LessonId == lessonId)
+            .Select(q => (int?)q.RowNumber)
+            .MaxAsync(cancellationToken) ?? 0;
+
         for (var i = 0; i < count; i++)
         {
+            var rowNumber = firstRow + i + 1;
+
+            var itemVersion = await minter.ResolveForLessonRowAsync(
+                lessonId, rowNumber, 1, NodeItemRole.Core, now, cancellationToken);
+
             var question = new Question
             {
                 Id = Guid.NewGuid(),
+                ItemVersionId = itemVersion.Id,
+                ItemVersion = itemVersion,
                 LessonId = lessonId,
                 LangId = LanguageIds.English,
                 Text = $"Question {i}",
                 Version = 1,
-                RowNumber = i + 1,
-                CreatedAt = DateTime.UtcNow
+                RowNumber = rowNumber,
+                CreatedAt = now
             };
 
             // Three real choices, like the importer writes — grading now checks that a submitted
@@ -217,11 +254,15 @@ public static class RewardTestExtensions
 
     private sealed class StubCurrentUser : ICurrentUserService
     {
-        public StubCurrentUser(Guid userId) => UserId = userId;
+        public StubCurrentUser(Guid userId, Guid? langId = null)
+        {
+            UserId = userId;
+            PreferredLanguageId = langId ?? LanguageIds.English;
+        }
 
         public Guid? UserId { get; }
         public string? Email => null;
         public bool IsAuthenticated => true;
-        public Guid? PreferredLanguageId => LanguageIds.English;
+        public Guid? PreferredLanguageId { get; }
     }
 }

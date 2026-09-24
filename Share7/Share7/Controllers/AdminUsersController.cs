@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Share7.API.Extensions;
+using Share7.API.RateLimiting;
 using Share7.Application.Auth.Interfaces;
 using Share7.Application.Common.Interfaces;
 using Share7.Application.Users.Models;
@@ -119,6 +121,36 @@ public class AdminUsersController : ControllerBase
     {
         var result = await _userAdminService.GetRunsAsync(userId, take, cancellationToken);
         return result.Succeeded ? Ok(new { runs = result.Value }) : result.ToApiErrorResult();
+    }
+
+    /// <summary>
+    /// The roles the caller may give a new account: <c>Student</c> and <c>ContentTeam</c>, plus
+    /// <c>Admin</c> and <c>SuperAdmin</c> when the caller is a SuperAdmin.
+    /// </summary>
+    [HttpGet("assignable-roles")]
+    public IActionResult GetAssignableRoles() =>
+        Ok(new { roles = _userAdminService.GetAssignableRoles(User.IsInRole(Roles.SuperAdmin)) });
+
+    /// <summary>
+    /// Creates an account with a username, a password and one role. This is how staff accounts —
+    /// the content team in particular — come to exist, since registration only grants Student.
+    /// </summary>
+    /// <remarks>
+    /// 409 when the username is taken; 403 when a non-SuperAdmin asks for a privileged role;
+    /// 400 for an unknown or unassignable role, or a password Identity rejects.
+    /// </remarks>
+    [HttpPost]
+    [EnableRateLimiting(RateLimitPolicies.Writes)]
+    public async Task<IActionResult> Create(CreateAdminUserRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _userAdminService.CreateUserAsync(
+            request,
+            User.IsInRole(Roles.SuperAdmin),
+            cancellationToken);
+
+        return result.Succeeded
+            ? CreatedAtAction(nameof(Get), new { userId = result.Value!.UserId }, result.Value)
+            : result.ToErrorResult();
     }
 
     [HttpDelete("{userId:guid}")]

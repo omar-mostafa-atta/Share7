@@ -3,15 +3,17 @@ import {
   BarChart3,
   CalendarRange,
   Database,
+  GraduationCap,
+  Building2,
   History,
   Boxes,
   Layers,
   Coins,
+  Compass,
   Gamepad2,
   Gauge,
   Gift,
   LayoutDashboard,
-  Network,
   Radio,
   Rocket,
   ShoppingBag,
@@ -32,6 +34,11 @@ import type { LucideIcon } from 'lucide-react'
 // `blurb` is not decoration: it is what the command palette matches against,
 // so searching "cheat" finds Runs and "xp" finds both Progression and Signal
 // Valuations without anyone maintaining a keyword list.
+//
+// `NAV` below is the Admin Console's, which is the only one there is since the
+// Content Portal closed at cutover. The helpers at the bottom still take a list
+// rather than reading this one, because that is what a second audience would
+// arrive through — see lib/portals.ts.
 // ===========================================================================
 
 export interface NavEntry {
@@ -88,13 +95,27 @@ export const NAV: NavGroup[] = [
     ],
   },
   {
+    // Authoring left this console at cutover (plan P6): the curriculum tree, the questions in it,
+    // answer quality and the learning skills are built in the Content Studio, where a second person
+    // reviews everything before a Lead releases it. What is left here is measurement and the people
+    // being measured — questions this console is still the only place to ask.
+    //
+    // The old addresses are not listed but still answer; see routes/Moved.tsx.
     section: 'Content',
     items: [
       {
-        to: '/curriculum',
-        label: 'Curriculum',
-        icon: Network,
-        blurb: 'Grades, terms, subjects, chapters, lessons and their question pools',
+        to: '/organizations',
+        label: 'Organizations',
+        icon: Building2,
+        blurb:
+          'Schools, districts and tutoring centres: cohorts, rosters, teacher and admin roles, guardian links, curriculum overlays, assignments, and exactly how much of a learner an organization can see',
+      },
+      {
+        to: '/exams',
+        label: 'Examinations',
+        icon: GraduationCap,
+        blurb:
+          'Blueprints, exam specifications, coverage thresholds and how far each exam is from a calibration that could predict an outcome',
       },
       {
         to: '/games',
@@ -138,6 +159,13 @@ export const NAV: NavGroup[] = [
         label: 'Progression',
         icon: Gauge,
         blurb: 'The XP level curve — cumulative thresholds per level',
+      },
+      {
+        to: '/guidance',
+        label: 'Guidance',
+        icon: Compass,
+        blurb:
+          'Remote guidance CMS — walkthroughs, onboarding tours, drafts, version publishing and emergency kill-switch',
       },
     ],
   },
@@ -207,22 +235,27 @@ export const NAV: NavGroup[] = [
   },
 ]
 
-/** Flattened, for the command palette and for resolving a path to its label. */
-export const NAV_ENTRIES: (NavEntry & { section: string })[] = NAV.flatMap((group) =>
-  group.items.map((item) => ({ ...item, section: group.section })),
-)
+export type FlatNavEntry = NavEntry & { section: string }
+
+/** A nav list flattened, for the command palette and for resolving a path to its label. */
+export function flattenNav(nav: NavGroup[]): FlatNavEntry[] {
+  return nav.flatMap((group) => group.items.map((item) => ({ ...item, section: group.section })))
+}
+
+/** The Admin Console's entries, flattened. */
+export const NAV_ENTRIES: FlatNavEntry[] = flattenNav(NAV)
 
 /**
- * The entry matching a pathname, or null.
+ * The entry in `nav` matching a pathname, or null.
  *
  * Longest-prefix rather than exact, so `/leaderboards/flagged` still titles the
  * page "Leaderboards". The root entry is excluded from prefix matching or it
  * would match everything.
  */
-export function entryForPath(pathname: string): (NavEntry & { section: string }) | null {
-  let best: (NavEntry & { section: string }) | null = null
+export function entryForPath(pathname: string, nav: NavGroup[] = NAV): FlatNavEntry | null {
+  let best: FlatNavEntry | null = null
 
-  for (const entry of NAV_ENTRIES) {
+  for (const entry of flattenNav(nav)) {
     if (entry.to === '/') {
       if (pathname === '/') best = entry
       continue

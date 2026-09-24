@@ -1,0 +1,1346 @@
+/* ===========================================================================
+   The Class Board
+   ---------------------------------------------------------------------------
+   The Studio is the board a specialist writes on before the class sees it. One
+   matte slate-green board fills every screen, held in an aluminium frame, with
+   a ledge along the bottom carrying the one action that matters.
+
+   Three rules run through everything below, and they are why the Studio never
+   needs colour to be understood:
+
+     1. STATE IS A STROKE, never a colour on its own. Solid means written,
+        dashed means waiting, a line through means ended. Every state also
+        carries its name in words, so nothing depends on seeing the mark.
+     2. CHALK IS RATIONED. White chalk writes everything; yellow marks the one
+        action that matters and where you are, red marks a problem, blue marks
+        what students already have.
+     3. THE BOARD IS RULED into the same columns on every screen, so nothing
+        moves between one screen and the next.
+
+   The light theme is the whiteboard that replaced the board: same rules, same
+   strokes, marker ink instead of chalk.
+   =========================================================================== */
+
+:root {
+  color-scheme: dark;
+
+  /* --- the board ------------------------------------------------------- */
+  --ground: #1d3a31;
+  --ground-2: #1a352c;
+  --ground-3: #16302a;
+  --frame: #a7aca8;
+  --frame-2: #7f857f;
+
+  /* --- chalk ----------------------------------------------------------- */
+  --ink: #ecefe4;
+  --ink-2: rgba(236, 239, 228, 0.74);
+  --ink-3: rgba(236, 239, 228, 0.62);
+  --rule: rgba(236, 239, 228, 0.28);
+  --rule-soft: rgba(236, 239, 228, 0.13);
+  --dust: rgba(236, 239, 228, 0.06);
+
+  /* --- the three coloured chalks, each with a text tone and a stroke tone */
+  --go: #f1d35b;
+  --go-ink: #f6dd7e;
+  --go-on: #21332a;
+  --bad: #e57f76;
+  --bad-ink: #f0a79f;
+  --live: #8cbfe0;
+  --live-ink: #a6cfea;
+
+  /* --- type ------------------------------------------------------------ */
+  --face: "Alexandria", "Segoe UI", system-ui, sans-serif;
+  --t-xs: 0.6875rem;
+  --t-sm: 0.8125rem;
+  --t-base: 0.9375rem;
+  --t-md: 1.0625rem;
+  --t-lg: 1.3125rem;
+  --t-xl: 1.625rem;
+  --t-2xl: 2.125rem;
+  --t-3xl: 2.75rem;
+
+  /* --- rhythm ---------------------------------------------------------- */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 48px;
+  --s8: 64px;
+
+  --rail: 56px;          /* the frame's top edge, where the places are chalked */
+  --ledge: 60px;         /* the chalk ledge along the bottom */
+  --page: 1240px;
+
+  --step: 180ms;
+  --ease: cubic-bezier(0.16, 0.84, 0.36, 1);
+}
+
+:root[data-surface="whiteboard"] {
+  color-scheme: light;
+
+  --ground: #f1f2ec;
+  --ground-2: #e8eae1;
+  --ground-3: #dfe2d8;
+  --frame: #565c56;
+  --frame-2: #9aa09a;
+
+  --ink: #1f2c26;
+  --ink-2: rgba(31, 44, 38, 0.78);
+  --ink-3: rgba(31, 44, 38, 0.66);
+  --rule: rgba(31, 44, 38, 0.3);
+  --rule-soft: rgba(31, 44, 38, 0.13);
+  --dust: rgba(31, 44, 38, 0.05);
+
+  --go: #8a5d00;
+  --go-ink: #6d4c00;
+  --go-on: #fffaf0;
+  --bad: #b8362a;
+  --bad-ink: #9c2a1f;
+  --live: #1d6091;
+  --live-ink: #185177;
+}
+
+/* ===========================================================================
+   Reset, and the browser's own surfaces
+   The caret, the selection, the scrollbars and the focus ring are all part of
+   the board; left alone they ship somebody else's design system.
+   =========================================================================== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#studio {
+  height: 100%;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--face);
+  font-size: var(--t-base);
+  font-weight: 300;
+  line-height: 1.55;
+  color: var(--ink);
+  background: var(--ground);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* The grain of a real board, and the dust that gathers where it is wiped. Two
+   fixed layers, painted once, so scrolling costs nothing. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.45;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.3'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset-inline: 0;
+  top: 0;
+  height: 38vh;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(120% 100% at 50% 0%, var(--dust), transparent 68%);
+}
+
+::selection {
+  background: color-mix(in srgb, var(--go) 34%, transparent);
+  color: var(--ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--go);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+:where(input, textarea) {
+  caret-color: var(--ink);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--rule);
+  border-radius: 99px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-3);
+  background-clip: content-box;
+}
+
+a {
+  color: inherit;
+  text-decoration-color: var(--rule);
+  text-underline-offset: 0.22em;
+  text-decoration-thickness: 1px;
+}
+
+a:hover {
+  text-decoration-color: var(--go);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+}
+
+button {
+  cursor: pointer;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+/* Figures line up in columns, always. */
+.num,
+td,
+time,
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-weight: 400;
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+/* ===========================================================================
+   Writing on the board
+   =========================================================================== */
+
+/* Small, wide-tracked, aluminium: engraved on the frame, not written in chalk. */
+.engraved {
+  font-size: var(--t-xs);
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--frame);
+}
+
+.hand {
+  font-size: var(--t-2xl);
+  font-weight: 300;
+  letter-spacing: -0.015em;
+}
+
+.said {
+  color: var(--ink-2);
+  max-inline-size: 68ch;
+  text-wrap: pretty;
+}
+
+.quiet {
+  color: var(--ink-3);
+}
+
+/* Underlined twice, the way a teacher marks the title of the lesson. */
+.twice {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--ink);
+  box-shadow: 0 5px 0 -1px var(--ink-3);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ===========================================================================
+   State, drawn as a stroke
+   Never a colour on its own: a mark always sits beside words that say the same.
+   =========================================================================== */
+
+.mark {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--s2);
+  font-size: var(--t-sm);
+  color: var(--ink-2);
+  /* The stroke never wraps away from its name, but a long name still wraps:
+     a mark that refuses to wrap sets the min-content width of everything above
+     it, and one long line would make every screen scroll sideways. */
+  max-inline-size: 100%;
+}
+
+/* The stroke is a real element rather than a ::before, because it has to be
+   able to be drawn AGAIN. <Mark> remounts it when the state changes, and only
+   then: a stroke that is simply there when the board arrives is not a change
+   anybody made, so it is not animated. One authored moment per change, nothing
+   on page load. */
+.mark-line {
+  inline-size: 18px;
+  block-size: 0;
+  flex: none;
+  transform: translateY(-4px);
+  border-top: 2px solid currentColor;
+  transform-origin: left center;
+}
+
+:root[dir="rtl"] .mark-line {
+  transform-origin: right center;
+}
+
+.mark[data-draws="yes"] .mark-line {
+  animation: draws var(--step) var(--ease) both;
+}
+
+@keyframes draws {
+  from {
+    transform: translateY(-4px) scaleX(0);
+  }
+  to {
+    transform: translateY(-4px) scaleX(1);
+  }
+}
+
+.mark[data-stroke="written"] {
+  color: var(--ink);
+}
+
+/* Still being written: the line is part drawn and the chalk is still on it. */
+.mark[data-stroke="writing"] {
+  color: var(--ink-2);
+}
+
+.mark[data-stroke="writing"] .mark-line {
+  border-top: none;
+  block-size: 2px;
+  background: linear-gradient(
+    to right,
+    currentColor 0 11px,
+    transparent 11px 14px,
+    currentColor 14px 16px,
+    transparent 16px
+  );
+}
+
+.mark[data-stroke="waiting"] {
+  color: var(--ink-2);
+}
+
+.mark[data-stroke="waiting"] .mark-line {
+  border-top-style: dashed;
+}
+
+.mark[data-stroke="ended"] {
+  color: var(--ink-3);
+}
+
+/* An ended thing arrives struck; it is only drawn through, in front of you,
+   when it ends while you are looking at it. */
+.mark[data-stroke="ended"] .mark-name {
+  position: relative;
+}
+
+.mark[data-stroke="ended"] .mark-name::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 52%;
+  border-top: 1px solid currentColor;
+  transform-origin: left center;
+}
+
+:root[dir="rtl"] .mark[data-stroke="ended"] .mark-name::after {
+  transform-origin: right center;
+}
+
+.mark[data-draws="yes"][data-stroke="ended"] .mark-name::after {
+  transform: scaleX(0);
+  animation: strikes var(--step) var(--ease) 70ms both;
+}
+
+@keyframes strikes {
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.mark[data-stroke="wrong"] {
+  color: var(--bad-ink);
+}
+
+.mark[data-stroke="wrong"] .mark-line {
+  border-top-style: double;
+  border-top-width: 4px;
+}
+
+/* What students already have, or what a thing inherits from somewhere else.
+   Dotted, because it had to be a STROKE: it and "written" were the same solid
+   line in two hues, and on the second-chances board "decided here" and
+   "decided three levels up" sit in the same slot — the one place where telling
+   them apart is the whole point of the screen. */
+.mark[data-stroke="live"] {
+  color: var(--live-ink);
+}
+
+.mark[data-stroke="live"] .mark-line {
+  border-top-style: dotted;
+  border-top-width: 3px;
+}
+
+/* ===========================================================================
+   The frame, the places, the ledge
+   =========================================================================== */
+
+.board {
+  position: relative;
+  z-index: 1;
+  min-height: 100%;
+  display: grid;
+  /* One column that can never grow past the viewport: without this, the rail's
+     own intrinsic width would widen the whole board and every screen would
+     scroll sideways on a phone. */
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto 1fr auto;
+}
+
+.rail {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  min-width: 0;
+  min-height: var(--rail);
+  display: flex;
+  align-items: center;
+  gap: var(--s5);
+  padding-inline: var(--s5);
+  padding-block: var(--s1);
+  background: var(--ground-3);
+  border-bottom: 1px solid var(--frame-2);
+  box-shadow: 0 10px 24px -22px rgba(0, 0, 0, 0.9);
+}
+
+.rail-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: var(--t-sm);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  text-decoration: none;
+  flex: none;
+}
+
+/* The places are chalked along the top of the board; the one you are on is
+   underlined. No sidebar: the board's own headings are its navigation. */
+.places {
+  display: flex;
+  align-items: stretch;
+  gap: var(--s1);
+  min-width: 0;
+  /* The places wrap to a second line rather than scrolling out of reach. A place
+     you cannot see is a place that does not exist, and the handbook is the last
+     one on the line — the one a new member needs most and would lose first. The
+     frame is allowed to be two lines tall; a hidden place is not allowed. */
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+
+.places::-webkit-scrollbar {
+  display: none;
+}
+
+/* On a phone there is no room for a second line, so the places take a scrolling
+   line of their own and the mask says at its edge that it scrolls. */
+@media (max-width: 860px) {
+  .places {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    mask-image: linear-gradient(to right, #000 0 calc(100% - 28px), transparent);
+  }
+
+  :root[dir="rtl"] .places {
+    mask-image: linear-gradient(to left, #000 0 calc(100% - 28px), transparent);
+  }
+}
+
+.place {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s2) var(--s3);
+  font-size: var(--t-sm);
+  font-weight: 300;
+  color: var(--ink-2);
+  text-decoration: none;
+  white-space: nowrap;
+  border-radius: 2px;
+  transition: color var(--step) var(--ease);
+}
+
+.place:hover {
+  color: var(--ink);
+}
+
+.place::after {
+  content: "";
+  position: absolute;
+  inset-inline: var(--s3);
+  bottom: 6px;
+  height: 2px;
+  background: var(--go);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform var(--step) var(--ease);
+}
+
+:root[dir="rtl"] .place::after {
+  transform-origin: right center;
+}
+
+.place[aria-current="page"] {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.place[aria-current="page"]::after {
+  transform: scaleX(1);
+}
+
+.place-count {
+  min-inline-size: 18px;
+  padding-inline: 5px;
+  font-size: var(--t-xs);
+  font-weight: 500;
+  text-align: center;
+  color: var(--go-on);
+  background: var(--go);
+  border-radius: 99px;
+}
+
+.rail-end {
+  margin-inline-start: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex: none;
+}
+
+/* The work itself. Ruled into the same columns on every screen. */
+.sheet {
+  width: 100%;
+  max-width: var(--page);
+  margin-inline: auto;
+  padding: var(--s6) var(--s5) var(--s8);
+}
+
+.sheet.wide {
+  max-width: none;
+}
+
+.ruled {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: var(--s6);
+  align-items: start;
+}
+
+.ruled > .margin {
+  position: sticky;
+  top: calc(var(--rail) + var(--s4));
+  display: grid;
+  gap: var(--s5);
+  padding-inline-start: var(--s5);
+  border-inline-start: 1px solid var(--rule-soft);
+}
+
+@media (max-width: 1080px) {
+  .ruled {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ruled > .margin {
+    position: static;
+    padding-inline-start: 0;
+    border-inline-start: none;
+    border-top: 1px solid var(--rule-soft);
+    padding-top: var(--s5);
+  }
+}
+
+/* The aluminium ledge: where the chalk rests, and where the action that
+   matters lives. It stays in sight while the board scrolls. */
+.ledge {
+  position: sticky;
+  bottom: 0;
+  z-index: 30;
+  min-width: 0;
+  min-height: var(--ledge);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s3) var(--s4);
+  padding: var(--s3) var(--s5);
+  background: var(--ground-3);
+  border-top: 1px solid var(--frame-2);
+  box-shadow: 0 -12px 28px -26px rgba(0, 0, 0, 0.9);
+}
+
+/* The ledge's own end. It wraps, and it is allowed to shrink: three controls
+   that refuse to break formed one unbreakable row wider than a phone, and the
+   thing that went off the side was the yellow one — the board's whole point.
+   A ledge that hides its action is worse than a ledge with no action. */
+.ledge-end {
+  margin-inline-start: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+/* ===========================================================================
+   Headings and bands
+   =========================================================================== */
+
+.heading {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s4);
+  flex-wrap: wrap;
+  margin-bottom: var(--s5);
+}
+
+.heading h1 {
+  font-size: var(--t-xl);
+  font-weight: 400;
+}
+
+.heading .engraved {
+  padding-bottom: 5px;
+}
+
+.band {
+  display: grid;
+  gap: var(--s4);
+  padding-block: var(--s5);
+  border-top: 1px solid var(--rule-soft);
+}
+
+.band:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.band-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+  flex-wrap: wrap;
+}
+
+.double-rule {
+  height: 0;
+  border-top: 1px solid var(--rule);
+  box-shadow: 0 3px 0 -1px var(--rule);
+  margin-block: var(--s6) var(--s5);
+}
+
+/* ===========================================================================
+   The trail: where on the board you are
+   =========================================================================== */
+
+.trail {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  font-size: var(--t-sm);
+  color: var(--ink-3);
+}
+
+.trail a {
+  text-decoration: none;
+  color: var(--ink-2);
+}
+
+.trail a:hover {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--go);
+}
+
+.trail .sep {
+  opacity: 0.5;
+}
+
+.trail > :last-child {
+  color: var(--ink);
+}
+
+/* ===========================================================================
+   The steps of a journey, chalked across the top at one scale
+   =========================================================================== */
+
+.steps {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  flex-wrap: wrap;
+}
+
+.step {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: var(--t-sm);
+  color: var(--ink-3);
+}
+
+.step::before {
+  content: "";
+  inline-size: 26px;
+  border-top: 2px dashed currentColor;
+  transform: translateY(-2px);
+  transform-origin: left center;
+}
+
+:root[dir="rtl"] .step::before {
+  transform-origin: right center;
+}
+
+/* Drawn when the journey moves on, not when it arrives — the same rule the
+   state strokes follow, and <Steps> sets the attribute the same way. */
+.steps[data-draws="yes"] .step::before {
+  animation: draws-step var(--step) var(--ease) both;
+}
+
+@keyframes draws-step {
+  from {
+    transform: translateY(-2px) scaleX(0);
+  }
+  to {
+    transform: translateY(-2px) scaleX(1);
+  }
+}
+
+.step[data-state="done"] {
+  color: var(--ink-2);
+}
+
+.step[data-state="done"]::before {
+  border-top-style: solid;
+}
+
+.step[data-state="here"] {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.step[data-state="here"]::before {
+  border-top-style: solid;
+  border-top-color: var(--go);
+}
+
+/* ===========================================================================
+   Fields: chalk written on ruled lines, with the explanation beside them
+   =========================================================================== */
+
+.field {
+  display: grid;
+  gap: var(--s2);
+}
+
+.field > label,
+.label {
+  font-size: var(--t-sm);
+  font-weight: 400;
+  color: var(--ink-2);
+}
+
+.write {
+  width: 100%;
+  padding: var(--s3) 0;
+  font-size: var(--t-md);
+  font-weight: 300;
+  color: var(--ink);
+  background: none;
+  border-bottom: 1px solid var(--rule);
+  border-radius: 0;
+  transition: border-color var(--step) var(--ease);
+}
+
+textarea.write {
+  padding-block: var(--s2);
+  line-height: 1.5;
+  resize: vertical;
+  min-height: 2.6em;
+}
+
+.write::placeholder {
+  color: var(--ink-3);
+}
+
+.write:hover {
+  border-bottom-color: var(--ink-3);
+}
+
+/* The chalk is on this line: the rule under the field firms up to full chalk
+   and thickens. Never yellow — yellow says which ACTION a board is for, and a
+   field taking focus would out-colour the action it leads to, on the one
+   screen (sign-in) where the action is the whole point. */
+.write:focus {
+  outline: none;
+  border-bottom-color: var(--ink);
+  box-shadow: 0 1px 0 var(--ink);
+}
+
+.write:disabled {
+  color: var(--ink-3);
+  border-bottom-style: dashed;
+  cursor: not-allowed;
+}
+
+.write[aria-invalid="true"] {
+  border-bottom-color: var(--bad);
+  box-shadow: 0 1px 0 var(--bad);
+}
+
+select.write {
+  padding-inline-end: var(--s5);
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink-3) 50%),
+    linear-gradient(135deg, var(--ink-3) 50%, transparent 50%);
+  background-size: 6px 6px, 6px 6px;
+  background-position: right 10px center, right 4px center;
+  background-repeat: no-repeat;
+}
+
+:root[dir="rtl"] select.write {
+  background-position: left 4px center, left 10px center;
+  background-image: linear-gradient(135deg, transparent 50%, var(--ink-3) 50%),
+    linear-gradient(45deg, var(--ink-3) 50%, transparent 50%);
+}
+
+select.write option {
+  background: var(--ground-3);
+  color: var(--ink);
+}
+
+/* An explanation is chalked beside the exact thing it explains, joined by a
+   short line — never gathered into a help page. */
+.beside {
+  position: relative;
+  padding-inline-start: var(--s4);
+  font-size: var(--t-sm);
+  color: var(--ink-3);
+}
+
+.beside::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  top: 0.72em;
+  inline-size: 9px;
+  border-top: 1px solid var(--rule);
+}
+
+.beside[data-tone="wrong"] {
+  color: var(--bad-ink);
+}
+
+.beside[data-tone="wrong"]::before {
+  border-top-color: var(--bad);
+}
+
+.beside[data-tone="live"] {
+  color: var(--live-ink);
+}
+
+.beside[data-tone="live"]::before {
+  border-top-color: var(--live);
+}
+
+/* ===========================================================================
+   Chalk actions
+   =========================================================================== */
+
+.act {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  padding: 10px var(--s4);
+  font-size: var(--t-sm);
+  font-weight: 400;
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: border-color var(--step) var(--ease), color var(--step) var(--ease),
+    background-color var(--step) var(--ease);
+}
+
+.act:hover:not(:disabled) {
+  border-color: var(--ink-3);
+  background: var(--dust);
+}
+
+.act:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.act:disabled,
+.act[aria-disabled="true"] {
+  color: var(--ink-3);
+  border-style: dashed;
+  border-color: var(--rule-soft);
+  cursor: not-allowed;
+}
+
+/* The one that matters. Yellow chalk, and only one per board. */
+.act.first {
+  color: var(--go-on);
+  background: var(--go);
+  border-color: var(--go);
+  font-weight: 500;
+}
+
+.act.first:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--go) 86%, var(--ink));
+  border-color: color-mix(in srgb, var(--go) 86%, var(--ink));
+}
+
+/* A primary action that is not ready yet is dimmed, never drained: the yellow
+   is what says which action this board is for, and it has to say it before the
+   form is filled in as well as after. */
+.act.first:disabled {
+  /* Full chalk on the dimmed yellow, not dimmed chalk on it: the fill is what
+     says "not ready", and a label nobody can read says it twice. */
+  color: var(--ink);
+  background: color-mix(in srgb, var(--go) 34%, transparent);
+  border-color: color-mix(in srgb, var(--go) 34%, transparent);
+  border-style: solid;
+}
+
+.act.grave {
+  color: var(--bad-ink);
+  border-color: color-mix(in srgb, var(--bad) 50%, transparent);
+}
+
+.act.grave:hover:not(:disabled) {
+  border-color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 12%, transparent);
+}
+
+.act.plain {
+  padding-inline: var(--s2);
+  border-color: transparent;
+  color: var(--ink-2);
+}
+
+.act.plain:hover:not(:disabled) {
+  color: var(--ink);
+  border-color: transparent;
+  background: var(--dust);
+}
+
+.act.small {
+  padding: 5px var(--s3);
+  font-size: var(--t-xs);
+}
+
+.act.icon {
+  padding: 8px;
+  border-color: transparent;
+  color: var(--ink-2);
+}
+
+.act.icon:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--dust);
+  border-color: transparent;
+}
+
+.acts {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex-wrap: wrap;
+}
+
+/* A pressed segment: the chalk you are holding. */
+.segments {
+  display: inline-flex;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.segments button {
+  padding: 6px var(--s3);
+  font-size: var(--t-sm);
+  color: var(--ink-2);
+  border-inline-start: 1px solid var(--rule-soft);
+}
+
+.segments button:first-child {
+  border-inline-start: none;
+}
+
+/* Which chalk you are holding is written in chalk, not in the colour reserved
+   for the action this board is for. */
+.segments button[aria-pressed="true"] {
+  color: var(--ink);
+  background: var(--dust);
+  box-shadow: inset 0 -2px 0 var(--ink);
+}
+
+/* ===========================================================================
+   Rows and registers
+   =========================================================================== */
+
+.rows {
+  display: grid;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s4);
+  padding: var(--s3) var(--s2);
+  border-bottom: 1px solid var(--rule-soft);
+  text-decoration: none;
+  color: inherit;
+  /* A row is a row whether it is a link or a button. Without this the browser's
+     own centring for <button> reaches every line inside one, and a register
+     that starts flush on one board would be centred on the next. */
+  text-align: start;
+  font: inherit;
+  transition: background-color var(--step) var(--ease);
+}
+
+/* Only a row that does something lifts under the cursor. A register line is
+   not a control, and dusting it advertises an action that is not there. */
+a.row:hover,
+button.row:hover {
+  background: var(--dust);
+}
+
+/* Chosen, not stated. The board already underlines the place you are on and
+   the answer that is right; a row you have picked is the same gesture. A state
+   mark here would say "written" or "waiting" about something that is neither —
+   it would say you clicked it. */
+.row[aria-pressed="true"] .row-title {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+:root[dir="rtl"] .row-go {
+  transform: scaleX(-1);
+}
+
+.row-main {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.row-title {
+  font-size: var(--t-base);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.row-side {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* A short column of counted facts, ruled like everything else but measured so
+   a label and its figure can be read as one line. Across the full width of the
+   board they are a metre apart and the eye has to travel to pair them. */
+.tally {
+  max-inline-size: 460px;
+}
+
+th {
+  padding: var(--s2) var(--s3);
+  text-align: start;
+  font-size: var(--t-xs);
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--frame);
+  border-bottom: 1px solid var(--rule);
+  white-space: nowrap;
+}
+
+td {
+  padding: var(--s3);
+  border-bottom: 1px solid var(--rule-soft);
+  vertical-align: top;
+}
+
+/* ===========================================================================
+   Nothing there yet, and waiting for the board to load
+   =========================================================================== */
+
+.nothing {
+  display: grid;
+  gap: var(--s3);
+  justify-items: start;
+  padding-block: var(--s2) var(--s4);
+  max-inline-size: 62ch;
+}
+
+.nothing h3 {
+  font-size: var(--t-lg);
+  color: var(--ink);
+}
+
+.wiping {
+  background: linear-gradient(
+    100deg,
+    var(--rule-soft) 30%,
+    color-mix(in srgb, var(--ink) 9%, transparent) 50%,
+    var(--rule-soft) 70%
+  );
+  background-size: 260% 100%;
+  border-radius: 2px;
+  animation: wipe 1.5s var(--ease) infinite;
+}
+
+@keyframes wipe {
+  from {
+    background-position: 130% 0;
+  }
+  to {
+    background-position: -30% 0;
+  }
+}
+
+/* ===========================================================================
+   What the board says back
+   =========================================================================== */
+
+.telling {
+  position: fixed;
+  inset-block-end: calc(var(--ledge) + var(--s4));
+  inset-inline: 0;
+  z-index: 60;
+  display: grid;
+  justify-items: center;
+  gap: var(--s2);
+  padding-inline: var(--s4);
+  pointer-events: none;
+}
+
+.told {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: 10px var(--s4);
+  font-size: var(--t-sm);
+  color: var(--ink);
+  background: var(--ground-3);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  box-shadow: 0 10px 30px -18px rgba(0, 0, 0, 0.85);
+  pointer-events: auto;
+  animation: chalked var(--step) var(--ease) both;
+}
+
+.told[data-tone="wrong"] {
+  border-color: color-mix(in srgb, var(--bad) 55%, transparent);
+  color: var(--bad-ink);
+}
+
+/* Written across, left to right, the way anything else on this board arrives. */
+@keyframes chalked {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+:root[dir="rtl"] .told {
+  animation-name: chalked-rtl;
+}
+
+@keyframes chalked-rtl {
+  from {
+    clip-path: inset(0 0 0 100%);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* A sheet pulled over the board — only where a task needs protecting. */
+dialog {
+  margin: auto;
+  width: min(560px, calc(100vw - var(--s5) * 2));
+  padding: var(--s6);
+  color: var(--ink);
+  background: var(--ground-2);
+  border: 1px solid var(--frame-2);
+  border-radius: 3px;
+  box-shadow: 0 30px 80px -40px rgba(0, 0, 0, 0.95);
+}
+
+dialog::backdrop {
+  background: rgba(8, 18, 15, 0.62);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+/* On a phone the frame stops being one line: the mark and who you are stay on
+   the top edge, and the places take a scrolling line of their own beneath. The
+   language switch goes with them — it lives on the account board, which is one
+   press away, and it is not something anybody changes twice a day. */
+@media (max-width: 860px) {
+  .rail {
+    flex-wrap: wrap;
+    gap: var(--s3);
+    padding-block: var(--s2);
+  }
+
+  .rail .places {
+    order: 3;
+    flex-basis: 100%;
+  }
+
+  /* The name goes; the language switch stays. Hiding the switch would strand an
+     Arabic-speaking member on the sign-in board, where the account page that
+     holds the other copy of it is on the far side of signing in. */
+  .rail-name {
+    display: none;
+  }
+
+  /* The ledge folds to two tiers here, and it floats over the work while the
+     board scrolls, so the board keeps a tier's worth of room beneath it. */
+  .sheet {
+    padding-bottom: 124px;
+  }
+}
+
+@media (max-width: 720px) {
+  :root {
+    --s5: 16px;
+    --s6: 24px;
+    --s7: 32px;
+  }
+
+  .rail {
+    gap: var(--s3);
+    padding-inline: var(--s4);
+  }
+
+  /* Written as separate properties: the shorthand would reset the bottom
+     padding the ledge clearance above depends on, and this query is inside
+     that one. */
+  .sheet {
+    padding-block-start: var(--s5);
+    padding-inline: var(--s4);
+  }
+
+  .ledge {
+    padding-inline: var(--s4);
+  }
+
+  .hand {
+    font-size: var(--t-xl);
+  }
+
+  /* A row has two halves; on a phone they go one under the other rather than
+     squeezing the title into a column narrow enough to collide with its marks. */
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s2);
+  }
+
+  .row-side {
+    justify-content: flex-start;
+    gap: var(--s3);
+  }
+
+  /* The chevron keeps its place at the trailing edge rather than dropping onto
+     a line of its own: it points into the row it opens, and a row that stacks
+     is still one row. */
+  .row:has(.row-go) {
+    position: relative;
+    padding-inline-end: var(--s6);
+  }
+
+  .row-go {
+    position: absolute;
+    inset-inline-end: 0;
+    top: calc(var(--s3) + 3px);
+  }
+}

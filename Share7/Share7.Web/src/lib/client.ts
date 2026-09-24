@@ -130,12 +130,8 @@ async function send(method: Method, path: string, body: unknown, options: Reques
   })
 }
 
-export async function request<T>(
-  method: Method,
-  path: string,
-  body?: unknown,
-  options: RequestOptions = {},
-): Promise<T> {
+/** Send with the session's token, refreshing it first when needed. The response comes back unread. */
+async function sendAuthorised(method: Method, path: string, body: unknown, options: RequestOptions) {
   const refreshable = !NO_REFRESH.includes(path)
 
   // Refresh ahead of expiry when we can see it coming. The 401 path below is still the real
@@ -152,29 +148,67 @@ export async function request<T>(
     }
   }
 
+  return res
+}
+
+/** Read a failed response into an ApiError, reporting it on the way. */
+async function failure(method: Method, path: string, res: Response, options: RequestOptions) {
   const text = await res.text()
-  let data: unknown = null
+  const data = parseBody(text)
+
+  const reason = describeFailure(data, text)
+  const error = new ApiError(reason, res.status, data)
+
+  console.error(`[s7] ${method} ${path} → ${res.status}`, reason)
+  if (!options.silent) errorHandler?.(error, method, path)
+
+  // A 401 that survived the refresh above means the session is genuinely gone. Clearing the
+  // store is what redirects: ProtectedRoute watches it and sends the admin to /login.
+  if (res.status === 401 && !NO_REFRESH.includes(path)) useAuth.getState().clear()
+
+  return error
+}
+
+function parseBody(text: string): unknown {
   try {
-    data = text ? JSON.parse(text) : null
+    return text ? JSON.parse(text) : null
   } catch {
-    data = text
+    return text
   }
+}
 
-  if (!res.ok) {
-    const reason = describeFailure(data, text)
-    const error = new ApiError(reason, res.status, data)
+export async function request<T>(
+  method: Method,
+  path: string,
+  body?: unknown,
+  options: RequestOptions = {},
+): Promise<T> {
+  const res = await sendAuthorised(method, path, body, options)
+  if (!res.ok) throw await failure(method, path, res, options)
 
-    console.error(`[s7] ${method} ${path} → ${res.status}`, reason)
-    if (!options.silent) errorHandler?.(error, method, path)
+  return parseBody(await res.text()) as T
+}
 
-    // A 401 that survived the refresh above means the session is genuinely gone. Clearing the
-    // store is what redirects: ProtectedRoute watches it and sends the admin to /login.
-    if (res.status === 401 && refreshable) useAuth.getState().clear()
+/**
+ * Fetch a file and hand it to the browser as a download.
+ *
+ * A plain `<a href="/api/…">` cannot do this: a navigation carries no Authorization header, so
+ * every token-protected file route answers it with a 401 — which is what the lesson sheet's
+ * Template link did, for every user, until this existed.
+ */
+async function download(path: string, filename: string, options: RequestOptions = {}) {
+  const res = await sendAuthorised('GET', path, undefined, options)
+  if (!res.ok) throw await failure('GET', path, res, options)
 
-    throw error
-  }
+  const url = URL.createObjectURL(await res.blob())
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
 
-  return data as T
+  // Revoked on the next tick rather than immediately: some browsers cancel a download whose
+  // object URL is revoked before it has started.
+  window.setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
 export const api = {
@@ -184,4 +218,5 @@ export const api = {
   put: <T>(path: string, body?: unknown, options?: RequestOptions) =>
     request<T>('PUT', path, body, options),
   del: <T>(path: string, options?: RequestOptions) => request<T>('DELETE', path, undefined, options),
+  download,
 }

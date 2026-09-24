@@ -1,0 +1,146 @@
+{
+  "title": "Choose the Content Studio's look",
+  "question": "The Studio needs its own world, not the Admin Console's. The roll assigned The Class Board. Keep it, take an alternate, or re-roll.",
+  "options": [
+    {
+      "id": "assigned",
+      "label": "The Class Board",
+      "kicker": "THE ROLL",
+      "lineage": "the green chalkboard of an Egyptian classroom, and its whiteboard successor",
+      "thesis": "The Studio is the board a specialist writes on before the class sees it: erasable while drafting, signed off before it is shown.",
+      "palette": ["#1d3a31", "#ecefe4", "#f1d35b", "#e57f76", "#8cbfe0", "#a7aca8"],
+      "materials": [
+        "matte slate-green board, chalk-white type",
+        "chalk strokes as state: solid, dashed, struck through",
+        "aluminium frame, chalk ledge for the main action; a whiteboard-and-marker light theme with the same rules"
+      ],
+      "viewport": "The setup page as a board: the date chalked top corner, 'Welcome, Mona' centred and underlined twice, the board ruled into two columns (your role and scope; your password), and 'Start using the Studio' on the chalk ledge along the bottom.",
+      "risk": "The most obvious picture of school; it fails the moment it turns cartoonish, with chalk fonts or doodles. It has to feel like a real board used by a serious teacher.",
+      "raised": [
+        { "from": "challenger-jackfield", "raise": "State is drawn in chalk strokes, never colour alone: a solid underline means on, a dashed one means waiting, a struck line means ended." },
+        { "from": "challenger-monochrome", "raise": "Coloured chalk is rationed to states and the one action that matters; white chalk carries everything else." },
+        { "from": "challenger-splitflap", "raise": "The board is ruled into fixed columns that never move between screens; content fills them, the rules stay put." },
+        { "from": "challenger-folio", "raise": "Every journey (link, password, 2-step, in) is chalked as a same-scale strip of steps across the top of the board." },
+        { "from": "challenger-tensegrity", "raise": "Each explanation is chalked beside the exact field it explains, joined by a short line; basics never need a help page." },
+        { "from": "challenger-cyclorama", "raise": "Every step and state has a name as well as a mark, so nothing depends on seeing colour." }
+      ]
+    },
+    {
+      "id": "model-pick",
+      "label": "The Preparation Notebook",
+      "kicker": "IMPECCABLE’S PICK",
+      "lineage": "the teacher's lesson-preparation notebook, read and signed by the subject supervisor",
+      "thesis": "Every piece of work is a notebook page the supervisor reads and signs in red before it counts.",
+      "palette": ["#fbfaf5", "#9db8d9", "#d0463b", "#1f2a44", "#2f5d8a"],
+      "materials": [
+        "ruled notebook paper with a red margin",
+        "blue ballpoint ink for your own writing",
+        "the reviewer's red signature and date as approval"
+      ],
+      "viewport": "The setup page as the notebook's first page: name, role and scope written on the ruled lines like a cover sheet, the password on the next line, the SuperAdmin's hand-over noted in the margin.",
+      "risk": "Ruled paper is where most tools for teachers land; it can slide into the familiar cream-paper look and feel like stationery rather than a workplace."
+    },
+    {
+      "id": "challenger-jackfield",
+      "label": "Normalled Jackfield",
+      "verdict": "declined",
+      "lineage": "machine-room patch schedules",
+      "thesis": "Every setting tied to its default by an amber line whose stroke shows its state.",
+      "palette": ["#0b0d0f", "#ffb000", "#3a3f44"],
+      "materials": ["black glass", "amber link lines"],
+      "viewport": "Numbered amber lanes on black, each account setting tied to its default.",
+      "risk": "Nobody on a content team has stood in a machine room.",
+      "case": "Clear for settings, foreign to the audience; loses on both axes for an entrance.",
+      "kept": "State drawn by stroke pattern, never colour alone.",
+      "hero": "https://impeccable.style/worlds/cards/operate-b-normalled-jackfield-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/operate-b-normalled-jackfield.webp"
+    },
+    {
+      "id": "challenger-splitflap",
+      "label": "Split-flap Concourse",
+      "verdict": "declined",
+      "lineage": "railway departure boards",
+      "thesis": "Rows are live entities; the ruled columns never move, only the flaps.",
+      "palette": ["#111111", "#f5f5f0", "#f0a800", "#8a8f94"],
+      "materials": ["matte flaps", "brushed steel frame"],
+      "viewport": "Account details as rows of flaps on a steel board.",
+      "risk": "Reads as travel, not teaching.",
+      "case": "Strong grid discipline, but the audience does not see their work in it.",
+      "kept": "Fixed ruled columns that never move between screens.",
+      "hero": "https://impeccable.style/worlds/cards/signals-instruments-split-flap-concourse-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/signals-instruments-split-flap-concourse.webp"
+    },
+    {
+      "id": "challenger-folio",
+      "label": "Botanical Folio",
+      "verdict": "declined",
+      "lineage": "botanical plates through the seasons",
+      "thesis": "One subject shown at every stage, at the same scale.",
+      "palette": ["#f3ecdd", "#3f6b3a", "#b3261e", "#6b6b66"],
+      "materials": ["engraved plates", "hairline sepia rules"],
+      "viewport": "Account stages as five aligned plates.",
+      "risk": "Cream plates and italic serif are the default most generated designs land on.",
+      "case": "Lifecycle staging fits; the world does not.",
+      "kept": "Every journey drawn as a same-scale strip of stages.",
+      "hero": "https://impeccable.style/worlds/cards/editorial-sequence-montage-botanical-folio-season-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/editorial-sequence-montage-botanical-folio-season.webp"
+    },
+    {
+      "id": "challenger-monochrome",
+      "label": "Monochrome Product",
+      "verdict": "declined",
+      "lineage": "restrained software marketing",
+      "thesis": "Almost no colour; one accent used a handful of times.",
+      "palette": ["#fafafa", "#111111", "#5b5bd6"],
+      "materials": ["neutral scale", "soft radial grounds"],
+      "viewport": "A neutral sign-in with one accent button.",
+      "risk": "Indistinguishable from any SaaS product.",
+      "case": "Clear but anonymous; the team would not recognise it as theirs.",
+      "kept": "Colour rationed to state and the one action that matters.",
+      "hero": "https://impeccable.style/worlds/cards/digital-design-canon-monochrome-product-marketing-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/digital-design-canon-monochrome-product-marketing.webp"
+    },
+    {
+      "id": "challenger-tensegrity",
+      "label": "Tensegrity Column",
+      "verdict": "declined",
+      "lineage": "kinetic sculpture",
+      "thesis": "Every annotation pinned to the node it explains.",
+      "palette": ["#d9d6cf", "#1c1c1c", "#c8322b", "#8b8b8b"],
+      "materials": ["carbon rods", "red cord"],
+      "viewport": "The sign-in as a force diagram.",
+      "risk": "Engineering vocabulary the brief rules out.",
+      "case": "Loses on both axes.",
+      "kept": "Explanations pinned beside the exact thing they explain.",
+      "hero": "https://impeccable.style/worlds/cards/kinetic-sculpture-automata-tensegrity-breathing-column-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/kinetic-sculpture-automata-tensegrity-breathing-column.webp"
+    },
+    {
+      "id": "challenger-cyclorama",
+      "label": "Cyclorama Dawn",
+      "verdict": "declined",
+      "lineage": "theatre lighting",
+      "thesis": "Phases as horizon bands from night to day.",
+      "palette": ["#07080c", "#1f3fbf", "#e58fa6", "#f7f5ef"],
+      "materials": ["stage light", "stencil cue labels"],
+      "viewport": "Setup as a dawn: each step lightens the horizon.",
+      "risk": "Mood over task.",
+      "case": "Phasing fits the setup journey; the theatre does not fit the team.",
+      "kept": "Every phase named as well as coloured.",
+      "hero": "https://impeccable.style/worlds/cards/stagecraft-theater-lighting-cyclorama-dawn-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/stagecraft-theater-lighting-cyclorama-dawn.webp"
+    }
+  ],
+  "reroll": { "registers": ["safer", "bolder"] },
+  "buildPath": { "value": "code" },
+  "canon": true,
+  "canonCard": {
+    "label": "The category standard",
+    "thesis": "A clean modern workspace: white canvas, left sidebar, one blue accent.",
+    "palette": ["#ffffff", "#111827", "#2563eb", "#f3f4f6"],
+    "materials": ["clean grid", "system type"],
+    "viewport": "A centred sign-in card, then a sidebar app like any modern workspace tool.",
+    "risk": "Indistinguishable from every other workspace tool by design."
+  },
+  "steer": true
+}

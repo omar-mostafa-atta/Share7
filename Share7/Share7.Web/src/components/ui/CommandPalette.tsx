@@ -4,7 +4,7 @@ import { CornerDownLeft, Moon, Rows3, Search, Sun, LogOut } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../store/auth'
 import { usePrefs } from '../../store/prefs'
-import { NAV_ENTRIES } from '../../lib/nav'
+import { flattenNav, type NavGroup } from '../../lib/nav'
 import { modalVariants, scrimVariants } from './motion'
 
 // ===========================================================================
@@ -52,7 +52,16 @@ function score(query: string, text: string): number | null {
   return last - first + first * 0.5
 }
 
-export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function CommandPalette({
+  nav,
+  open,
+  onClose,
+}: {
+  /** The current portal's pages — the palette only offers what the sidebar does. */
+  nav: NavGroup[]
+  open: boolean
+  onClose: () => void
+}) {
   const navigate = useNavigate()
   const setTheme = usePrefs((s) => s.setTheme)
   const theme = usePrefs((s) => s.theme)
@@ -66,7 +75,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   const listRef = useRef<HTMLDivElement>(null)
 
   const commands = useMemo<Command[]>(() => {
-    const routes: Command[] = NAV_ENTRIES.map((entry) => ({
+    const routes: Command[] = flattenNav(nav).map((entry) => ({
       id: `go:${entry.to}`,
       section: entry.section,
       label: entry.label,
@@ -104,7 +113,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     ]
 
     return [...routes, ...actions]
-  }, [navigate, theme, setTheme, density, setDensity, clear])
+  }, [nav, navigate, theme, setTheme, density, setDensity, clear])
 
   const results = useMemo(() => {
     if (!query.trim()) return commands

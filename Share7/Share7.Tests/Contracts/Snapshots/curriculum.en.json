@@ -1,0 +1,125 @@
+[
+  {
+    "request": "GET /api/terms?gradeId=grade:PrimaryFour",
+    "as": "student-en",
+    "requestBody": null,
+    "status": 200,
+    "body": [
+      {
+        "id": "term:first",
+        "name": "First Term",
+        "langId": "lang:en",
+        "gradeId": "grade:PrimaryFour",
+        "order": 1
+      },
+      {
+        "id": "term:second",
+        "name": "Second Term",
+        "langId": "lang:en",
+        "gradeId": "grade:PrimaryFour",
+        "order": 2
+      }
+    ]
+  },
+  {
+    "request": "GET /api/terms",
+    "as": "student-en",
+    "requestBody": null,
+    "status": 200,
+    "body": [
+      {
+        "id": "term:first",
+        "name": "First Term",
+        "langId": "lang:en",
+        "gradeId": "grade:PrimaryFour",
+        "order": 1
+      },
+      {
+        "id": "term:second",
+        "name": "Second Term",
+        "langId": "lang:en",
+        "gradeId": "grade:PrimaryFour",
+        "order": 2
+      }
+    ]
+  },
+  {
+    "request": "GET /api/subjects?termId=term:first",
+    "as": "student-en",
+    "requestBody": null,
+    "status": 200,
+    "body": [
+      {
+        "id": "subject:science",
+        "name": "Science",
+        "langId": "lang:en",
+        "termId": "term:first",
+        "order": 1
+      },
+      {
+        "id": "subject:maths-no-arabic",
+        "name": "Mathematics",
+        "langId": "lang:en",
+        "termId": "term:first",
+        "order": 2
+      }
+    ]
+  },
+  {
+    "request": "GET /api/chapters?subjectId=subject:science",
+    "as": "student-en",
+    "requestBody": null,
+    "status": 200,
+    "body": [
+      {
+        "id": "chapter:matter",
+        "name": "States of Matter",
+        "langId": "lang:en",
+        "subjectId": "subject:science",
+        "order": 1
+      },
+      {
+        "id": "chapter:energy",
+        "name": "Energy",
+        "langId": "lang:en",
+        "subjectId": "subject:science",
+        "order": 2
+      }
+    ]
+  },
+  {
+    "request": "GET /api/lessons?chapterId=chapter:matter",
+    "as": "student-en",
+    "requestBody": null,
+    "status": 200,
+    "body": [
+      {
+        "id": "lesson:solids",
+        "name": "Solids",
+        "langId": "lang:en",
+        "chapterId": "chapter:matter",
+        "order": 1,
+        "questionsVersion": 2,
+        "hasQuestions": true
+      },
+      {
+        "id": "lesson:liquids-english-only",
+        "name": "Liquids",
+        "langId": "lang:en",
+        "chapterId": "chapter:matter",
+        "order": 2,
+        "questionsVersion": 1,
+        "hasQuestions": true
+      },
+      {
+        "id": "lesson:gases-no-questions",
+        "name": "Gases",
+        "langId": "lang:en",
+        "chapterId": "chapter:matter",
+        "order": 3,
+        "questionsVersion": 0,
+        "hasQuestions": false
+      }
+    ]
+  }
+]

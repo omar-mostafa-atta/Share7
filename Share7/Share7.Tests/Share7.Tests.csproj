@@ -9,6 +9,15 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Share7.Infrastructure\Share7.Infrastructure.csproj" />
+
+    <!-- Build order only. The contract tests run the API as its own process (Contracts/ContractHost),
+         so they need it built next to this project's output, not loaded into it. -->
+    <ProjectReference Include="..\Share7\Share7.API.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- A mismatch writes the actual output beside its baseline for diffing. Never a baseline. -->
+    <None Remove="Contracts\Snapshots\*.received.json" />
   </ItemGroup>
 
   <ItemGroup>

@@ -30,6 +30,14 @@ public class AccountDeletionService : IAccountDeletionService
         if (user is null)
             return ServiceResult.Success();
 
+        // A content-team account is closed by a SuperAdmin (deactivation), never erased by its holder:
+        // the audit trail and authored content keep naming them.
+        if (await _dbContext.StaffProfiles.AnyAsync(p => p.UserId == userId, cancellationToken))
+            return ServiceResult.Failure(
+                ApiErrors.AccountDeletionRefused,
+                ServiceErrorKind.Forbidden,
+                "Staff accounts are closed by a SuperAdmin, not deleted by their holder.");
+
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
         await UserOwnedData.PurgeAsync(_dbContext, userId, cancellationToken);

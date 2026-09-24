@@ -1,3 +1,4 @@
+using Share7.Domain.Organizations;
 using Share7.Domain.Play;
 
 namespace Share7.Application.Play.Models;
@@ -32,6 +33,17 @@ public sealed record PlaySelectionRequest
     public Guid? EventId { get; init; }
 
     /// <summary>
+    /// Required when the context is an assignment, refused otherwise.
+    /// <para>
+    /// The assignment context was refused outright until cohorts existed, because there was no
+    /// class relation to resolve one against. There is now, so this names it — and the server
+    /// checks that the assignment is open and that the caller is actually in the cohort it was set
+    /// for, rather than taking the client's word (§17.4).
+    /// </para>
+    /// </summary>
+    public Guid? AssignmentId { get; init; }
+
+    /// <summary>
     /// How many players the session seats, for the topology check. 1 for a solo run; the seat count
     /// for a match. Zero means "do not check", which matchmaking uses before a roster exists.
     /// </summary>
@@ -61,6 +73,13 @@ public sealed record PlaySelection
     public PlayEvent? Event { get; init; }
 
     public Guid? EventId => Event?.Id;
+
+    /// <summary>
+    /// The assignment this session is fulfilling, when it is one. Null for every other context.
+    /// </summary>
+    public Assignment? Assignment { get; init; }
+
+    public Guid? AssignmentId => Assignment?.Id;
 
     /// <summary>What this session may do, from the mode and the context together.</summary>
     public required PlaySettlementPolicy Policy { get; init; }

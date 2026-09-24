@@ -2,101 +2,70 @@ using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
 using Share7.Application.Curriculum.Interfaces;
 using Share7.Application.Curriculum.Models;
-using Share7.Domain.Constants;
+using Share7.Application.Engine.Interfaces;
+using Share7.Application.Engine.Models;
+using Share7.Domain.Content;
 using Share7.Domain.Curriculum;
 using Share7.Infrastructure.Persistence;
 
 namespace Share7.Infrastructure.Curriculum;
 
 /// <inheritdoc cref="ILessonSheetService"/>
+/// <remarks>
+/// **An adapter over the engine since the rebuild.** The sheet's shape — one row, English and
+/// Arabic side by side, a recovery flag — and its rules and messages are unchanged; what a publish
+/// does underneath is the content publisher's (<see cref="ILessonContentPublisher"/>), which keeps
+/// unchanged questions under their ids and moves a set's version only when what the game receives
+/// for it changed. The two languages are found by code, not by constant.
+/// </remarks>
 public class LessonSheetService : ILessonSheetService
 {
     private readonly ApplicationDbContext _dbContext;
+    private readonly ILessonContentReader _reader;
+    private readonly ILessonContentPublisher _publisher;
+    private readonly IContentLanguages _languages;
 
-    public LessonSheetService(ApplicationDbContext dbContext) => _dbContext = dbContext;
-
-    private static readonly Guid En = LanguageIds.English;
-    private static readonly Guid Ar = LanguageIds.Arabic;
+    public LessonSheetService(
+        ApplicationDbContext dbContext,
+        ILessonContentReader reader,
+        ILessonContentPublisher publisher,
+        IContentLanguages languages)
+    {
+        _dbContext = dbContext;
+        _reader = reader;
+        _publisher = publisher;
+        _languages = languages;
+    }
 
     // ── read ──────────────────────────────────────────────────────────────────
 
     public async Task<LessonSheetDto?> GetAsync(Guid lessonId, CancellationToken cancellationToken = default)
     {
-        if (!await _dbContext.Lessons.AnyAsync(l => l.Id == lessonId, cancellationToken))
+        var content = await _reader.ReadAsync(lessonId, cancellationToken);
+        if (content is null)
             return null;
 
-        var main = await _dbContext.Questions
-            .AsNoTracking()
-            .Where(q => q.LessonId == lessonId && q.IsActive)
-            .Select(q => new Loaded(
-                q.RowNumber,
-                q.LangId,
-                q.Text,
-                q.CorrectChoiceId,
-                q.Choices.OrderBy(c => c.OrderIndex).Select(c => new LoadedChoice(c.Id, c.Text)).ToList()))
-            .ToListAsync(cancellationToken);
-
-        var recovery = await _dbContext.RecoveryQuestions
-            .AsNoTracking()
-            .Where(q => q.LessonId == lessonId && q.IsActive)
-            .Select(q => new Loaded(
-                q.RowNumber,
-                q.LangId,
-                q.Text,
-                q.CorrectChoiceId,
-                q.Choices.OrderBy(c => c.OrderIndex).Select(c => new LoadedChoice(c.Id, c.Text)).ToList()))
-            .ToListAsync(cancellationToken);
+        var (en, ar) = await LegacyContentAdapter.SheetLanguagesAsync(_languages, cancellationToken);
 
         var rows = new List<LessonSheetRow>();
         var unpaired = new List<int>();
 
-        Pair(main, isRecovery: false, rows, unpaired);
-        Pair(recovery, isRecovery: true, rows, unpaired);
-
-        var mainSets = await _dbContext.LessonQuestionSets
-            .AsNoTracking().Where(s => s.LessonId == lessonId)
-            .ToDictionaryAsync(s => s.LangId, s => s.Version, cancellationToken);
-
-        var recoverySets = await _dbContext.LessonRecoveryQuestionSets
-            .AsNoTracking().Where(s => s.LessonId == lessonId)
-            .ToDictionaryAsync(s => s.LangId, s => s.Version, cancellationToken);
-
-        return new LessonSheetDto
+        foreach (var item in content.Items.Where(i => i.Role is NodeItemRole.Core or NodeItemRole.Recovery))
         {
-            LessonId = lessonId,
-            MainVersionEn = mainSets.GetValueOrDefault(En),
-            MainVersionAr = mainSets.GetValueOrDefault(Ar),
-            RecoveryVersionEn = recoverySets.GetValueOrDefault(En),
-            RecoveryVersionAr = recoverySets.GetValueOrDefault(Ar),
-            Rows = [.. rows.OrderBy(r => r.IsRecovery).ThenBy(r => r.RowNumber)],
-            UnpairedRowNumbers = [.. unpaired.Distinct().Order()]
-        };
-    }
+            var english = item.In(en);
+            var arabic = item.In(ar);
 
-    /// <summary>
-    /// Joins the two languages of one pool on row number.
-    /// <para>
-    /// A row present in only one language is still returned, with the missing side blank, and its
-    /// number is reported in <c>UnpairedRowNumbers</c>. Dropping it would hide content that is live
-    /// in the client; blanking it silently would let an admin save the blank back over a translation
-    /// that does exist. Naming it is the only option that does neither.
-    /// </para>
-    /// </summary>
-    private static void Pair(
-        List<Loaded> loaded, bool isRecovery, List<LessonSheetRow> rows, List<int> unpaired)
-    {
-        foreach (var group in loaded.GroupBy(q => q.RowNumber))
-        {
-            var english = group.FirstOrDefault(q => q.LangId == En);
-            var arabic = group.FirstOrDefault(q => q.LangId == Ar);
-
+            // A row present in only one language is still returned, with the missing side blank, and
+            // its number is reported. Dropping it would hide content that is live in the client;
+            // blanking it silently would let an admin save the blank back over a translation that
+            // does exist. Naming it is the only option that does neither.
             if (english is null || arabic is null)
-                unpaired.Add(group.Key);
+                unpaired.Add(item.Order);
 
             rows.Add(new LessonSheetRow
             {
-                RowNumber = group.Key,
-                IsRecovery = isRecovery,
+                RowNumber = item.Order,
+                IsRecovery = item.Role == NodeItemRole.Recovery,
 
                 QuestionEn = english?.Text ?? string.Empty,
                 CorrectEn = Correct(english),
@@ -109,23 +78,31 @@ public class LessonSheetService : ILessonSheetService
                 WrongAr2 = Wrong(arabic, 1)
             });
         }
+
+        return new LessonSheetDto
+        {
+            LessonId = lessonId,
+            MainVersionEn = content.VersionOf(NodeItemRole.Core, en),
+            MainVersionAr = content.VersionOf(NodeItemRole.Core, ar),
+            RecoveryVersionEn = content.VersionOf(NodeItemRole.Recovery, en),
+            RecoveryVersionAr = content.VersionOf(NodeItemRole.Recovery, ar),
+            Rows = [.. rows.OrderBy(r => r.IsRecovery).ThenBy(r => r.RowNumber)],
+            UnpairedRowNumbers = [.. unpaired.Distinct().Order()]
+        };
     }
 
-    private static string Correct(Loaded? q) =>
-        q?.Choices.FirstOrDefault(c => c.Id == q.CorrectChoiceId)?.Text ?? string.Empty;
+    private static string Correct(ContentRenderingDto? rendering) =>
+        rendering is not null && rendering.CorrectIndex >= 0 && rendering.CorrectIndex < rendering.Choices.Count
+            ? rendering.Choices[rendering.CorrectIndex].Text
+            : string.Empty;
 
-    private static string Wrong(Loaded? q, int index)
+    private static string Wrong(ContentRenderingDto? rendering, int index)
     {
-        if (q is null) return string.Empty;
+        if (rendering is null) return string.Empty;
 
-        var wrong = q.Choices.Where(c => c.Id != q.CorrectChoiceId).ToList();
+        var wrong = rendering.Choices.Where((_, i) => i != rendering.CorrectIndex).ToList();
         return index < wrong.Count ? wrong[index].Text : string.Empty;
     }
-
-    private sealed record Loaded(
-        int RowNumber, Guid LangId, string Text, Guid CorrectChoiceId, List<LoadedChoice> Choices);
-
-    private sealed record LoadedChoice(Guid Id, string Text);
 
     // ── template ──────────────────────────────────────────────────────────────
 
@@ -180,7 +157,7 @@ public class LessonSheetService : ILessonSheetService
         Guid? uploadedByUserId = null,
         CancellationToken cancellationToken = default)
     {
-        if (!await _dbContext.Lessons.AnyAsync(l => l.Id == lessonId, cancellationToken))
+        if (!await _dbContext.CurriculumNodes.AnyAsync(n => n.Id == lessonId && n.KindKey == NodeKinds.Lesson && n.RetiredAtUtc == null, cancellationToken))
             return LessonSheetResult.Failed(lessonId, "Lesson not found.");
 
         var rows = LessonSheetParser.Parse(excelStream, hasHeaderRow, out var errors);
@@ -198,7 +175,7 @@ public class LessonSheetService : ILessonSheetService
         Guid? savedByUserId = null,
         CancellationToken cancellationToken = default)
     {
-        if (!await _dbContext.Lessons.AnyAsync(l => l.Id == lessonId, cancellationToken))
+        if (!await _dbContext.CurriculumNodes.AnyAsync(n => n.Id == lessonId && n.KindKey == NodeKinds.Lesson && n.RetiredAtUtc == null, cancellationToken))
             return LessonSheetResult.Failed(lessonId, "Lesson not found.");
 
         var rows = Normalise(request.Rows);
@@ -304,13 +281,12 @@ public class LessonSheetService : ILessonSheetService
     }
 
     /// <summary>
-    /// Writes all four sets in one transaction, retiring what each replaces.
+    /// Publishes all four sets — main and recovery, English and Arabic — as one engine publish.
     /// <para>
-    /// <b>The recovery requirement is enforced here rather than at the parser</b>, so it holds for
-    /// every way content arrives — an upload, a save from the console, and a delete that would take
-    /// the last recovery row with it. A lesson with a main pool and no recovery pool has nothing to
-    /// offer a child who answered wrong, which is the whole point of the second pool; letting one be
-    /// published means finding out in the client.
+    /// <b>The recovery requirement is checked here, in the sheet's own words</b>, so it holds for
+    /// every way content arrives through the sheet: an upload, a save from the console, and a delete
+    /// that would take the last recovery row with it. A lesson with a main pool and no recovery pool
+    /// has nothing to offer a child who answered wrong, which is the whole point of the second pool.
     /// </para>
     /// <para>
     /// Rows are retired, never deleted: <c>UserQuestionProgress</c> references the row that graded an
@@ -336,72 +312,51 @@ public class LessonSheetService : ILessonSheetService
                 + "(or in the Recovery column of the editor) before publishing.");
         }
 
-        var now = DateTime.UtcNow;
+        var (en, ar) = await LegacyContentAdapter.SheetLanguagesAsync(_languages, cancellationToken);
 
-        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+        static NodeItemRole RoleOf(LessonSheetRow row) => row.IsRecovery ? NodeItemRole.Recovery : NodeItemRole.Core;
 
-        var replaced = await _dbContext.Questions
-            .Where(q => q.LessonId == lessonId && q.IsActive)
-            .ExecuteUpdateAsync(
-                s => s.SetProperty(q => q.IsActive, false).SetProperty(q => q.DeactivatedAt, now),
-                cancellationToken);
+        var lineage = await LegacyContentAdapter.ResolveLineageAsync(
+            _dbContext, lessonId, rows.Select(r => (RoleOf(r), r.RowNumber)), cancellationToken);
 
-        replaced += await _dbContext.RecoveryQuestions
-            .Where(q => q.LessonId == lessonId && q.IsActive)
-            .ExecuteUpdateAsync(
-                s => s.SetProperty(q => q.IsActive, false).SetProperty(q => q.DeactivatedAt, now),
-                cancellationToken);
-
-        var mainVersion = await BumpMainAsync(lessonId, cancellationToken);
-        var recoveryVersion = await BumpRecoveryAsync(lessonId, cancellationToken);
-
-        foreach (var row in mainRows)
+        var items = rows.Select(row =>
         {
-            AddMain(lessonId, En, mainVersion, row.RowNumber, now,
-                row.QuestionEn, row.CorrectEn, row.WrongEn1, row.WrongEn2);
-            AddMain(lessonId, Ar, mainVersion, row.RowNumber, now,
-                row.QuestionAr, row.CorrectAr, row.WrongAr1, row.WrongAr2);
-        }
+            var (itemId, sourceKey) = lineage[(RoleOf(row), row.RowNumber)];
 
-        foreach (var row in recoveryRows)
-        {
-            AddRecovery(lessonId, En, recoveryVersion, row.RowNumber, now,
-                row.QuestionEn, row.CorrectEn, row.WrongEn1, row.WrongEn2);
-            AddRecovery(lessonId, Ar, recoveryVersion, row.RowNumber, now,
-                row.QuestionAr, row.CorrectAr, row.WrongAr1, row.WrongAr2);
-        }
-
-        foreach (var langId in new[] { En, Ar })
-        {
-            _dbContext.LessonQuestionUploads.Add(new LessonQuestionUpload
+            return new ContentDraftItem
             {
-                Id = Guid.NewGuid(),
-                LessonId = lessonId,
-                LangId = langId,
-                Version = mainVersion,
-                FileName = QuestionSheetParser.Truncate(fileName, 260),
-                Source = source,
-                QuestionCount = mainRows.Count,
-                UploadedByUserId = publishedByUserId,
-                UploadedAt = now
-            });
+                ItemId = itemId,
+                SourceKeyHint = sourceKey,
+                Role = RoleOf(row),
+                Order = row.RowNumber,
+                Renderings =
+                [
+                    LegacyContentAdapter.Rendering(en, row.QuestionEn, row.CorrectEn, row.WrongEn1, row.WrongEn2),
+                    LegacyContentAdapter.Rendering(ar, row.QuestionAr, row.CorrectAr, row.WrongAr1, row.WrongAr2)
+                ]
+            };
+        }).ToList();
 
-            _dbContext.LessonRecoveryQuestionUploads.Add(new LessonRecoveryQuestionUpload
-            {
-                Id = Guid.NewGuid(),
-                LessonId = lessonId,
-                LangId = langId,
-                Version = recoveryVersion,
-                FileName = QuestionSheetParser.Truncate(fileName, 260),
-                Source = source,
-                QuestionCount = recoveryRows.Count,
-                UploadedByUserId = publishedByUserId,
-                UploadedAt = now
-            });
-        }
+        var published = await _publisher.PublishAsync(new ContentPublishRequest
+        {
+            LessonId = lessonId,
+            Items = items,
+            Covers =
+            [
+                new(NodeItemRole.Core, en), new(NodeItemRole.Core, ar),
+                new(NodeItemRole.Recovery, en), new(NodeItemRole.Recovery, ar)
+            ],
+            Rules = ContentRuleSet.LessonSheet,
+            Source = source,
+            FileName = QuestionSheetParser.Truncate(fileName, 260),
+            ActorUserId = publishedByUserId,
+            AuditPath = "lesson-sheet"
+        }, cancellationToken);
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+        if (!published.Succeeded)
+            return new LessonSheetResult { Succeeded = false, LessonId = lessonId, Errors = LegacyContentAdapter.Errors(published) };
+
+        var outcome = published.Value!;
 
         return new LessonSheetResult
         {
@@ -409,126 +364,12 @@ public class LessonSheetService : ILessonSheetService
             LessonId = lessonId,
             MainCount = mainRows.Count,
             RecoveryCount = recoveryRows.Count,
-            MainVersion = mainVersion,
-            RecoveryVersion = recoveryVersion,
-            ReplacedCount = replaced
+
+            // The two languages version independently now — each moves only when it changed — so the
+            // sheet reports the one further ahead.
+            MainVersion = Math.Max(outcome.For(NodeItemRole.Core, en)?.Version ?? 0, outcome.For(NodeItemRole.Core, ar)?.Version ?? 0),
+            RecoveryVersion = Math.Max(outcome.For(NodeItemRole.Recovery, en)?.Version ?? 0, outcome.For(NodeItemRole.Recovery, ar)?.Version ?? 0),
+            ReplacedCount = outcome.RetiredRows
         };
-    }
-
-    /// <summary>
-    /// One version number across both languages of the main pool.
-    /// <para>
-    /// The sets are stored per language and could carry different numbers — the per-language
-    /// importer is why they can. A paired publish writes both, so letting them diverge would record
-    /// a difference that did not happen. The new number is one past whichever set is further ahead,
-    /// so a lesson that was previously published one language at a time still moves forward.
-    /// </para>
-    /// </summary>
-    private async Task<int> BumpMainAsync(Guid lessonId, CancellationToken cancellationToken)
-    {
-        var sets = await _dbContext.LessonQuestionSets
-            .Where(s => s.LessonId == lessonId)
-            .ToListAsync(cancellationToken);
-
-        var version = (sets.Count == 0 ? 0 : sets.Max(s => s.Version)) + 1;
-
-        foreach (var langId in new[] { En, Ar })
-        {
-            var set = sets.FirstOrDefault(s => s.LangId == langId);
-
-            if (set is null)
-                _dbContext.LessonQuestionSets.Add(new LessonQuestionSet { LessonId = lessonId, LangId = langId, Version = version });
-            else
-                set.Version = version;
-        }
-
-        return version;
-    }
-
-    /// <inheritdoc cref="BumpMainAsync"/>
-    private async Task<int> BumpRecoveryAsync(Guid lessonId, CancellationToken cancellationToken)
-    {
-        var sets = await _dbContext.LessonRecoveryQuestionSets
-            .Where(s => s.LessonId == lessonId)
-            .ToListAsync(cancellationToken);
-
-        var version = (sets.Count == 0 ? 0 : sets.Max(s => s.Version)) + 1;
-
-        foreach (var langId in new[] { En, Ar })
-        {
-            var set = sets.FirstOrDefault(s => s.LangId == langId);
-
-            if (set is null)
-                _dbContext.LessonRecoveryQuestionSets.Add(new LessonRecoveryQuestionSet { LessonId = lessonId, LangId = langId, Version = version });
-            else
-                set.Version = version;
-        }
-
-        return version;
-    }
-
-    private void AddMain(
-        Guid lessonId, Guid langId, int version, int rowNumber, DateTime now,
-        string text, string correct, string wrong1, string wrong2)
-    {
-        var question = new Question
-        {
-            Id = Guid.NewGuid(),
-            LessonId = lessonId,
-            LangId = langId,
-            Text = text,
-            Version = version,
-            IsActive = true,
-            RowNumber = rowNumber,
-            CreatedAt = now
-        };
-
-        // The correct answer is stored first by contract; the client shuffles before assigning lanes.
-        var choices = new[] { correct, wrong1, wrong2 }
-            .Select((choiceText, index) => new QuestionChoice
-            {
-                Id = Guid.NewGuid(),
-                QuestionId = question.Id,
-                Text = choiceText,
-                OrderIndex = index
-            })
-            .ToList();
-
-        question.CorrectChoiceId = choices[0].Id;
-        question.Choices = choices;
-
-        _dbContext.Questions.Add(question);
-    }
-
-    private void AddRecovery(
-        Guid lessonId, Guid langId, int version, int rowNumber, DateTime now,
-        string text, string correct, string wrong1, string wrong2)
-    {
-        var question = new RecoveryQuestion
-        {
-            Id = Guid.NewGuid(),
-            LessonId = lessonId,
-            LangId = langId,
-            Text = text,
-            Version = version,
-            IsActive = true,
-            RowNumber = rowNumber,
-            CreatedAt = now
-        };
-
-        var choices = new[] { correct, wrong1, wrong2 }
-            .Select((choiceText, index) => new RecoveryQuestionChoice
-            {
-                Id = Guid.NewGuid(),
-                RecoveryQuestionId = question.Id,
-                Text = choiceText,
-                OrderIndex = index
-            })
-            .ToList();
-
-        question.CorrectChoiceId = choices[0].Id;
-        question.Choices = choices;
-
-        _dbContext.RecoveryQuestions.Add(question);
     }
 }

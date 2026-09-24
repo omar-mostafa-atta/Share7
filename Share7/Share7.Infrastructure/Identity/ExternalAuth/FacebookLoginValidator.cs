@@ -36,6 +36,8 @@ public class FacebookLoginValidator : IExternalLoginValidator
         if (payload is null || string.IsNullOrWhiteSpace(payload.Email))
             return null;
 
+        // No verification flag: the Graph API does not report one, so EmailVerified stays null
+        // ("provider does not say") rather than being guessed either way.
         return new ExternalUserInfo(payload.Id, payload.Email, payload.Name);
     }
 

@@ -24,6 +24,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The Content Studio's build (Share7.Studio), served on its own host name by StudioHosting. -->
+    <Content Include="wwwroot-studio**" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Dev-only settings (contains a placeholder JWT secret) must never leave this machine. -->
     <Content Update="appsettings.Development.json">
       <CopyToPublishDirectory>Never</CopyToPublishDirectory>

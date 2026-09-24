@@ -23,7 +23,8 @@ public class JwtTokenGenerator : IJwtTokenGenerator
         string username,
         string? email,
         IEnumerable<string> roles,
-        Guid? preferredLanguageId = null)
+        Guid? preferredLanguageId = null,
+        string? stampHash = null)
     {
         var expiresAt = DateTime.UtcNow.AddMinutes(_settings.AccessTokenExpirationMinutes);
 
@@ -42,6 +43,12 @@ public class JwtTokenGenerator : IJwtTokenGenerator
             claims.Add(new Claim(CustomClaimTypes.PreferredLanguage, preferredLanguageId.Value.ToString()));
 
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
+
+        // Admin and SuperAdmin tokens only: a fingerprint of the account's security stamp, which the
+        // API re-checks on every request (Staff/StaffTokenEvents). Student tokens never carry it, so
+        // what the game receives is unchanged.
+        if (stampHash is not null)
+            claims.Add(new Claim("sst", stampHash));
 
         var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_settings.Secret));
         var credentials = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);

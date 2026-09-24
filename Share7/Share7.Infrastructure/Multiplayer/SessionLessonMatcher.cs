@@ -22,11 +22,13 @@ public class SessionLessonMatcher : ISessionLessonMatcher
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly IUnlockService _unlocks;
+    private readonly Engine.Reads.ICurriculumReads _reads;
 
-    public SessionLessonMatcher(ApplicationDbContext dbContext, IUnlockService unlocks)
+    public SessionLessonMatcher(ApplicationDbContext dbContext, IUnlockService unlocks, Engine.Reads.ICurriculumReads reads)
     {
         _dbContext = dbContext;
         _unlocks = unlocks;
+        _reads = reads;
     }
 
     public async Task<IReadOnlyList<EligibleLesson>> EligibleLessonsAsync(
@@ -35,37 +37,12 @@ public class SessionLessonMatcher : ISessionLessonMatcher
         // A player's very first contact with a game has no unlock rows at all, so seeding first is
         // what stops "nobody can ever matchmake into their first session" — the same call the attempt
         // path makes before it checks a lesson is open.
-        var gradeId = await _dbContext.Subjects
-            .AsNoTracking()
-            .Where(s => s.Id == subjectId)
-            .Select(s => s.Term!.GradeId)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (gradeId != Guid.Empty)
+        if (await _reads.GradeOfSubjectAsync(subjectId, cancellationToken) is { } gradeId)
             await _unlocks.EnsureSeededAsync(userId, gameId, gradeId, cancellationToken);
 
-        return await _dbContext.Lessons
-            .AsNoTracking()
-            .Where(l => l.Chapter!.SubjectId == subjectId)
-
-            // Unlocked for this player in this game.
-            .Where(l => _dbContext.UserNodeUnlocks.Any(u =>
-                u.UserId == userId
-                && u.GameId == gameId
-                && u.NodeType == CurriculumNodeType.Lesson
-                && u.NodeId == l.Id))
-
-            // And answerable: the tree is shared across languages, the questions are not.
-            .Where(l => _dbContext.Questions.Any(q => q.LessonId == l.Id && q.LangId == langId && q.IsActive))
-            .Select(l => new EligibleLesson(
-                l.Id,
-                _dbContext.UserLessonProgress
-                    .Where(p => p.UserId == userId && p.GameId == gameId && p.LessonId == l.Id)
-                    .Select(p => p.BestPercent)
-                    .FirstOrDefault(),
-                l.Chapter!.Order,
-                l.Order))
-            .ToListAsync(cancellationToken);
+        // Unlocked for this player in this game, and answerable: the tree is shared across
+        // languages, the questions are not.
+        return await _reads.EligibleLessonsAsync(userId, gameId, subjectId, langId, cancellationToken);
     }
 
     public async Task<ServiceResult> NarrowForSeatAsync(
@@ -163,13 +140,14 @@ public class SessionLessonMatcher : ISessionLessonMatcher
 
         // Kept in step with the row that was just written, so the DTO this seat returns names the
         // lesson rather than a null the client would have to poll for.
-        var current = await _dbContext.MultiplayerSessions
-            .AsNoTracking()
-            .Where(s => s.Id == session.Id)
-            .Select(s => s.LessonId)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        session.LessonId = current;
+        //
+        // **Re-read, never assign.** The UPDATE above moved the row's RowVersion. Setting LessonId
+        // on the tracked copy by hand marked it modified with the *old* version, so the next
+        // SaveChanges in this request — the matchmaking request log, for one — failed with a
+        // concurrency exception, and the player whose seat completed the match got a 500 at the
+        // exact moment it formed. Reloading takes the new LessonId and RowVersion together and
+        // leaves the entity unchanged.
+        await _dbContext.Entry(session).ReloadAsync(cancellationToken);
     }
 
     private static ServiceResult NoSharedLesson() =>

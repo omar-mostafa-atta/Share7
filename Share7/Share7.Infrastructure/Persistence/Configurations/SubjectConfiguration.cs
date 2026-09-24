@@ -16,6 +16,11 @@ public class SubjectConfiguration : IEntityTypeConfiguration<Subject>
             .HasForeignKey(s => s.TermId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasIndex(s => new { s.TermId, s.Order }).IsUnique();
+        builder.HasIndex(s => new { s.TermId, s.Order }).IsUnique().HasFilter("[RetiredAtUtc] IS NULL");
+
+        // Retired rows are the compatibility copy of a retired node: kept (progress and evidence
+        // name them), hidden from every reader still on the typed tables. Code that must see them
+        // — the structure writer, the projector — says so with IgnoreQueryFilters().
+        builder.HasQueryFilter(s => s.RetiredAtUtc == null);
     }
 }

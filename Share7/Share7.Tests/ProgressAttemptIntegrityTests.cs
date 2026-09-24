@@ -263,8 +263,10 @@ public class ProgressAttemptIntegrityTests
     private static async Task<int> SnapshotSubjectPercentAsync(
         ApplicationDbContext context, Guid userId, CurriculumPathFixture path)
     {
+        // The grade is passed rather than inferred: these users never complete a profile, and the
+        // snapshot rightly refuses to guess a grade for somebody who has not declared one.
         var snapshot = await RewardTestExtensions.CreateProgressService(context, userId)
-            .GetSnapshotAsync(userId, path.GameId, null);
+            .GetSnapshotAsync(userId, path.GameId, path.GradeId);
 
         Assert.True(snapshot.Succeeded, string.Join("; ", snapshot.Errors));
 

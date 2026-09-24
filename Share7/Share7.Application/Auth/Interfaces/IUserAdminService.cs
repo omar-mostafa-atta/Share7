@@ -62,6 +62,29 @@ public interface IUserAdminService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// The roles the caller may give a new account, in the order the console should offer them.
+    /// <para>
+    /// The console reads this instead of keeping its own list, so the rule — including
+    /// "only a Super Admin can create a privileged account" — lives in one place, and a role added
+    /// here appears in the console without a client change.
+    /// </para>
+    /// </summary>
+    IReadOnlyList<string> GetAssignableRoles(bool actorIsSuperAdmin);
+
+    /// <summary>
+    /// Creates a sign-in-ready account with a username, a password and exactly one role.
+    /// <para>
+    /// Refused when the username is taken (409), the role is unknown or cannot be assigned at all
+    /// (400), the role is privileged and the caller is not a SuperAdmin (403), or the password
+    /// fails Identity's rules (400, with Identity's own sentences).
+    /// </para>
+    /// </summary>
+    Task<ServiceResult<AdminUserListItemDto>> CreateUserAsync(
+        CreateAdminUserRequest request,
+        bool actorIsSuperAdmin,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Permanently deletes a user along with their refresh tokens and student profile.
     /// <para>
     /// Refused when <paramref name="userId"/> is the caller themselves, or when the target

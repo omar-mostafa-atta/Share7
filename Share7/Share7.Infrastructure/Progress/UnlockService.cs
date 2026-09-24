@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Share7.Application.Progress.Interfaces;
 using Share7.Application.Progress.Models;
 using Share7.Domain.Progress;
+using Share7.Infrastructure.Engine.Reads;
 using Share7.Infrastructure.Persistence;
 
 namespace Share7.Infrastructure.Progress;
@@ -25,9 +26,13 @@ public class UnlockService : IUnlockService
 {
     private readonly ApplicationDbContext _dbContext;
 
-    public UnlockService(ApplicationDbContext dbContext)
+    /// <summary>The shape of the tree — typed tables or node tree per Curriculum:ReadModel.</summary>
+    private readonly ICurriculumReads _reads;
+
+    public UnlockService(ApplicationDbContext dbContext, ICurriculumReads reads)
     {
         _dbContext = dbContext;
+        _reads = reads;
     }
 
     public async Task<IReadOnlyList<UnlockedNodeDto>> EnsureSeededAsync(
@@ -38,13 +43,7 @@ public class UnlockService : IUnlockService
 
         if (termIds.Count == 0)
         {
-            var firstTerm = await _dbContext.Terms
-                .Where(t => t.GradeId == gradeId)
-                .OrderBy(t => t.Order)
-                .Select(t => t.Id)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            if (firstTerm == Guid.Empty)
+            if (await _reads.FirstTermAsync(gradeId, cancellationToken) is not { } firstTerm)
                 return [];
 
             termIds = [firstTerm];
@@ -63,19 +62,7 @@ public class UnlockService : IUnlockService
     public async Task<IReadOnlyList<UnlockedNodeDto>> EvaluateAfterAttemptAsync(
         Guid userId, Guid gameId, Guid lessonId, Guid langId, CancellationToken cancellationToken = default)
     {
-        var location = await _dbContext.Lessons
-            .Where(l => l.Id == lessonId)
-            .Select(l => new
-            {
-                LessonOrder = l.Order,
-                l.ChapterId,
-                ChapterOrder = l.Chapter!.Order,
-                SubjectId = l.Chapter!.SubjectId,
-                TermId = l.Chapter!.Subject!.TermId,
-                TermOrder = l.Chapter!.Subject!.Term!.Order,
-                GradeId = l.Chapter!.Subject!.Term!.GradeId
-            })
-            .FirstOrDefaultAsync(cancellationToken);
+        var location = await _reads.LessonLocationAsync(lessonId, cancellationToken);
 
         if (location is null)
             return [];
@@ -83,16 +70,7 @@ public class UnlockService : IUnlockService
         // Every lesson under the same term, with whether it is playable in this language. One
         // query covers the chapter and term checks below, and supplies the first lesson of
         // whatever chapter opens without a second round trip.
-        var lessons = await _dbContext.Lessons
-            .Where(l => l.Chapter!.Subject!.TermId == location.TermId)
-            .Select(l => new
-            {
-                l.Id,
-                l.Order,
-                l.ChapterId,
-                Playable = l.QuestionSets.Any(s => s.LangId == langId && s.Version > 0)
-            })
-            .ToListAsync(cancellationToken);
+        var lessons = await _reads.LessonsInTermAsync(location.TermId, langId, cancellationToken);
 
         var lessonIds = lessons.Select(l => l.Id).ToList();
 
@@ -129,11 +107,8 @@ public class UnlockService : IUnlockService
         // is vacuously complete and never blocks the chain.
         if (lessons.Where(l => l.ChapterId == location.ChapterId).All(l => Satisfied(l.Id, l.Playable)))
         {
-            var nextChapter = await _dbContext.Chapters
-                .Where(c => c.SubjectId == location.SubjectId && c.Order > location.ChapterOrder)
-                .OrderBy(c => c.Order)
-                .Select(c => c.Id)
-                .FirstOrDefaultAsync(cancellationToken);
+            var nextChapter = await _reads.NextChapterAsync(location.SubjectId, location.ChapterOrder, cancellationToken)
+                              ?? Guid.Empty;
 
             if (nextChapter != Guid.Empty && pass.Grant(CurriculumNodeType.Chapter, nextChapter))
             {
@@ -154,13 +129,7 @@ public class UnlockService : IUnlockService
         // student has cleared all of them, not merely the one branch they were sent down.
         if (lessons.All(l => Satisfied(l.Id, l.Playable)))
         {
-            var nextTerm = await _dbContext.Terms
-                .Where(t => t.GradeId == location.GradeId && t.Order > location.TermOrder)
-                .OrderBy(t => t.Order)
-                .Select(t => t.Id)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            if (nextTerm != Guid.Empty)
+            if (await _reads.NextTermAsync(location.GradeId, location.TermOrder, cancellationToken) is { } nextTerm)
                 await GrantTermsAsync(pass, [nextTerm], cancellationToken);
         }
 
@@ -195,25 +164,18 @@ public class UnlockService : IUnlockService
         foreach (var termId in termIds)
             pass.Grant(CurriculumNodeType.Term, termId);
 
-        var subjectIds = await _dbContext.Subjects
-            .Where(s => termIds.Contains(s.TermId))
-            .OrderBy(s => s.Order)
-            .Select(s => s.Id)
-            .ToListAsync(cancellationToken);
+        var subjectIds = await _reads.SubjectsOfTermsAsync(termIds.ToList(), cancellationToken);
 
         var opened = subjectIds.Where(id => pass.Grant(CurriculumNodeType.Subject, id)).ToList();
 
         if (opened.Count == 0)
             return;
 
-        var chapters = await _dbContext.Chapters
-            .Where(c => opened.Contains(c.SubjectId))
-            .Select(c => new { c.Id, c.SubjectId, c.Order })
-            .ToListAsync(cancellationToken);
+        var chapters = await _reads.ChaptersOfSubjectsAsync(opened, cancellationToken);
 
         var firstChapterIds = opened
             .Select(subjectId => chapters
-                .Where(c => c.SubjectId == subjectId)
+                .Where(c => c.ParentId == subjectId)
                 .OrderBy(c => c.Order)
                 .Select(c => c.Id)
                 .FirstOrDefault())
@@ -223,17 +185,14 @@ public class UnlockService : IUnlockService
         if (firstChapterIds.Count == 0)
             return;
 
-        var lessons = await _dbContext.Lessons
-            .Where(l => firstChapterIds.Contains(l.ChapterId))
-            .Select(l => new { l.Id, l.ChapterId, l.Order })
-            .ToListAsync(cancellationToken);
+        var lessons = await _reads.LessonsOfChaptersAsync(firstChapterIds, cancellationToken);
 
         foreach (var chapterId in firstChapterIds)
         {
             pass.Grant(CurriculumNodeType.Chapter, chapterId);
 
             var firstLesson = lessons
-                .Where(l => l.ChapterId == chapterId)
+                .Where(l => l.ParentId == chapterId)
                 .OrderBy(l => l.Order)
                 .FirstOrDefault();
 
@@ -252,17 +211,65 @@ public class UnlockService : IUnlockService
         return new GrantPass(userId, gameId, held.Select(h => (h.NodeType, h.NodeId)));
     }
 
+    /// <summary>
+    /// Writes the pass's new unlocks.
+    /// <para>
+    /// <b>Two requests for the same student can grant the same node at once</b> — a client retrying
+    /// a timed-out attempt while the original is still running, or a game-open and an attempt
+    /// arriving together on first contact. Both read the same held set and both insert the same
+    /// rows, and the loser used to surface as a primary-key violation and a 500. Unlocks only ever
+    /// grow, so "somebody else already granted it" is the state this pass wanted anyway: the rows
+    /// that now exist are dropped and only the ones still missing are written. The loser reports
+    /// only what it opened itself, which leaves the unlock animation to the request that won.
+    /// </para>
+    /// </summary>
     private async Task<IReadOnlyList<UnlockedNodeDto>> CommitAsync(
         GrantPass pass, CancellationToken cancellationToken)
     {
-        if (pass.Rows.Count == 0)
-            return [];
+        var pending = pass.Rows.ToList();
 
-        _dbContext.UserNodeUnlocks.AddRange(pass.Rows);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        for (var attempt = 0; pending.Count > 0; attempt++)
+        {
+            _dbContext.UserNodeUnlocks.AddRange(pending);
+
+            try
+            {
+                await _dbContext.SaveChangesAsync(cancellationToken);
+                break;
+            }
+            catch (DbUpdateException exception) when (IsUniqueViolation(exception) && attempt < MaxGrantRetries)
+            {
+                foreach (var row in pending)
+                    _dbContext.Entry(row).State = EntityState.Detached;
+
+                var nodeIds = pending.Select(r => r.NodeId).ToList();
+                var userId = pending[0].UserId;
+                var gameId = pending[0].GameId;
+
+                var nowHeld = (await _dbContext.UserNodeUnlocks
+                        .AsNoTracking()
+                        .Where(u => u.UserId == userId && u.GameId == gameId && nodeIds.Contains(u.NodeId))
+                        .Select(u => new { u.NodeType, u.NodeId })
+                        .ToListAsync(cancellationToken))
+                    .Select(u => (u.NodeType, u.NodeId))
+                    .ToHashSet();
+
+                pending = pending.Where(r => !nowHeld.Contains((r.NodeType, r.NodeId))).ToList();
+                pass.Concede(nowHeld);
+            }
+        }
 
         return pass.Granted;
     }
+
+    /// <summary>
+    /// How many times a pass re-reads and retries after losing a race. One retry settles the
+    /// two-request case; the headroom is for a burst, and past it the error is real.
+    /// </summary>
+    private const int MaxGrantRetries = 3;
+
+    private static bool IsUniqueViolation(DbUpdateException exception) =>
+        exception.InnerException is Microsoft.Data.SqlClient.SqlException { Number: 2601 or 2627 };
 
     /// <summary>
     /// One grant pass. The student's existing unlocks are read once up front, so walking the tree
@@ -289,6 +296,18 @@ public class UnlockService : IUnlockService
 
         /// <summary>What this pass opened, for the client's unlock animation.</summary>
         public IReadOnlyList<UnlockedNodeDto> Granted => _granted;
+
+        /// <summary>
+        /// Forgets the grants another request committed first, so this pass reports only the
+        /// nodes it actually opened.
+        /// </summary>
+        public void Concede(IReadOnlySet<(CurriculumNodeType Type, Guid Id)> grantedElsewhere)
+        {
+            _rows.RemoveAll(r => grantedElsewhere.Contains((r.NodeType, r.NodeId)));
+            _granted.RemoveAll(g =>
+                Enum.TryParse<CurriculumNodeType>(g.NodeType, out var type)
+                && grantedElsewhere.Contains((type, g.NodeId)));
+        }
 
         public List<Guid> HeldOfType(CurriculumNodeType type) =>
             _held.Where(h => h.Type == type).Select(h => h.Id).ToList();

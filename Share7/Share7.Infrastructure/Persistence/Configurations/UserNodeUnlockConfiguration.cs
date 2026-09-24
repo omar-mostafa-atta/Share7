@@ -16,6 +16,10 @@ public class UserNodeUnlockConfiguration : IEntityTypeConfiguration<UserNodeUnlo
         // "Everything this student has unlocked in this game" — read once per snapshot.
         builder.HasIndex(u => new { u.UserId, u.GameId });
 
+        // "Everyone who holds this node" — what an unlock repair starts from after a structural
+        // change (see UnlockRepairJob). Without it that is a scan of the whole ledger.
+        builder.HasIndex(u => new { u.NodeType, u.NodeId });
+
         builder.HasOne<Domain.Games.Game>()
             .WithMany()
             .HasForeignKey(u => u.GameId)

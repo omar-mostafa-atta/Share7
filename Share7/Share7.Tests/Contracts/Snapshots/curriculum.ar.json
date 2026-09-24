@@ -1,0 +1,125 @@
+[
+  {
+    "request": "GET /api/terms?gradeId=grade:PrimaryFour",
+    "as": "student-ar",
+    "requestBody": null,
+    "status": 200,
+    "body": [
+      {
+        "id": "term:first",
+        "name": "الفصل الدراسي الأول",
+        "langId": "lang:ar",
+        "gradeId": "grade:PrimaryFour",
+        "order": 1
+      },
+      {
+        "id": "term:second",
+        "name": "الفصل الدراسي الثاني",
+        "langId": "lang:ar",
+        "gradeId": "grade:PrimaryFour",
+        "order": 2
+      }
+    ]
+  },
+  {
+    "request": "GET /api/terms",
+    "as": "student-ar",
+    "requestBody": null,
+    "status": 200,
+    "body": [
+      {
+        "id": "term:first",
+        "name": "الفصل الدراسي الأول",
+        "langId": "lang:ar",
+        "gradeId": "grade:PrimaryFour",
+        "order": 1
+      },
+      {
+        "id": "term:second",
+        "name": "الفصل الدراسي الثاني",
+        "langId": "lang:ar",
+        "gradeId": "grade:PrimaryFour",
+        "order": 2
+      }
+    ]
+  },
+  {
+    "request": "GET /api/subjects?termId=term:first",
+    "as": "student-ar",
+    "requestBody": null,
+    "status": 200,
+    "body": [
+      {
+        "id": "subject:science",
+        "name": "العلوم",
+        "langId": "lang:ar",
+        "termId": "term:first",
+        "order": 1
+      },
+      {
+        "id": "subject:maths-no-arabic",
+        "name": "",
+        "langId": "lang:ar",
+        "termId": "term:first",
+        "order": 2
+      }
+    ]
+  },
+  {
+    "request": "GET /api/chapters?subjectId=subject:science",
+    "as": "student-ar",
+    "requestBody": null,
+    "status": 200,
+    "body": [
+      {
+        "id": "chapter:matter",
+        "name": "حالات المادة",
+        "langId": "lang:ar",
+        "subjectId": "subject:science",
+        "order": 1
+      },
+      {
+        "id": "chapter:energy",
+        "name": "الطاقة",
+        "langId": "lang:ar",
+        "subjectId": "subject:science",
+        "order": 2
+      }
+    ]
+  },
+  {
+    "request": "GET /api/lessons?chapterId=chapter:matter",
+    "as": "student-ar",
+    "requestBody": null,
+    "status": 200,
+    "body": [
+      {
+        "id": "lesson:solids",
+        "name": "المواد الصلبة",
+        "langId": "lang:ar",
+        "chapterId": "chapter:matter",
+        "order": 1,
+        "questionsVersion": 1,
+        "hasQuestions": true
+      },
+      {
+        "id": "lesson:liquids-english-only",
+        "name": "السوائل",
+        "langId": "lang:ar",
+        "chapterId": "chapter:matter",
+        "order": 2,
+        "questionsVersion": 0,
+        "hasQuestions": false
+      },
+      {
+        "id": "lesson:gases-no-questions",
+        "name": "الغازات",
+        "langId": "lang:ar",
+        "chapterId": "chapter:matter",
+        "order": 3,
+        "questionsVersion": 0,
+        "hasQuestions": false
+      }
+    ]
+  }
+]

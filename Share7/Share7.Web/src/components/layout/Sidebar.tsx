@@ -3,14 +3,17 @@ import { LogOut } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '../../store/auth'
 import { BrandBadge } from '../ui/Logo'
-import { NAV } from '../../lib/nav'
+import { Role, roleInfo } from '../../lib/access'
+import type { Portal } from '../../lib/portals'
 import { scrimVariants, springSoft } from '../ui/motion'
 
 export function Sidebar({
+  portal,
   open,
   onNavigate,
   onClose,
 }: {
+  portal: Portal
   open: boolean
   onNavigate: () => void
   onClose: () => void
@@ -23,7 +26,12 @@ export function Sidebar({
 
   // SuperAdmin is the role that can delete an account, so it is worth showing
   // as its own mark rather than as one entry in a comma-joined list.
-  const isSuper = roles.includes('SuperAdmin')
+  const isSuper = roles.includes(Role.SuperAdmin)
+  const roleLabel = isSuper
+    ? roleInfo(Role.SuperAdmin).label
+    : roles.length
+      ? roles.map((r) => roleInfo(r).label).join(', ')
+      : 'No role'
 
   return (
     <>
@@ -50,20 +58,21 @@ export function Sidebar({
           <BrandBadge size={38} />
           <div>
             <div className="s7-brand-text">شارع العلوم</div>
-            <span className="s7-brand-sub">Admin Console</span>
+            <span className="s7-brand-sub">{portal.name}</span>
           </div>
         </div>
 
         <nav className="s7-nav">
-          {NAV.map((group) => (
+          {portal.nav.map((group) => (
             <div key={group.section}>
               <div className="s7-nav-section">{group.section}</div>
               {group.items.map(({ to, label, icon: Icon, blurb }) => (
                 <NavLink
                   key={to}
                   to={to}
-                  // `end` only on the root, or "/" would stay highlighted on every route.
-                  end={to === '/'}
+                  // `end` only on the portal's home, or it would stay highlighted on every route
+                  // beneath it — "/" would match every admin page.
+                  end={to === portal.home}
                   onClick={onNavigate}
                   title={blurb}
                   className={({ isActive }) => `s7-nav-link ${isActive ? 'is-active' : ''}`}
@@ -95,7 +104,7 @@ export function Sidebar({
             <div style={{ minWidth: 0 }}>
               <div className="s7-user-name">{username || 'Admin'}</div>
               <div className="s7-user-role" title={roles.join(', ')}>
-                {isSuper ? 'SuperAdmin' : roles.length ? roles.join(', ') : 'No role'}
+                {roleLabel}
               </div>
             </div>
             <motion.button

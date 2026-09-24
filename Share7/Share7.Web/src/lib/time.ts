@@ -109,3 +109,13 @@ export function fromLocalInput(value: string): string | null {
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? null : date.toISOString()
 }
+
+/** Local-clock greeting. Cosmetic, and deliberately not from the server: it is
+ *  about the person reading the screen, not about the platform. */
+export function greeting(): string {
+  const hour = new Date().getHours()
+  if (hour < 5) return 'Still up'
+  if (hour < 12) return 'Good morning'
+  if (hour < 18) return 'Good afternoon'
+  return 'Good evening'
+}

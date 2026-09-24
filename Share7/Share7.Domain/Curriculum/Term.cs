@@ -17,6 +17,14 @@ public class Term
     /// <summary>Position among the siblings under this grade, 1-based.</summary>
     public int Order { get; set; }
 
+    /// <summary>
+    /// **Compatibility copy.** Set when the term is retired: hidden from students, history kept.
+    /// The curriculum node is the source of truth (<c>CurriculumNode.RetiredAtUtc</c>); this column
+    /// exists so every reader still on the typed tables sees the same tree the node readers do. A
+    /// global query filter hides retired rows, so to those readers a retired term is simply gone.
+    /// </summary>
+    public DateTime? RetiredAtUtc { get; set; }
+
     public ICollection<TermTranslation> Translations { get; set; } = new List<TermTranslation>();
 
     public ICollection<Subject> Subjects { get; set; } = new List<Subject>();

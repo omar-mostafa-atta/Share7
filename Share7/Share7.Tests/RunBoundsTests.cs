@@ -199,7 +199,7 @@ public class RunBoundsTests
         Assert.True(settled.Succeeded);
         Assert.Equal(80, Assert.Single(settled.Value!.Rewards).Amount);
         Assert.True(settled.Value.CapReached);
-        Assert.Equal("pickup_rate_limit", settled.Value.CapMessage);
+        Assert.Equal("signal_rate_limit", settled.Value.CapMessage);
 
         await using var check = _fixture.CreateContext();
         Assert.Contains("rate_capped", (await check.RunOfAsync(started.Value.RunId)).FlagReason);
@@ -257,7 +257,7 @@ public class RunBoundsTests
 
         Assert.Equal(10, Assert.Single(one.Value!.Rewards).Amount);
         Assert.Equal(5, Assert.Single(two.Value!.Rewards).Amount);
-        Assert.Equal("pickup_daily_limit", two.Value.CapMessage);
+        Assert.Equal("signal_daily_limit", two.Value.CapMessage);
         Assert.Equal(15, two.Value.Balances.AmountOf(coins.Key));
     }
 

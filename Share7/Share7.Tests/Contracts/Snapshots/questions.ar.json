@@ -1,0 +1,230 @@
+[
+  {
+    "request": "GET /api/lessons/lesson:solids/questions/version",
+    "as": "student-ar",
+    "requestBody": null,
+    "status": 200,
+    "body": {
+      "lessonId": "lesson:solids",
+      "langId": "lang:ar",
+      "version": 1,
+      "questionCount": 3
+    }
+  },
+  {
+    "request": "POST /api/lessons/questions/versions",
+    "as": "student-ar",
+    "requestBody": {
+      "lessonIds": [
+        "lesson:solids",
+        "lesson:liquids-english-only",
+        "lesson:gases-no-questions",
+        "lesson:does-not-exist"
+      ]
+    },
+    "status": 200,
+    "body": [
+      {
+        "lessonId": "lesson:liquids-english-only",
+        "langId": "lang:ar",
+        "version": 0,
+        "questionCount": 0
+      },
+      {
+        "lessonId": "lesson:solids",
+        "langId": "lang:ar",
+        "version": 1,
+        "questionCount": 3
+      },
+      {
+        "lessonId": "lesson:gases-no-questions",
+        "langId": "lang:ar",
+        "version": 0,
+        "questionCount": 0
+      }
+    ]
+  },
+  {
+    "request": "GET /api/lessons/lesson:solids/questions",
+    "as": "student-ar",
+    "requestBody": null,
+    "status": 200,
+    "body": {
+      "lessonId": "lesson:solids",
+      "langId": "lang:ar",
+      "version": 1,
+      "questions": [
+        {
+          "questionId": "lesson:solids/ar/q1",
+          "text": "ما هو الجليد؟",
+          "correctAnswerId": "lesson:solids/ar/q1/correct",
+          "answers": [
+            {
+              "id": "lesson:solids/ar/q1/correct",
+              "text": "مادة صلبة"
+            },
+            {
+              "id": "lesson:solids/ar/q1/wrong1",
+              "text": "غاز"
+            },
+            {
+              "id": "lesson:solids/ar/q1/wrong2",
+              "text": "سائل"
+            }
+          ]
+        },
+        {
+          "questionId": "lesson:solids/ar/q2",
+          "text": "أي مما يلي يحتفظ بشكله؟",
+          "correctAnswerId": "lesson:solids/ar/q2/correct",
+          "answers": [
+            {
+              "id": "lesson:solids/ar/q2/correct",
+              "text": "الصخر"
+            },
+            {
+              "id": "lesson:solids/ar/q2/wrong1",
+              "text": "الماء"
+            },
+            {
+              "id": "lesson:solids/ar/q2/wrong2",
+              "text": "البخار"
+            }
+          ]
+        },
+        {
+          "questionId": "lesson:solids/ar/q3",
+          "text": "ما حالة الحديد في درجة حرارة الغرفة؟",
+          "correctAnswerId": "lesson:solids/ar/q3/correct",
+          "answers": [
+            {
+              "id": "lesson:solids/ar/q3/correct",
+              "text": "صلب"
+            },
+            {
+              "id": "lesson:solids/ar/q3/wrong1",
+              "text": "سائل"
+            },
+            {
+              "id": "lesson:solids/ar/q3/wrong2",
+              "text": "غاز"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "request": "GET /api/lessons/lesson:liquids-english-only/questions",
+    "as": "student-ar",
+    "requestBody": null,
+    "status": 200,
+    "body": {
+      "lessonId": "lesson:liquids-english-only",
+      "langId": "lang:ar",
+      "version": 0,
+      "questions": []
+    }
+  },
+  {
+    "request": "GET /api/lessons/lesson:gases-no-questions/questions",
+    "as": "student-ar",
+    "requestBody": null,
+    "status": 200,
+    "body": {
+      "lessonId": "lesson:gases-no-questions",
+      "langId": "lang:ar",
+      "version": 0,
+      "questions": []
+    }
+  },
+  {
+    "request": "GET /api/lessons/lesson:does-not-exist/questions",
+    "as": "student-ar",
+    "requestBody": null,
+    "status": 404,
+    "body": {
+      "type": "https://tools.ietf.org/html/rfc9110#section-15.5.5",
+      "title": "Not Found",
+      "status": 404,
+      "traceId": "<trace-id>"
+    }
+  },
+  {
+    "request": "GET /api/lessons/lesson:solids/recovery-questions/version",
+    "as": "student-ar",
+    "requestBody": null,
+    "status": 200,
+    "body": {
+      "lessonId": "lesson:solids",
+      "langId": "lang:ar",
+      "version": 1,
+      "questionCount": 1
+    }
+  },
+  {
+    "request": "POST /api/lessons/recovery-questions/versions",
+    "as": "student-ar",
+    "requestBody": {
+      "lessonIds": [
+        "lesson:solids",
+        "lesson:liquids-english-only",
+        "lesson:gases-no-questions",
+        "lesson:does-not-exist"
+      ]
+    },
+    "status": 200,
+    "body": [
+      {
+        "lessonId": "lesson:liquids-english-only",
+        "langId": "lang:ar",
+        "version": 0,
+        "questionCount": 0
+      },
+      {
+        "lessonId": "lesson:solids",
+        "langId": "lang:ar",
+        "version": 1,
+        "questionCount": 1
+      },
+      {
+        "lessonId": "lesson:gases-no-questions",
+        "langId": "lang:ar",
+        "version": 0,
+        "questionCount": 0
+      }
+    ]
+  },
+  {
+    "request": "GET /api/lessons/lesson:solids/recovery-questions",
+    "as": "student-ar",
+    "requestBody": null,
+    "status": 200,
+    "body": {
+      "lessonId": "lesson:solids",
+      "langId": "lang:ar",
+      "version": 1,
+      "questions": [
+        {
+          "questionId": "lesson:solids/ar/recovery1",
+          "text": "هل الكرسي مادة صلبة؟",
+          "correctAnswerId": "lesson:solids/ar/recovery1/correct",
+          "answers": [
+            {
+              "id": "lesson:solids/ar/recovery1/correct",
+              "text": "نعم"
+            },
+            {
+              "id": "lesson:solids/ar/recovery1/wrong1",
+              "text": "لا"
+            },
+            {
+              "id": "lesson:solids/ar/recovery1/wrong2",
+              "text": "في الشتاء فقط"
+            }
+          ]
+        }
+      ]
+    }
+  }
+]

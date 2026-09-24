@@ -1,9 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Share7.API.Authorization;
 using Share7.API.Extensions;
+using Share7.Application.Common.Models;
 using Share7.Application.Curriculum.Interfaces;
 using Share7.Application.Curriculum.Models;
-using Share7.Domain.Constants;
 
 namespace Share7.API.Controllers;
 
@@ -11,17 +12,49 @@ namespace Share7.API.Controllers;
 /// Builds out the curriculum tree. A node is one language-independent row with a name per
 /// language, so every request carries a <c>translations</c> array — one entry for each
 /// configured language — plus an optional <c>order</c> that defaults to appending last.
+/// <para>
+/// Open to the content team as well as the admins, except for <c>?force=true</c> on a delete —
+/// see <see cref="Policies.ContentCascadeDelete"/>.
+/// </para>
 /// </summary>
 [ApiController]
 [Route("api/admin")]
-[Authorize(Roles = $"{Roles.Admin},{Roles.SuperAdmin}")]
+[Authorize(Policy = Policies.ContentAuthoring)]
+[ClosedAtCutover("Building the curriculum")]
 public class AdminCurriculumController : ControllerBase
 {
     private readonly ICurriculumAdminService _curriculumAdminService;
+    private readonly IAuthorizationService _authorizationService;
 
-    public AdminCurriculumController(ICurriculumAdminService curriculumAdminService)
+    public AdminCurriculumController(
+        ICurriculumAdminService curriculumAdminService,
+        IAuthorizationService authorizationService)
     {
         _curriculumAdminService = curriculumAdminService;
+        _authorizationService = authorizationService;
+    }
+
+    /// <summary>
+    /// A 403 when the caller asked to <c>force</c> a delete they may not force, otherwise null.
+    /// <para>
+    /// Checked before the service runs, so a refused cascade touches nothing. A non-forced delete
+    /// is never refused here: it only succeeds on an empty node, and the 409 it answers otherwise
+    /// is what tells a content-team member the node has to be emptied first.
+    /// </para>
+    /// </summary>
+    private async Task<IActionResult?> RefuseCascadeAsync(bool force)
+    {
+        if (!force)
+            return null;
+
+        var allowed = await _authorizationService.AuthorizeAsync(User, Policies.ContentCascadeDelete);
+
+        return allowed.Succeeded
+            ? null
+            : ServiceResult.Forbidden(
+                    "Only an admin can delete something that still has content under it. " +
+                    "Delete what is inside it first, or ask an admin.")
+                .ToErrorResult();
     }
 
     /// <summary>Adds a term to a grade (e.g. "First Term").</summary>
@@ -66,10 +99,14 @@ public class AdminCurriculumController : ControllerBase
     /// <summary>
     /// Deletes a term and everything under it. Refused with 409 while it still has children,
     /// unless <paramref name="force"/> is set — the 409 body reports what would be removed.
+    /// <paramref name="force"/> is admin-only; the content team gets a 403 for it.
     /// </summary>
     [HttpDelete("terms/{termId:guid}")]
     public async Task<IActionResult> DeleteTerm(Guid termId, [FromQuery] bool force, CancellationToken cancellationToken)
     {
+        if (await RefuseCascadeAsync(force) is { } refusal)
+            return refusal;
+
         var result = await _curriculumAdminService.DeleteTermAsync(termId, force, cancellationToken);
         return result.Succeeded ? Ok(new { deleted = result.Value }) : result.ToErrorResult();
     }
@@ -78,6 +115,9 @@ public class AdminCurriculumController : ControllerBase
     [HttpDelete("subjects/{subjectId:guid}")]
     public async Task<IActionResult> DeleteSubject(Guid subjectId, [FromQuery] bool force, CancellationToken cancellationToken)
     {
+        if (await RefuseCascadeAsync(force) is { } refusal)
+            return refusal;
+
         var result = await _curriculumAdminService.DeleteSubjectAsync(subjectId, force, cancellationToken);
         return result.Succeeded ? Ok(new { deleted = result.Value }) : result.ToErrorResult();
     }
@@ -86,6 +126,9 @@ public class AdminCurriculumController : ControllerBase
     [HttpDelete("chapters/{chapterId:guid}")]
     public async Task<IActionResult> DeleteChapter(Guid chapterId, [FromQuery] bool force, CancellationToken cancellationToken)
     {
+        if (await RefuseCascadeAsync(force) is { } refusal)
+            return refusal;
+
         var result = await _curriculumAdminService.DeleteChapterAsync(chapterId, force, cancellationToken);
         return result.Succeeded ? Ok(new { deleted = result.Value }) : result.ToErrorResult();
     }
@@ -97,6 +140,9 @@ public class AdminCurriculumController : ControllerBase
     [HttpDelete("lessons/{lessonId:guid}")]
     public async Task<IActionResult> DeleteLesson(Guid lessonId, [FromQuery] bool force, CancellationToken cancellationToken)
     {
+        if (await RefuseCascadeAsync(force) is { } refusal)
+            return refusal;
+
         var result = await _curriculumAdminService.DeleteLessonAsync(lessonId, force, cancellationToken);
         return result.Succeeded ? Ok(new { deleted = result.Value }) : result.ToErrorResult();
     }

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Share7.Application.Admin.Interfaces;
@@ -78,6 +79,28 @@ internal sealed class ContentSeeder : IContentSeeder
             {
                 await new CurriculumSeeder(_db, _options).SeedAsync(report, cancellationToken);
                 _db.ChangeTracker.Clear();
+
+                // The seeder writes content the way it was always written — into the typed tables and
+                // the old recovery table. The engine's backfill then gives it everything the engine
+                // needs: nodes, the recovery pool in the item bank, served-set versions. The same SQL
+                // the EngineAuthoritative migration runs, and just as re-runnable.
+                //
+                // And, like the migration, it needs longer than the provider's thirty seconds. On a
+                // database with real content this is minutes of work; at the default it times out
+                // part way through, and because it runs on the path to the first request, the whole
+                // host fails to start. The migration was given an hour in Program.cs for exactly
+                // this reason — the seeder reaches the same SQL by a second road.
+                var was = _db.Database.GetCommandTimeout();
+                _db.Database.SetCommandTimeout(TimeSpan.FromHours(1));
+                try
+                {
+                    await _db.Database.ExecuteSqlRawAsync(
+                        Share7.Infrastructure.Persistence.Migrations.EngineBackfill.Sql, cancellationToken);
+                }
+                finally
+                {
+                    _db.Database.SetCommandTimeout(was);
+                }
             }
 
             // Events either side of the demo players: created first so the players' ranked entries

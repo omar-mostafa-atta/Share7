@@ -36,17 +36,21 @@ export function AnimatedNumber({ value }: { value: number }) {
 
     const unsubscribe = spring.on('change', write)
 
-    // Two things this guard is for, and neither is cosmetic.
+    // The deadline, and it is not cosmetic.
     //
-    // Writing spring.get() eagerly here would paint the *pre*-animation figure over the correct
-    // one React just rendered — so if no frames follow, the card sits there showing the old
-    // balance after a grant that actually succeeded. And frames genuinely may not follow: a
-    // backgrounded tab has its rAF loop suspended, so the subscription above never fires at all.
+    // This spring is allowed to own the text only for as long as it is actually moving. Where it
+    // is not — a hidden document freezes the timeline, and the subscription then emits the
+    // *starting* value and nothing after it — every frame it does emit paints a stale figure over
+    // the correct one React already rendered. That is a card reading 0 next to a table listing
+    // one, which is the version of this bug that reached a screenshot.
     //
-    // React's own render already puts the right number in the DOM, so this only has to guarantee
-    // that no stale frame is left showing. The timeout is longer than the spring takes to settle,
-    // which makes it a no-op that rewrites the value it already reached in the normal case.
-    const settle = window.setTimeout(() => write(value), 1200)
+    // So the deadline unsubscribes first and writes the true value second. After it, nothing can
+    // put a wrong number back. It is longer than the spring takes to settle, so in the normal
+    // case it rewrites the value the animation already arrived at and changes nothing.
+    const settle = window.setTimeout(() => {
+      unsubscribe()
+      write(value)
+    }, 1200)
 
     return () => {
       unsubscribe()

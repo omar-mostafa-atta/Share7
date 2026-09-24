@@ -18,6 +18,11 @@ public class LessonConfiguration : IEntityTypeConfiguration<Lesson>
 
         // Unique because this is the order the unlock chain steps through: lesson N+1 opens
         // once lesson N is completed, so two lessons sharing a position is not resolvable.
-        builder.HasIndex(l => new { l.ChapterId, l.Order }).IsUnique();
+        builder.HasIndex(l => new { l.ChapterId, l.Order }).IsUnique().HasFilter("[RetiredAtUtc] IS NULL");
+
+        // Retired rows are the compatibility copy of a retired node: kept (progress and evidence
+        // name them), hidden from every reader still on the typed tables. Code that must see them
+        // — the structure writer, the projector — says so with IgnoreQueryFilters().
+        builder.HasQueryFilter(l => l.RetiredAtUtc == null);
     }
 }

@@ -1,10 +1,16 @@
-﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Share7.Domain.Commerce;
 using Share7.Domain.Curriculum;
 using Share7.Domain.Economy;
 using Share7.Domain.Entities;
 using Share7.Domain.Equipment;
+using Share7.Domain.Competency;
+using Share7.Domain.Content;
+using Share7.Domain.Evidence;
+using Share7.Domain.Assessment;
+using Share7.Domain.Measurement;
+using Share7.Domain.Structure;
 using Share7.Domain.Games;
 using Share7.Domain.Leaderboards;
 using Share7.Domain.LookUps;
@@ -12,9 +18,11 @@ using Share7.Domain.Multiplayer;
 using Share7.Domain.Play;
 using Share7.Domain.Progress;
 using Share7.Domain.Objectives;
+using Share7.Domain.Organizations;
 using Share7.Domain.Progression;
 using Share7.Domain.Rewards;
 using Share7.Domain.Runs;
+using Share7.Domain.Guidance;
 using Share7.Domain.Telemetry;
 using Share7.Infrastructure.Identity;
 
@@ -35,13 +43,32 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, Applicati
     public DbSet<Subject> Subjects => Set<Subject>();
     public DbSet<Chapter> Chapters => Set<Chapter>();
     public DbSet<Lesson> Lessons => Set<Lesson>();
+
+    /// <summary>
+    /// **The main pool only** — a global query filter keeps every reader written before the
+    /// recovery pool was merged in seeing exactly the rows it always saw. See
+    /// <see cref="ItemLocalizations"/> for every pool.
+    /// </summary>
     public DbSet<Question> Questions => Set<Question>();
+
+    /// <summary>
+    /// Every per-language rendering of every item, in every pool (<see cref="Question.Role"/>).
+    /// The engine's content reads and the publisher go through here; filter by role explicitly.
+    /// </summary>
+    public IQueryable<Question> ItemLocalizations => Set<Question>().IgnoreQueryFilters();
+
+    /// <summary>
+    /// The choices of every rendering in every pool. <c>QuestionChoices</c> has no filter of its
+    /// own, but anything that navigates through <c>Choice.Question</c> inherits the main-pool one.
+    /// </summary>
+    public IQueryable<QuestionChoice> ItemChoices => Set<QuestionChoice>().IgnoreQueryFilters();
     public DbSet<QuestionChoice> QuestionChoices => Set<QuestionChoice>();
     public DbSet<LessonQuestionUpload> LessonQuestionUploads => Set<LessonQuestionUpload>();
 
-    // The secondary per-lesson pool. Structurally a clone of the four tables above, kept apart so
-    // the two pools carry independent versions and one can be re-uploaded without disturbing the
-    // other. Trigger logic (when the game shows these) is the client's, not the backend's.
+    // The secondary per-lesson pool, as it used to be stored. **A compatibility copy since the
+    // engine rebuild**: the pool now lives in Questions (Role = Recovery) with the same ids, and the
+    // publisher writes both in one transaction until the last reader of these tables has moved.
+    // Trigger logic (when the game shows these) is the client's, not the backend's.
     public DbSet<RecoveryQuestion> RecoveryQuestions => Set<RecoveryQuestion>();
     public DbSet<RecoveryQuestionChoice> RecoveryQuestionChoices => Set<RecoveryQuestionChoice>();
     public DbSet<LessonRecoveryQuestionUpload> LessonRecoveryQuestionUploads => Set<LessonRecoveryQuestionUpload>();
@@ -62,6 +89,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, Applicati
     // Avatar outfits. One row per user — the two lists are JSON columns rather than child tables
     // because they are only ever read and written whole.
     public DbSet<UserEquipment> Equipments => Set<UserEquipment>();
+
+    /// <summary>Guidance journal state. One row per user, containing the CRDT state snapshot.</summary>
+    public DbSet<UserGuidanceState> UserGuidanceStates => Set<UserGuidanceState>();
 
     public DbSet<Game> Games => Set<Game>();
     public DbSet<GameTranslation> GameTranslations => Set<GameTranslation>();
@@ -95,6 +125,122 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, Applicati
     public DbSet<UserQuestionProgress> UserQuestionProgress => Set<UserQuestionProgress>();
     public DbSet<UserLessonProgress> UserLessonProgress => Set<UserLessonProgress>();
     public DbSet<UserNodeUnlock> UserNodeUnlocks => Set<UserNodeUnlock>();
+
+    // Educational evidence. LearnerResponses is the append-only truth every educational capability
+    // is derived from — the counterpart to CurrencyLedgerEntries, which the education domain went
+    // without until Phase 0 of the rebuild. The progress tables above are projections of it, kept
+    // because stars and unlocks are legitimately per-game; knowledge is not.
+    //
+    // EvidenceContracts are the only bridge from gameplay to education: LearnerResponse names a
+    // published contract version, non-nullably, so no interaction becomes evidence without one.
+    public DbSet<EvidenceContract> EvidenceContracts => Set<EvidenceContract>();
+    public DbSet<EvidenceContractVersion> EvidenceContractVersions => Set<EvidenceContractVersion>();
+    public DbSet<LearnerResponse> LearnerResponses => Set<LearnerResponse>();
+
+    // Item identity. An Item is a question as a thing that exists, across rewrites and languages;
+    // an ItemVersion is one frozen revision; today's Question row is a per-language rendering of
+    // one. Evidence names all three, and only the rendering is allowed to disappear.
+    public DbSet<ItemBank> ItemBanks => Set<ItemBank>();
+    public DbSet<Item> Items => Set<Item>();
+    public DbSet<ItemVersion> ItemVersions => Set<ItemVersion>();
+
+    // What is served, per node, pool and language, and every version that was ever published. The
+    // game's version protocol reads PublishedItemSets; LessonQuestionSets and
+    // LessonRecoveryQuestionSets are written beside them as compatibility copies until cutover.
+    public DbSet<PublishedItemSet> PublishedItemSets => Set<PublishedItemSet>();
+    public DbSet<ContentPublication> ContentPublications => Set<ContentPublication>();
+
+    // Competency. LearningTarget is the only thing proficiency can be about; everything in the
+    // measurement layer is keyed by one.
+    public DbSet<CompetencyFramework> CompetencyFrameworks => Set<CompetencyFramework>();
+    public DbSet<LearningTarget> LearningTargets => Set<LearningTarget>();
+    public DbSet<LearningTargetTranslation> LearningTargetTranslations => Set<LearningTargetTranslation>();
+    public DbSet<LearningTargetEdge> LearningTargetEdges => Set<LearningTargetEdge>();
+    public DbSet<LearningTargetAlignment> LearningTargetAlignments => Set<LearningTargetAlignment>();
+    public DbSet<ItemTargetMapping> ItemTargetMappings => Set<ItemTargetMapping>();
+    public DbSet<NodeTargetMapping> NodeTargetMappings => Set<NodeTargetMapping>();
+
+    // Curriculum structure as data. CurriculumNodes is the source of truth, keeping the exact ids
+    // of the legacy typed tree, which is written beside it as a compatibility copy until cutover.
+    public DbSet<CurriculumAuthority> CurriculumAuthorities => Set<CurriculumAuthority>();
+    public DbSet<Domain.Structure.Curriculum> Curricula => Set<Domain.Structure.Curriculum>();
+    public DbSet<CurriculumVersion> CurriculumVersions => Set<CurriculumVersion>();
+    public DbSet<CurriculumNodeKind> CurriculumNodeKinds => Set<CurriculumNodeKind>();
+    public DbSet<CurriculumNode> CurriculumNodes => Set<CurriculumNode>();
+    public DbSet<CurriculumNodeTranslation> CurriculumNodeTranslations => Set<CurriculumNodeTranslation>();
+    public DbSet<NodeItemMapping> NodeItemMappings => Set<NodeItemMapping>();
+    public DbSet<Enrollment> Enrollments => Set<Enrollment>();
+
+    // The shadow-read tally: per day and per game read, how often the node path agreed with the
+    // typed one. The evidence for switching Curriculum:ReadModel to Generic.
+    public DbSet<CurriculumReadCheck> CurriculumReadChecks => Set<CurriculumReadCheck>();
+
+    // Structural changes queue these in their own transaction so no student is stranded by them.
+    public DbSet<UnlockRepairJob> UnlockRepairJobs => Set<UnlockRepairJob>();
+
+    // The Content Studio's workspace (plan Phase 3): drafts nobody but the team sees, their reviews
+    // and comments, and the releases that are the only way any of it reaches students.
+    public DbSet<Share7.Domain.Workspace.Draft> Drafts => Set<Share7.Domain.Workspace.Draft>();
+    public DbSet<Share7.Domain.Workspace.DraftContributor> DraftContributors => Set<Share7.Domain.Workspace.DraftContributor>();
+    public DbSet<Share7.Domain.Workspace.DraftComment> DraftComments => Set<Share7.Domain.Workspace.DraftComment>();
+    public DbSet<Share7.Domain.Workspace.ReviewDecision> ReviewDecisions => Set<Share7.Domain.Workspace.ReviewDecision>();
+    public DbSet<Share7.Domain.Workspace.DraftPresence> DraftPresence => Set<Share7.Domain.Workspace.DraftPresence>();
+    public DbSet<Share7.Domain.Workspace.Release> Releases => Set<Share7.Domain.Workspace.Release>();
+    public DbSet<Share7.Domain.Workspace.ReleaseEntry> ReleaseEntries => Set<Share7.Domain.Workspace.ReleaseEntry>();
+    public DbSet<Share7.Domain.Workspace.WorkAssignment> StudioAssignments => Set<Share7.Domain.Workspace.WorkAssignment>();
+    public DbSet<Share7.Domain.Workspace.StudioNotification> StudioNotifications => Set<Share7.Domain.Workspace.StudioNotification>();
+
+    // When a child is offered second-chance questions, and how many (plan Phase 5). Written at a
+    // node, released like a lesson's questions, and read by the game only when the game asks — so
+    // a rule can be proposed, reviewed and released without changing a single running client.
+    public DbSet<Share7.Domain.Recovery.RecoveryRule> RecoveryRules => Set<Share7.Domain.Recovery.RecoveryRule>();
+
+    // Organizations. Five tables and one scoping column, which is the whole of multi-tenancy here:
+    // an org sees a learner's evidence through enrolments it owns (Enrollment.OwnerOrgId), so a
+    // school that adopts Share7 gets the work done under its own enrolment and acquires nothing
+    // retroactively from the learner's private one. Docs/EducationalArchitecture.md 9.1-9.4.
+    public DbSet<Organization> Organizations => Set<Organization>();
+    public DbSet<Membership> Memberships => Set<Membership>();
+    public DbSet<Cohort> Cohorts => Set<Cohort>();
+    public DbSet<CohortMembership> CohortMemberships => Set<CohortMembership>();
+    public DbSet<GuardianLink> GuardianLinks => Set<GuardianLink>();
+    public DbSet<Assignment> Assignments => Set<Assignment>();
+
+    // A school's edits to a curriculum it does not own, held as a diff and resolved at read time.
+    // Never a mutation of the official version - that is one of the four independent mechanisms
+    // that keep an official curriculum uncorruptible (17.2).
+    public DbSet<CurriculumOverlay> CurriculumOverlays => Set<CurriculumOverlay>();
+    public DbSet<CurriculumOverlayEdit> CurriculumOverlayEdits => Set<CurriculumOverlayEdit>();
+
+    // Measurement. Everything here is derived from LearnerResponses and rebuildable by replaying
+    // them — except ItemStatistics, which is a running aggregate on purpose so that erasing one
+    // learner cannot move another learner's numbers.
+    public DbSet<Observation> Observations => Set<Observation>();
+    public DbSet<ItemStatistics> ItemStatistics => Set<ItemStatistics>();
+    public DbSet<Domain.Measurement.Measurement> Measurements => Set<Domain.Measurement.Measurement>();
+    public DbSet<MasteryRule> MasteryRules => Set<MasteryRule>();
+    public DbSet<MasteryVerdict> MasteryVerdicts => Set<MasteryVerdict>();
+
+    // Assessment. A blueprint says what a test is supposed to measure; a form is one immutable
+    // realisation of it; an administration is one learner sitting one form under one set of
+    // conditions. The blueprint is also the object an exam board publishes, which is what lets
+    // coverage be computed against a real examination the platform does not administer.
+    public DbSet<AssessmentBlueprint> AssessmentBlueprints => Set<AssessmentBlueprint>();
+    public DbSet<AssessmentBlueprintArea> AssessmentBlueprintAreas => Set<AssessmentBlueprintArea>();
+    public DbSet<AssessmentBlueprintLine> AssessmentBlueprintLines => Set<AssessmentBlueprintLine>();
+    public DbSet<Domain.Assessment.Assessment> Assessments => Set<Domain.Assessment.Assessment>();
+    public DbSet<AssessmentForm> AssessmentForms => Set<AssessmentForm>();
+    public DbSet<AssessmentFormItem> AssessmentFormItems => Set<AssessmentFormItem>();
+    public DbSet<AssessmentAdministration> AssessmentAdministrations => Set<AssessmentAdministration>();
+
+    // Examinations Share7 does not administer, and what the platform is willing to say about them.
+    // ExamProjections are derived and disposable; ReportedExamOutcomes are not — they are the one
+    // input to calibration that cannot be reasoned into existence and must be collected.
+    public DbSet<ExamSpecification> ExamSpecifications => Set<ExamSpecification>();
+    public DbSet<ExamSpecificationVersion> ExamSpecificationVersions => Set<ExamSpecificationVersion>();
+    public DbSet<ReportedExamOutcome> ReportedExamOutcomes => Set<ReportedExamOutcome>();
+    public DbSet<ExamProjection> ExamProjections => Set<ExamProjection>();
+    public DbSet<ExamProjectionGap> ExamProjectionGaps => Set<ExamProjectionGap>();
 
     // Economy. Virtual currency only — nothing here represents real money. UserCurrencyBalances
     // is the authoritative wallet and the fast projection; CurrencyLedgerEntries is the
@@ -267,6 +413,26 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, Applicati
     /// becoming four thousand event names nobody can tell apart.
     /// </summary>
     public DbSet<TelemetryEventSchema> TelemetryEventSchemas => Set<TelemetryEventSchema>();
+
+    // Guidance Framework & Remotely Manageable CMS
+    public DbSet<GuidanceFlow> GuidanceFlows => Set<GuidanceFlow>();
+    public DbSet<GuidanceFlowVersion> GuidanceFlowVersions => Set<GuidanceFlowVersion>();
+    public DbSet<GuidanceAuditLog> GuidanceAuditLogs => Set<GuidanceAuditLog>();
+
+    /// <summary>
+    /// The platform-wide audit trail: who did what to curriculum, questions and accounts. Append-only,
+    /// enforced by a trigger — see <see cref="Share7.Domain.Audit.AuditEvent"/>.
+    /// </summary>
+    public DbSet<Share7.Domain.Audit.AuditEvent> AuditEvents => Set<Share7.Domain.Audit.AuditEvent>();
+
+    // Content-team accounts and Studio sign-in — Team & Access. See Share7.Domain.Staff.
+    public DbSet<Share7.Domain.Staff.StaffProfile> StaffProfiles => Set<Share7.Domain.Staff.StaffProfile>();
+    public DbSet<Share7.Domain.Staff.StaffScopeNode> StaffScopeNodes => Set<Share7.Domain.Staff.StaffScopeNode>();
+    public DbSet<Share7.Domain.Staff.StaffScopeLanguage> StaffScopeLanguages => Set<Share7.Domain.Staff.StaffScopeLanguage>();
+    public DbSet<Share7.Domain.Staff.StaffSetupToken> StaffSetupTokens => Set<Share7.Domain.Staff.StaffSetupToken>();
+    public DbSet<Share7.Domain.Staff.StaffSession> StaffSessions => Set<Share7.Domain.Staff.StaffSession>();
+    public DbSet<Share7.Domain.Staff.StaffSignInEvent> StaffSignInEvents => Set<Share7.Domain.Staff.StaffSignInEvent>();
+    public DbSet<Share7.Domain.Staff.StaffSecuritySettings> StaffSecuritySettings => Set<Share7.Domain.Staff.StaffSecuritySettings>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

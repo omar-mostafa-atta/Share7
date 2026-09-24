@@ -21,17 +21,54 @@ them disagree, trust the code.
 
 ---
 
-## 0. Admin console
+## 0. The two applications
 
-A browser page for content administration ships with the API itself at **`/admin.html`** —
-sign in, walk the curriculum tree, add terms/subjects/chapters/lessons, upload question sheets,
-and manage currencies. Bootstrap + vanilla JS, no build step.
+**The Admin Console** — `Share7.Web`, served by the API itself from `Share7/wwwroot/` at **`/`**.
+It deploys with the normal publish and needs no separate hosting; being same-origin, its calls
+carry the token with no CORS configuration anywhere in the solution. Admin and SuperAdmin.
 
-It is served from `Share7/wwwroot/`, so it deploys with the normal Visual Studio publish and needs
-no separate hosting. Being same-origin, its `fetch` calls carry the JWT with no CORS configuration.
-`auth-test.html` in the same folder is the older auth-only console.
+**The Content Studio** — `Share7.Studio`, served from `wwwroot-studio` on its own origin
+(`Studio:PublicUrl`). All of the learning content is authored there and nowhere else. Its people
+hold the `ContentTeam` role plus a Studio role (Author, Reviewer or Lead), and they sign in at
+`/api/studio/auth/sign-in`; `POST /api/auth/login` refuses them.
 
-Grades are read-only there: the 14-step ladder is seeded by migration and has no create endpoint.
+> **Cutover, 24 September 2026 (plan P6).** Content authoring left the Admin Console. Every
+> authoring **write** under `/api/admin` still exists and answers **`410 Gone`** with a sentence
+> naming the Studio (`ClosedAtCutoverAttribute`); the reads beside them are untouched. The endpoint
+> headings in §8 say which is which. `ContentStudioPhase6.md` is the record.
+>
+> The hand-written console at `/admin.html` that this section used to describe was deleted the
+> same day. It had already been superseded by `Share7.Web`, which made it a second and unreviewed
+> way in. A copy is at `ops/archive/share7-front-2026-09-24.zip`.
+
+Grades are read-only in both: the 14-step ladder is seeded by migration and has no create
+endpoint, because grade ids sit on student profiles and gate game modes and worlds.
+
+---
+
+## 0.1 The Content Studio and the engine (2026-09-22)
+
+Two route groups were added by the Content Studio work and are **not** part of the frozen game
+contract:
+
+- **`/api/studio/*`** — the content team's own app: sign-in and account
+  (`ContentStudioPhase1.md`), then the workspace — the curriculum with statuses, lesson
+  workspaces, drafts, reviews, releases, Excel and the inbox (`ContentStudioPhase3.md`). Studio
+  sign-ins only; a game or admin token is not read there, and a Studio token is not read anywhere
+  else. Refusals use the `{ code, messageKey, details }` envelope.
+- **`/api/admin/team/*`** (SuperAdmin) — content-team accounts, sessions, the audit viewer and the
+  staff security settings.
+- **`/api/admin/engine/*`** (Admin) — which tables answer the game's curriculum reads
+  (`read-model`, with every day's shadow comparison) and the unlock repair queue.
+
+Two behaviours on the existing admin routes changed with the engine rebuild
+(`ContentStudioPhase2.md`), while their shapes did not:
+
+- `DELETE /api/admin/{terms,subjects,chapters,lessons}/{id}` **retires** instead of deleting.
+  Nothing is destroyed, the node and everything under it is hidden from students, and it can be
+  restored. `force=true` still means "and everything under it".
+- A publish now moves a set's version **only when what the game receives changed**, and a question
+  whose text, answers and key did not change **keeps its id**.
 
 ---
 
@@ -738,7 +775,13 @@ the lesson is replayed.
 All of §8 requires the `Admin` or `SuperAdmin` role. The Unity client does not call these — they
 are for the admin tooling.
 
-### Building the tree
+> **Since cutover the writes in this section answer `410 Gone`.** They are documented as they
+> were, because a closed route is still one somebody will find in a log and need to identify, and
+> because the request shapes are still what the writers underneath take. What changed is who calls
+> them: the Content Studio does, through `/api/studio/**`, with a draft and a reviewer between the
+> change and the child.
+
+### Building the tree — **closed at cutover**
 
 | Endpoint | Creates |
 |---|---|
@@ -784,7 +827,11 @@ children** and reports what would be lost:
 Use `details` to drive the confirmation dialog. `?force=true` commits. Empty nodes delete without
 `force`.
 
-### `POST /api/admin/lessons/{lessonId}/questions/upload?langId={guid}&hasHeaderRow=true`
+### `POST …/questions/upload` — **closed at cutover** (`410 Gone`)
+
+> A sheet is uploaded on the lesson's own board in the Studio, which reads the same columns
+> and shows a dry run before anything is saved. Route as it was:
+> `POST /api/admin/lessons/{lessonId}/questions/upload?langId={guid}&hasHeaderRow=true`.
 
 `multipart/form-data` with a `file` field. **`langId` is required** — a lesson is shared across
 languages, so the sheet's language cannot be inferred from it.
@@ -808,7 +855,10 @@ questions are soft-deleted, not removed, so existing progress stays resolvable.
 
 On failure, `400` with the same shape and `errors[]` of `{ row, message }`.
 
-### `POST /api/admin/lessons/{lessonId}/recovery-questions/upload?langId={guid}&hasHeaderRow=true`
+### `POST …/recovery-questions/upload` — **closed at cutover** (`410 Gone`)
+
+> Route as it was:
+> `POST /api/admin/lessons/{lessonId}/recovery-questions/upload?langId={guid}&hasHeaderRow=true`.
 
 Publishes the **secondary** pool. Identical in every respect to the endpoint above — same
 `multipart/form-data` `file` field, same required `langId`, same 4-column sheet, same limits, same
@@ -817,7 +867,9 @@ all-or-nothing validation (both go through the same parser), same response shape
 What differs is only which set it replaces: this bumps the lesson's **recovery** version and never
 touches its main question set, and vice versa. So a lesson can sit at questions v1 / recovery v4.
 
-### `POST /api/admin/lessons/{lessonId}/questions/manual?langId={guid}`
+### `POST …/questions/manual` — **closed at cutover** (`410 Gone`)
+
+> Route as it was: `POST /api/admin/lessons/{lessonId}/questions/manual?langId={guid}`.
 
 Publishes questions **typed by hand** instead of uploaded — the admin console's "Type questions by
 hand" card. Same tables, same rules, same response shape as the sheet upload above; only the input
@@ -865,16 +917,18 @@ untouched. Every fault in every question is reported at once rather than stoppin
 On failure, `400` with `errors[]` of `{ row, message }`, where `row` is the 1-based position in
 `questions` (`null` for a problem with the request as a whole, such as a missing `mode`).
 
-### `POST /api/admin/lessons/{lessonId}/recovery-questions/manual?langId={guid}`
+### `POST …/recovery-questions/manual` — **closed at cutover** (`410 Gone`)
+
+> Route as it was: `POST /api/admin/lessons/{lessonId}/recovery-questions/manual?langId={guid}`.
 
 The same, over the **secondary** pool and its own version counter. Publishing here never touches
 the lesson's main question set.
 
-### `GET /api/admin/lessons/{lessonId}/questions?langId={guid}`
-### `GET /api/admin/lessons/{lessonId}/recovery-questions?langId={guid}`
+### `GET /api/admin/lessons/{lessonId}/questions?langId={guid}` — **still open**
+### `GET /api/admin/lessons/{lessonId}/recovery-questions?langId={guid}` — **still open**
 
-The active set in a **named** language, so the console can load what is published before editing it.
-Response is the same `LessonQuestionsDto` as the player-facing §5 reads.
+The active set in a **named** language. A read was never a second way to author, so cutover left
+both alone. Response is the same `LessonQuestionsDto` as the player-facing §5 reads.
 
 Separate from `GET /api/lessons/{lessonId}/questions` because that one serves the *caller's* content
 language: an admin editing Arabic while signed in with an English token would otherwise load the
@@ -1102,7 +1156,7 @@ instead of quietly zeroing a wallet.
 >
 > A `Student` token now gets `403` here. Gameplay currency comes from the server evaluating a
 > validated progress attempt — see reward rules below — never from a figure the client supplied.
-> The admin console (`wwwroot/admin.html`) still calls this to top up a wallet while testing, which
+> The old vanilla console called this to top up a wallet while testing, which
 > works unchanged because the console is already an admin surface.
 
 ### `GET /api/commerce/balances` — authenticated

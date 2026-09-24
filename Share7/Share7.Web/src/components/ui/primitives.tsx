@@ -110,7 +110,7 @@ export function IconButton({
 // Badge
 // ---------------------------------------------------------------------------
 
-type BadgeTone = 'success' | 'muted' | 'warning' | 'danger' | 'info' | 'brand'
+export type BadgeTone = 'success' | 'muted' | 'warning' | 'danger' | 'info' | 'brand'
 
 export function Badge({ tone = 'muted', children }: { tone?: BadgeTone; children: ReactNode }) {
   return <span className={`s7-badge s7-badge-${tone}`}>{children}</span>

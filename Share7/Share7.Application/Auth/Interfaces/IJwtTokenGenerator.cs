@@ -7,7 +7,8 @@ public interface IJwtTokenGenerator
         string username,
         string? email,
         IEnumerable<string> roles,
-        Guid? preferredLanguageId = null);
+        Guid? preferredLanguageId = null,
+        string? stampHash = null);
 
     string GenerateRefreshToken();
 }

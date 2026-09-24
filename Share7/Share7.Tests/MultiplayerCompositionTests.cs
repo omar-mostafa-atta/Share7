@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Share7.Application.Common.Interfaces;
 using Share7.Application.Multiplayer.Interfaces;
 using Share7.Application.Multiplayer.Models;
 using Share7.Infrastructure;
@@ -41,6 +42,11 @@ public class MultiplayerCompositionTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddInfrastructure(configuration);
+
+        // Supplied by the API host, not by AddInfrastructure — it reads the request's claims. The
+        // language service behind session creation depends on it, so the graph cannot be checked
+        // without something standing in for it.
+        services.AddScoped<ICurrentUserService, AnonymousCurrentUser>();
 
         // Scope validation is the point: it turns a captive dependency from a silent runtime problem
         // into a failure right here.
@@ -103,4 +109,13 @@ public class MultiplayerCompositionTests
         // Untouched keys keep their defaults rather than becoming zero.
         Assert.Equal(60, options.SessionTimeoutSeconds);
     }
+}
+
+/// <summary>An unauthenticated caller, standing in for the API host's claims-backed implementation.</summary>
+internal sealed class AnonymousCurrentUser : ICurrentUserService
+{
+    public Guid? UserId => null;
+    public string? Email => null;
+    public bool IsAuthenticated => false;
+    public Guid? PreferredLanguageId => null;
 }

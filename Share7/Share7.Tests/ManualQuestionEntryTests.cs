@@ -63,6 +63,8 @@ public class ManualQuestionEntryTests
         await service.PublishManualAsync(
             lessonId, LanguageIds.English, Request(ManualQuestionMode.Replace, Question("First?", "1")));
 
+        var firstId = (await ActiveAsync(context, lessonId)).Single().Id;
+
         var result = await service.PublishManualAsync(
             lessonId, LanguageIds.English, Request(ManualQuestionMode.Append, Question("Second?", "2")));
 
@@ -70,13 +72,18 @@ public class ManualQuestionEntryTests
         Assert.Equal(2, result.Version);
 
         // Both questions are in the new version, so both are "imported" — the count describes what
-        // was written, not only what was typed.
+        // was served, not only what was typed.
         Assert.Equal(2, result.ImportedCount);
-        Assert.Equal(1, result.ReplacedCount);
+
+        // **Nothing was replaced.** "First?" did not change, so the engine carries it into version 2
+        // as it is — same question id, same choice ids — and a device that cached it, or a child's
+        // history on it, is not made stale by somebody adding a question after it.
+        Assert.Equal(0, result.ReplacedCount);
 
         var published = await ActiveAsync(context, lessonId);
         Assert.Equal(["First?", "Second?"], published.Select(q => q.Text));
         Assert.Equal([1, 2], published.Select(q => q.RowNumber));
+        Assert.Equal(firstId, published[0].Id);
     }
 
     [Fact]
@@ -274,7 +281,7 @@ public class ManualQuestionEntryTests
         await Service(context).PublishManualAsync(
             lessonId, LanguageIds.English, Request(ManualQuestionMode.Replace, Question("Main?", "yes")));
 
-        var recovery = new RecoveryQuestionImportService(context);
+        var recovery = EngineTest.RecoveryImport(context);
 
         var first = await recovery.PublishManualAsync(
             lessonId, LanguageIds.English, Request(ManualQuestionMode.Replace, Question("Recovery?", "yes")));
@@ -306,7 +313,10 @@ public class ManualQuestionEntryTests
 
     // ---- helpers ---------------------------------------------------------------------------
 
-    private static QuestionImportService Service(ApplicationDbContext context) => new(context);
+    // The real minter, so a test publishes exactly what production publishes: a question with no
+    // item identity is unmeasurable, and the schema refuses it.
+    private static QuestionImportService Service(ApplicationDbContext context) =>
+        EngineTest.MainImport(context);
 
     private static ManualQuestionInput Question(
         string text, string correct, string wrong1 = "wrong one", string wrong2 = "wrong two") =>

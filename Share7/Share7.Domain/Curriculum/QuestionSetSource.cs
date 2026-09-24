@@ -25,5 +25,11 @@ public enum QuestionSetSource
     ExcelUpload = 0,
 
     /// <summary>Typed into the admin console by hand. <c>FileName</c> is empty.</summary>
-    ManualEntry
+    ManualEntry,
+
+    /// <summary>
+    /// Published by a Content Studio release: written as a draft, approved by a second person and
+    /// released by a Lead. <c>FileName</c> is empty; the release says everything else.
+    /// </summary>
+    Release
 }

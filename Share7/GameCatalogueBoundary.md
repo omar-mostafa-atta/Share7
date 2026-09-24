@@ -150,7 +150,8 @@ Every step below is in this repo.
     from the read-back-then-resave round trip. The round trip now asserts `MinPlayers` in place of
     the addresses, so the test still covers a field of every kind it did before.
 
-12. **Admin console** (`pages/games.html`, `js/games.js`, in both `wwwroot/` and `Share7 front/`) —
+12. **Admin console** (`pages/games.html`, `js/games.js`, in both `wwwroot/` and `Share7 front/`
+    — *both deleted at cutover, 2026-09-24; the console is `Share7.Web`*) —
     the four scene inputs and their help text removed; the form fill and the save body no longer
     read them; the two client-side scene-pair pre-flight checks removed with the fields they
     guarded; the list's "Scenes" column replaced with the ready timeout. The form now explains where

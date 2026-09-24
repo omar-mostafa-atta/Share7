@@ -56,6 +56,9 @@ public class SubjectMatchmakingTests
             lessons.Add(lesson.Id);
         }
 
+        // Written straight into the typed tables, so the engine backfill gives them their nodes.
+        await EngineTest.BackfillAsync(context);
+
         return (path, lessons);
     }
 
@@ -111,7 +114,12 @@ public class SubjectMatchmakingTests
         await MultiplayerTest.Sessions(context).StartAsync(
             host, created.Value.Session!.Id, new StartMultiplayerSessionRequest());
 
-        var joined = await matchmaking.MatchmakeAsync(joiner, Request(path.GameId, path.SubjectId));
+        // The joiner is a separate request, so a separate context — as in production. Sharing the
+        // host's context would hand the seat check the host's tracked copy of the session, whose
+        // player count predates the seat this join just took.
+        await using var joinerContext = _fixture.CreateContext();
+        var joined = await MultiplayerTest.Matchmaking(joinerContext)
+            .MatchmakeAsync(joiner, Request(path.GameId, path.SubjectId));
 
         Assert.True(joined.Succeeded, string.Join("; ", joined.Errors));
         Assert.Equal(MatchOutcome.Joined, joined.Value!.Outcome);
@@ -191,7 +199,10 @@ public class SubjectMatchmakingTests
         await MultiplayerTest.Sessions(context).StartAsync(
             host, created.Value!.Session!.Id, new StartMultiplayerSessionRequest());
 
-        await matchmaking.MatchmakeAsync(joiner, Request(path.GameId, path.SubjectId));
+        // A separate request, so a separate context — see the test above.
+        await using var joinerContext = _fixture.CreateContext();
+        await MultiplayerTest.Matchmaking(joinerContext)
+            .MatchmakeAsync(joiner, Request(path.GameId, path.SubjectId));
 
         await using var check = _fixture.CreateContext();
         var session = await check.MultiplayerSessions.FirstAsync(s => s.Id == created.Value.Session.Id);
@@ -211,10 +222,16 @@ public class SubjectMatchmakingTests
         var lesson = new Lesson { Id = Guid.NewGuid(), ChapterId = path.ChapterId, Order = 500 };
         context.Lessons.Add(lesson);
         await context.SaveChangesAsync();
+        await EngineTest.BackfillAsync(context);
+
+        var itemVersion = await new Share7.Infrastructure.Content.ItemIdentityMinter(context)
+            .ResolveForLessonRowAsync(
+                lesson.Id, 1, 1, Share7.Domain.Content.NodeItemRole.Core, DateTime.UtcNow);
 
         context.Questions.Add(new Question
         {
             Id = Guid.NewGuid(),
+            ItemVersionId = itemVersion.Id,
             LessonId = lesson.Id,
             LangId = LanguageIds.Arabic,
             Text = "سؤال",
@@ -227,7 +244,7 @@ public class SubjectMatchmakingTests
         await UnlockAsync(context, userId, path.GameId, lesson.Id);
 
         var eligible = await new Share7.Infrastructure.Multiplayer.SessionLessonMatcher(
-                context, new Share7.Infrastructure.Progress.UnlockService(context))
+                context, EngineTest.Unlocks(context), EngineTest.Reads(context))
             .EligibleLessonsAsync(userId, path.GameId, path.SubjectId, LanguageIds.English);
 
         Assert.DoesNotContain(eligible, l => l.LessonId == lesson.Id);

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Share7.Application.Audit.Interfaces;
 using Share7.Application.Auth.Interfaces;
 using Share7.Application.Common.Models;
 using Share7.Application.Economy.Interfaces;
@@ -7,6 +8,7 @@ using Share7.Application.Objectives.Interfaces;
 using Share7.Application.Progression.Interfaces;
 using Share7.Application.Progression.Models;
 using Share7.Application.Users.Models;
+using Share7.Domain.Audit;
 using Share7.Domain.Constants;
 using Share7.Domain.Progress;
 using Share7.Infrastructure.Persistence;
@@ -24,14 +26,17 @@ public class UserAdminService : IUserAdminService
     private readonly IWalletService _wallet;
     private readonly ILevelService _levelService;
     private readonly IObjectiveService _objectiveService;
+    private readonly IAuditLog _audit;
 
     public UserAdminService(
         UserManager<ApplicationUser> userManager,
         ApplicationDbContext dbContext,
         IWalletService wallet,
         ILevelService levelService,
-        IObjectiveService objectiveService)
+        IObjectiveService objectiveService,
+        IAuditLog audit)
     {
+        _audit = audit;
         _userManager = userManager;
         _dbContext = dbContext;
         _wallet = wallet;
@@ -410,6 +415,118 @@ public class UserAdminService : IUserAdminService
         return ServiceResult<IReadOnlyList<AdminUserRunDto>>.Success(rows);
     }
 
+    // -----------------------------------------------------------------------
+    // Creating accounts
+    //
+    // Registration only ever grants Student, so before this a staff account could
+    // only be made by hand-inserting a row into AspNetUserRoles.
+    // -----------------------------------------------------------------------
+
+    /// <summary>Roles any admin may give a new account.</summary>
+    /// <remarks>
+    /// <c>Teacher</c> is left out on purpose: nothing in the API checks for it, so an account
+    /// holding it would sign in to a role that grants nothing (Roles.md §4). It belongs here once
+    /// it means something.
+    /// </remarks>
+    /// <para>
+    /// <c>ContentTeam</c> is left out too, since Team &amp; Access (Content Studio Phase 1): a
+    /// content-team account is created only by a SuperAdmin there, which gives it a Studio profile,
+    /// a role and scope, and a setup link instead of a password somebody else chose.
+    /// </para>
+    private static readonly string[] OpenRoles = [Roles.Student];
+
+    /// <summary>
+    /// Roles only a SuperAdmin may give — the same line <see cref="DeleteUserAsync"/> draws. An
+    /// Admin who cannot remove a privileged account should not be able to mint one either.
+    /// </summary>
+    private static readonly string[] PrivilegedRoles = [Roles.Admin, Roles.SuperAdmin];
+
+    public IReadOnlyList<string> GetAssignableRoles(bool actorIsSuperAdmin) =>
+        actorIsSuperAdmin ? [.. OpenRoles, .. PrivilegedRoles] : OpenRoles;
+
+    public async Task<ServiceResult<AdminUserListItemDto>> CreateUserAsync(
+        CreateAdminUserRequest request,
+        bool actorIsSuperAdmin,
+        CancellationToken cancellationToken = default)
+    {
+        // Trimmed because the sign-in form trims what it sends: an account created as "layla "
+        // could never be signed into.
+        var username = request.Username.Trim();
+        if (username.Length < 3)
+            return ServiceResult<AdminUserListItemDto>.Invalid("Username must be at least 3 characters.");
+
+        var role = request.Role;
+        if (!Roles.All.Contains(role))
+            return ServiceResult<AdminUserListItemDto>.Invalid($"Unknown role '{role}'.");
+
+        if (role == Roles.ContentTeam)
+            return ServiceResult<AdminUserListItemDto>.Forbidden(
+                "Content-team accounts are created by a Super Admin in Team & Access, which gives them a Studio profile and a one-time setup link.");
+
+        if (PrivilegedRoles.Contains(role) && !actorIsSuperAdmin)
+            return ServiceResult<AdminUserListItemDto>.Forbidden(
+                "Only a Super Admin can create an Admin or Super Admin account.");
+
+        if (!GetAssignableRoles(actorIsSuperAdmin).Contains(role))
+            return ServiceResult<AdminUserListItemDto>.Invalid($"The {role} role cannot be given to a new account.");
+
+        // Checked up front for a clean 409. Identity would refuse the duplicate too, but as a 400
+        // worded differently from what registration says for the same mistake.
+        if (await _userManager.FindByNameAsync(username) is not null)
+            return ServiceResult<AdminUserListItemDto>.Conflict("A user with this username already exists.");
+
+        var user = new ApplicationUser
+        {
+            UserName = username,
+
+            // English explicitly, as the seeded admin has, rather than null. The server falls back
+            // to English for null anyway; setting it puts the preferred_language claim in the
+            // token, which is what the console's language picker reads to agree with the tree.
+            PreferredLanguageId = LanguageIds.English
+        };
+
+        // Both writes or neither. An account created without its role would be a login nobody
+        // asked for, and the admin's retry would then fail on "username taken".
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        var created = await _userManager.CreateAsync(user, request.Password);
+        if (!created.Succeeded)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return ServiceResult<AdminUserListItemDto>.Invalid(created.Errors.Select(e => e.Description).ToArray());
+        }
+
+        var granted = await _userManager.AddToRoleAsync(user, role);
+        if (!granted.Succeeded)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return ServiceResult<AdminUserListItemDto>.Invalid(granted.Errors.Select(e => e.Description).ToArray());
+        }
+
+        // Inside the same transaction as the account: a login that exists has a record of who
+        // made it and with which role. The username is deliberately not in the row — ids only.
+        _audit.Record(new AuditEntry(
+            AuditActions.AccountCreated,
+            AuditAreas.Accounts,
+            $"Created an account with the {role} role.",
+            "account",
+            user.Id.ToString(),
+            new { role }));
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        await transaction.CommitAsync(cancellationToken);
+
+        // The roster row shape, so the console can show the new account without refetching it.
+        return ServiceResult<AdminUserListItemDto>.Success(new AdminUserListItemDto
+        {
+            UserId = user.Id,
+            UserName = user.UserName!,
+            Roles = [role],
+            IsProfileComplete = false,
+            CreatedAtUtc = user.CreatedAt
+        });
+    }
+
     public async Task<ServiceResult> DeleteUserAsync(
         Guid userId,
         Guid? actingUserId,
@@ -431,6 +548,12 @@ public class UserAdminService : IUserAdminService
         if (targetIsPrivileged && !actorIsSuperAdmin)
             return ServiceResult.Forbidden("Only a Super Admin can delete an Admin or Super Admin account.");
 
+        // Staff accounts are never deleted: their name has to stay on everything they authored,
+        // reviewed and published. Closing one is a deactivation, in Team & Access.
+        if (await _dbContext.StaffProfiles.AnyAsync(p => p.UserId == userId, cancellationToken))
+            return ServiceResult.Forbidden(
+                "Content-team accounts are never deleted. A Super Admin can deactivate this one in Team & Access; their work keeps their name.");
+
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
         // Same sweep the user's own delete runs. Kept in UserOwnedData rather than written out
@@ -444,6 +567,19 @@ public class UserAdminService : IUserAdminService
             await transaction.RollbackAsync(cancellationToken);
             return ServiceResult.Invalid(deleteResult.Errors.Select(e => e.Description).ToArray());
         }
+
+        // The account is gone, the record that somebody removed it is not. It names the account by
+        // id only, which resolves to nothing from here on — see UserOwnedData.RetainedOnDeletion.
+        _audit.Record(new AuditEntry(
+            AuditActions.AccountDeleted,
+            AuditAreas.Accounts,
+            targetIsPrivileged
+                ? "Deleted a privileged account and all of its data."
+                : "Deleted an account and all of its data.",
+            "account",
+            userId.ToString(),
+            new { roles = roles.Order(StringComparer.Ordinal).ToList() }));
+        await _dbContext.SaveChangesAsync(cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
         return ServiceResult.Success();

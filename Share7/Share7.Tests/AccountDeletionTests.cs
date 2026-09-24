@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Share7.Domain.Economy;
 using Share7.Domain.Commerce;
@@ -145,12 +145,57 @@ public class AccountDeletionTests
             var entityType = check.Model.FindEntityType(clrType)!;
             var table = entityType.GetTableName();
 
+            // The owning column, from the same resolver the purge uses — the evidence log calls
+            // it LearnerId, and a hard-coded "UserId" here would have this test pass by throwing
+            // on a table it never checked.
+            var column = UserOwnedData.UserKeyColumn(entityType);
+
             var orphans = await check.Database
-                .SqlQueryRaw<int>($"SELECT COUNT(*) AS [Value] FROM [{table}] t LEFT JOIN [AspNetUsers] u ON u.[Id] = t.[UserId] WHERE u.[Id] IS NULL")
+                .SqlQueryRaw<int>($"SELECT COUNT(*) AS [Value] FROM [{table}] t LEFT JOIN [AspNetUsers] u ON u.[Id] = t.[{column}] WHERE u.[Id] IS NULL")
                 .SingleAsync();
 
             Assert.True(orphans == 0, $"{table} still holds {orphans} row(s) with no owning account.");
         }
+    }
+
+    [Fact]
+    public async Task An_audit_trail_outlives_its_actor_without_their_personal_details()
+    {
+        await using var context = _fixture.CreateContext();
+        var adminId = await TestData.CreateUserAsync(context);
+        var bystanderId = await TestData.CreateUserAsync(context);
+
+        context.GuidanceAuditLogs.AddRange(
+            new Share7.Domain.Guidance.GuidanceAuditLog
+            {
+                Action = "Published",
+                UserId = adminId,
+                UserEmail = "erased.admin@example.com",
+                DetailsJson = "{}"
+            },
+            new Share7.Domain.Guidance.GuidanceAuditLog
+            {
+                Action = "Published",
+                UserId = bystanderId,
+                UserEmail = "bystander@example.com",
+                DetailsJson = "{}"
+            });
+        await context.SaveChangesAsync();
+
+        await CreateService(context).DeleteOwnAccountAsync(adminId);
+
+        await using var check = _fixture.CreateContext();
+
+        // The record of what was done to the platform stays — accounting survives the account.
+        var kept = await check.GuidanceAuditLogs.SingleAsync(l => l.UserId == adminId);
+        Assert.Equal("Published", kept.Action);
+
+        // What described the person does not.
+        Assert.Null(kept.UserEmail);
+
+        // And nobody else's row is touched.
+        var other = await check.GuidanceAuditLogs.SingleAsync(l => l.UserId == bystanderId);
+        Assert.Equal("bystander@example.com", other.UserEmail);
     }
 
     private AccountDeletionService CreateService(ApplicationDbContext context) =>

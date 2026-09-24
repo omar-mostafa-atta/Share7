@@ -1,0 +1,515 @@
+[
+  {
+    "request": "GET /api/progress/games/game:lane-runner/snapshot?gradeId=grade:PrimaryFour",
+    "as": "student-en",
+    "requestBody": null,
+    "status": 200,
+    "body": {
+      "gameId": "game:lane-runner",
+      "langId": "lang:en",
+      "gradeId": "grade:PrimaryFour",
+      "gradeName": "Primary Four",
+      "percent": 0,
+      "terms": [
+        {
+          "id": "term:first",
+          "name": "First Term",
+          "order": 1,
+          "isUnlocked": true,
+          "percent": 0,
+          "subjects": [
+            {
+              "id": "subject:science",
+              "name": "Science",
+              "order": 1,
+              "isUnlocked": true,
+              "percent": 0,
+              "chapters": [
+                {
+                  "id": "chapter:matter",
+                  "name": "States of Matter",
+                  "order": 1,
+                  "isUnlocked": true,
+                  "percent": 0,
+                  "lessons": [
+                    {
+                      "id": "lesson:solids",
+                      "name": "Solids",
+                      "order": 1,
+                      "isUnlocked": true,
+                      "hasQuestions": true,
+                      "completionState": "Uncompleted",
+                      "percent": 0,
+                      "attempts": 0,
+                      "contentUpdated": false
+                    },
+                    {
+                      "id": "lesson:liquids-english-only",
+                      "name": "Liquids",
+                      "order": 2,
+                      "isUnlocked": false,
+                      "hasQuestions": true,
+                      "completionState": "Uncompleted",
+                      "percent": 0,
+                      "attempts": 0,
+                      "contentUpdated": false
+                    },
+                    {
+                      "id": "lesson:gases-no-questions",
+                      "name": "Gases",
+                      "order": 3,
+                      "isUnlocked": false,
+                      "hasQuestions": false,
+                      "completionState": "Uncompleted",
+                      "percent": 0,
+                      "attempts": 0,
+                      "contentUpdated": false
+                    }
+                  ]
+                },
+                {
+                  "id": "chapter:energy",
+                  "name": "Energy",
+                  "order": 2,
+                  "isUnlocked": false,
+                  "percent": 0,
+                  "lessons": [
+                    {
+                      "id": "lesson:heat",
+                      "name": "Heat",
+                      "order": 1,
+                      "isUnlocked": false,
+                      "hasQuestions": true,
+                      "completionState": "Uncompleted",
+                      "percent": 0,
+                      "attempts": 0,
+                      "contentUpdated": false
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "subject:maths-no-arabic",
+              "name": "Mathematics",
+              "order": 2,
+              "isUnlocked": true,
+              "percent": 0,
+              "chapters": []
+            }
+          ]
+        },
+        {
+          "id": "term:second",
+          "name": "Second Term",
+          "order": 2,
+          "isUnlocked": false,
+          "percent": 0,
+          "subjects": []
+        }
+      ]
+    }
+  },
+  {
+    "request": "POST /api/progress/attempts",
+    "as": "student-en",
+    "requestBody": {
+      "gameId": "game:lane-runner",
+      "lessonId": "lesson:gases-no-questions",
+      "answers": [],
+      "requestId": "contract-empty"
+    },
+    "status": 409,
+    "body": {
+      "errors": [
+        "This lesson has no questions in your language yet, so there is nothing to record."
+      ]
+    }
+  },
+  {
+    "request": "POST /api/progress/attempts",
+    "as": "student-en",
+    "requestBody": {
+      "gameId": "game:lane-runner",
+      "lessonId": "lesson:liquids-english-only",
+      "answers": [],
+      "requestId": "contract-locked"
+    },
+    "status": 403,
+    "body": {
+      "errors": [
+        "This lesson is still locked for this game."
+      ]
+    }
+  },
+  {
+    "request": "POST /api/progress/attempts",
+    "as": "student-en",
+    "requestBody": {
+      "gameId": "game:lane-runner",
+      "lessonId": "lesson:solids",
+      "answers": [
+        {
+          "questionId": "lesson:solids/en/q1",
+          "choiceId": "lesson:solids/en/q1/correct",
+          "elapsedMs": 4000
+        },
+        {
+          "questionId": "lesson:solids/en/q2",
+          "choiceId": "lesson:solids/en/q2/correct",
+          "elapsedMs": 4000
+        },
+        {
+          "questionId": "lesson:solids/en/q3",
+          "choiceId": "lesson:solids/en/q3/correct",
+          "elapsedMs": 4000
+        }
+      ],
+      "requestId": "contract-run-1"
+    },
+    "status": 200,
+    "body": {
+      "gameId": "game:lane-runner",
+      "lessonId": "lesson:solids",
+      "langId": "lang:en",
+      "correctCount": 3,
+      "totalCount": 3,
+      "percent": 100,
+      "attempts": 1,
+      "completionState": "Aced",
+      "firstAttemptWasPerfect": true,
+      "questionsVersion": 2,
+      "answers": [
+        {
+          "questionId": "lesson:solids/en/q3",
+          "choiceId": "lesson:solids/en/q3/correct",
+          "correctChoiceId": "lesson:solids/en/q3/correct",
+          "isCorrect": true
+        },
+        {
+          "questionId": "lesson:solids/en/q2",
+          "choiceId": "lesson:solids/en/q2/correct",
+          "correctChoiceId": "lesson:solids/en/q2/correct",
+          "isCorrect": true
+        },
+        {
+          "questionId": "lesson:solids/en/q1",
+          "choiceId": "lesson:solids/en/q1/correct",
+          "correctChoiceId": "lesson:solids/en/q1/correct",
+          "isCorrect": true
+        }
+      ],
+      "unrecognisedAnswers": 0,
+      "unlocked": [
+        {
+          "nodeType": "Lesson",
+          "nodeId": "lesson:liquids-english-only"
+        }
+      ],
+      "rewards": [],
+      "balances": [],
+      "level": {
+        "level": 1,
+        "xp": 0,
+        "xpIntoLevel": 0,
+        "xpForNextLevel": 50,
+        "xpToNextLevel": 50,
+        "isMaxLevel": false
+      },
+      "levelsGained": []
+    }
+  },
+  {
+    "request": "POST /api/progress/attempts",
+    "as": "student-en",
+    "requestBody": {
+      "gameId": "game:lane-runner",
+      "lessonId": "lesson:solids",
+      "answers": [
+        {
+          "questionId": "lesson:solids/en/q1",
+          "choiceId": "lesson:solids/en/q1/correct",
+          "elapsedMs": 4000
+        },
+        {
+          "questionId": "lesson:solids/en/q2",
+          "choiceId": "lesson:solids/en/q2/correct",
+          "elapsedMs": 4000
+        },
+        {
+          "questionId": "lesson:solids/en/q3",
+          "choiceId": "lesson:solids/en/q3/correct",
+          "elapsedMs": 4000
+        }
+      ],
+      "requestId": "contract-run-1"
+    },
+    "status": 200,
+    "body": {
+      "gameId": "game:lane-runner",
+      "lessonId": "lesson:solids",
+      "langId": "lang:en",
+      "correctCount": 3,
+      "totalCount": 3,
+      "percent": 100,
+      "attempts": 1,
+      "completionState": "Aced",
+      "firstAttemptWasPerfect": true,
+      "questionsVersion": 2,
+      "answers": [
+        {
+          "questionId": "lesson:solids/en/q3",
+          "choiceId": "lesson:solids/en/q3/correct",
+          "correctChoiceId": "lesson:solids/en/q3/correct",
+          "isCorrect": true
+        },
+        {
+          "questionId": "lesson:solids/en/q2",
+          "choiceId": "lesson:solids/en/q2/correct",
+          "correctChoiceId": "lesson:solids/en/q2/correct",
+          "isCorrect": true
+        },
+        {
+          "questionId": "lesson:solids/en/q1",
+          "choiceId": "lesson:solids/en/q1/correct",
+          "correctChoiceId": "lesson:solids/en/q1/correct",
+          "isCorrect": true
+        }
+      ],
+      "unrecognisedAnswers": 0,
+      "unlocked": [
+        {
+          "nodeType": "Lesson",
+          "nodeId": "lesson:liquids-english-only"
+        }
+      ],
+      "rewards": [],
+      "balances": [],
+      "level": {
+        "level": 1,
+        "xp": 0,
+        "xpIntoLevel": 0,
+        "xpForNextLevel": 50,
+        "xpToNextLevel": 50,
+        "isMaxLevel": false
+      },
+      "levelsGained": []
+    }
+  },
+  {
+    "request": "GET /api/progress/games/game:lane-runner/lessons/lesson:solids",
+    "as": "student-en",
+    "requestBody": null,
+    "status": 200,
+    "body": {
+      "gameId": "game:lane-runner",
+      "lessonId": "lesson:solids",
+      "correctCount": 3,
+      "totalCount": 3,
+      "percent": 100,
+      "attempts": 1,
+      "completionState": "Aced",
+      "isUnlocked": true,
+      "hasAttempted": true,
+      "firstAttemptWasPerfect": true,
+      "questionsVersion": 2,
+      "currentQuestionsVersion": 2,
+      "contentUpdated": false,
+      "lastAttemptAt": "<timestamp>"
+    }
+  },
+  {
+    "request": "GET /api/progress/games/game:lane-runner/lessons/lesson:solids/wrong-questions",
+    "as": "student-en",
+    "requestBody": null,
+    "status": 200,
+    "body": []
+  },
+  {
+    "request": "GET /api/progress/games/game:lane-runner/chapters/chapter:matter",
+    "as": "student-en",
+    "requestBody": null,
+    "status": 200,
+    "body": {
+      "gameId": "game:lane-runner",
+      "nodeType": "Chapter",
+      "nodeId": "chapter:matter",
+      "lessonsTotal": 2,
+      "lessonsAttempted": 1,
+      "lessonsCompleted": 1,
+      "lessonsAced": 1,
+      "correctCount": 3,
+      "totalCount": 5,
+      "percent": 60,
+      "isUnlocked": true
+    }
+  },
+  {
+    "request": "GET /api/progress/games/game:lane-runner/subjects/subject:science",
+    "as": "student-en",
+    "requestBody": null,
+    "status": 200,
+    "body": {
+      "gameId": "game:lane-runner",
+      "nodeType": "Subject",
+      "nodeId": "subject:science",
+      "lessonsTotal": 3,
+      "lessonsAttempted": 1,
+      "lessonsCompleted": 1,
+      "lessonsAced": 1,
+      "correctCount": 3,
+      "totalCount": 6,
+      "percent": 50,
+      "isUnlocked": true
+    }
+  },
+  {
+    "request": "GET /api/progress/games/game:lane-runner/terms/term:first",
+    "as": "student-en",
+    "requestBody": null,
+    "status": 200,
+    "body": {
+      "gameId": "game:lane-runner",
+      "nodeType": "Term",
+      "nodeId": "term:first",
+      "lessonsTotal": 3,
+      "lessonsAttempted": 1,
+      "lessonsCompleted": 1,
+      "lessonsAced": 1,
+      "correctCount": 3,
+      "totalCount": 6,
+      "percent": 50,
+      "isUnlocked": true
+    }
+  },
+  {
+    "request": "GET /api/progress/games/game:lane-runner/grades/grade:PrimaryFour",
+    "as": "student-en",
+    "requestBody": null,
+    "status": 200,
+    "body": {
+      "gameId": "game:lane-runner",
+      "nodeType": "Grade",
+      "nodeId": "grade:PrimaryFour",
+      "lessonsTotal": 3,
+      "lessonsAttempted": 1,
+      "lessonsCompleted": 1,
+      "lessonsAced": 1,
+      "correctCount": 3,
+      "totalCount": 6,
+      "percent": 50,
+      "isUnlocked": true
+    }
+  },
+  {
+    "request": "GET /api/progress/games/game:lane-runner/snapshot?gradeId=grade:PrimaryFour",
+    "as": "student-en",
+    "requestBody": null,
+    "status": 200,
+    "body": {
+      "gameId": "game:lane-runner",
+      "langId": "lang:en",
+      "gradeId": "grade:PrimaryFour",
+      "gradeName": "Primary Four",
+      "percent": 50,
+      "terms": [
+        {
+          "id": "term:first",
+          "name": "First Term",
+          "order": 1,
+          "isUnlocked": true,
+          "percent": 50,
+          "subjects": [
+            {
+              "id": "subject:science",
+              "name": "Science",
+              "order": 1,
+              "isUnlocked": true,
+              "percent": 50,
+              "chapters": [
+                {
+                  "id": "chapter:matter",
+                  "name": "States of Matter",
+                  "order": 1,
+                  "isUnlocked": true,
+                  "percent": 60,
+                  "lessons": [
+                    {
+                      "id": "lesson:solids",
+                      "name": "Solids",
+                      "order": 1,
+                      "isUnlocked": true,
+                      "hasQuestions": true,
+                      "completionState": "Aced",
+                      "percent": 100,
+                      "attempts": 1,
+                      "contentUpdated": false
+                    },
+                    {
+                      "id": "lesson:liquids-english-only",
+                      "name": "Liquids",
+                      "order": 2,
+                      "isUnlocked": true,
+                      "hasQuestions": true,
+                      "completionState": "Uncompleted",
+                      "percent": 0,
+                      "attempts": 0,
+                      "contentUpdated": false
+                    },
+                    {
+                      "id": "lesson:gases-no-questions",
+                      "name": "Gases",
+                      "order": 3,
+                      "isUnlocked": false,
+                      "hasQuestions": false,
+                      "completionState": "Uncompleted",
+                      "percent": 0,
+                      "attempts": 0,
+                      "contentUpdated": false
+                    }
+                  ]
+                },
+                {
+                  "id": "chapter:energy",
+                  "name": "Energy",
+                  "order": 2,
+                  "isUnlocked": false,
+                  "percent": 0,
+                  "lessons": [
+                    {
+                      "id": "lesson:heat",
+                      "name": "Heat",
+                      "order": 1,
+                      "isUnlocked": false,
+                      "hasQuestions": true,
+                      "completionState": "Uncompleted",
+                      "percent": 0,
+                      "attempts": 0,
+                      "contentUpdated": false
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "subject:maths-no-arabic",
+              "name": "Mathematics",
+              "order": 2,
+              "isUnlocked": true,
+              "percent": 0,
+              "chapters": []
+            }
+          ]
+        },
+        {
+          "id": "term:second",
+          "name": "Second Term",
+          "order": 2,
+          "isUnlocked": false,
+          "percent": 0,
+          "subjects": []
+        }
+      ]
+    }
+  }
+]

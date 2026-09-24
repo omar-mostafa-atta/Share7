@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Share7.Application.Admin.Interfaces;
 using Share7.Domain.Commerce;
 using Share7.Domain.Constants;
@@ -221,7 +221,8 @@ internal sealed class PlatformCatalogueSeeder
     }
 
     /// <summary>
-    /// The Runner's Classic mode — the row every existing client resolves to when it sends no mode key.
+    /// The Runner's modes: Classic, the row every existing client resolves to when it sends no mode key,
+    /// and Sudden Death.
     /// <para>
     /// <b>Seeding a default is not optional.</b> Runs and attempts from a build that predates modes
     /// carry no key, and without a default row they would be priced with no policy at all. The key
@@ -231,8 +232,32 @@ internal sealed class PlatformCatalogueSeeder
     /// </summary>
     private async Task ModesAsync(Guid runnerId, ContentSeedReport report, CancellationToken ct)
     {
-        const string key = "runner.mode.classic";
+        await ModeAsync(runnerId, report,
+            key: "runner.mode.classic", isDefault: true, sortOrder: 0,
+            en: ("Classic", "Run the lesson and answer every question on the road."),
+            ar: ("كلاسيكي", "اجرِ في الدرس وأجب عن كل سؤال على الطريق."),
+            ct);
 
+        // One heart, no revive, no power-ups — the rules live in the client's RunnerModeRules asset.
+        // What this row decides is only what a run of it is worth, and a Sudden Death run is worth
+        // what a Classic one is: it is harder to finish, not a different kind of play.
+        await ModeAsync(runnerId, report,
+            key: "runner.mode.sudden", isDefault: false, sortOrder: 1,
+            en: ("Sudden Death", "One heart. One wrong answer or one crash ends the run."),
+            ar: ("الموت المفاجئ", "قلب واحد. إجابة خاطئة واحدة أو اصطدام واحد وتنتهي الجولة."),
+            ct);
+    }
+
+    private async Task ModeAsync(
+        Guid runnerId,
+        ContentSeedReport report,
+        string key,
+        bool isDefault,
+        int sortOrder,
+        (string Name, string Description) en,
+        (string Name, string Description) ar,
+        CancellationToken ct)
+    {
         if (await _db.GameModes.AnyAsync(m => m.ModeKey == key, ct)) return;
 
         var id = SeedId.For("game-mode", key);
@@ -247,28 +272,18 @@ internal sealed class PlatformCatalogueSeeder
             MaxPlayers = 2,
             IsActive = true,
 
-            // The compatibility path, so it carries none of the gates a default must not have: no
-            // window, no entitlement, no grade floor.
-            IsDefault = true,
+            // Only the default is the compatibility path, so only it must carry none of the gates a
+            // default must not have: no window, no entitlement, no grade floor.
+            IsDefault = isDefault,
             CountsTowardMastery = true,
             SettlesEconomy = true,
             CountsTowardRanking = true,
-            SortOrder = 0,
+            SortOrder = sortOrder,
             CreatedAtUtc = DateTime.UtcNow,
             Translations =
             [
-                new GameModeTranslation
-                {
-                    ModeId = id, LangId = En,
-                    Name = "Classic",
-                    Description = "Run the lesson and answer every question on the road."
-                },
-                new GameModeTranslation
-                {
-                    ModeId = id, LangId = Ar,
-                    Name = "كلاسيكي",
-                    Description = "اجرِ في الدرس وأجب عن كل سؤال على الطريق."
-                }
+                new GameModeTranslation { ModeId = id, LangId = En, Name = en.Name, Description = en.Description },
+                new GameModeTranslation { ModeId = id, LangId = Ar, Name = ar.Name, Description = ar.Description }
             ]
         });
 
@@ -325,6 +340,10 @@ internal sealed class PlatformCatalogueSeeder
         Add("runner.env.forest", 1, isDefault: false,
             "Forest", "الغابة",
             "Tall trees and a winding trail.", "أشجار عالية ومسار متعرج.");
+
+        Add("runner.env.ice", 2, isDefault: false,
+            "Ice", "الجليد",
+            "Glaciers, frozen lakes and slippery paths.", "أنهار جليدية وبحيرات متجمدة ومسارات زلقة.");
     }
 
     // ── progression ───────────────────────────────────────────────────────────

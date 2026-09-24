@@ -33,11 +33,18 @@ public static class PlayAccounting
         // cost something, the safe play is not to practise.
         if (context == PlayContextKind.Practice) return PlaySettlementPolicy.Nothing;
 
-        // Assignment has no class relation to resolve against, so it is refused at the boundary and
-        // treated here as worth nothing rather than quietly settled as curriculum.
-        if (context == PlayContextKind.Assignment) return PlaySettlementPolicy.Nothing;
+        // An assignment is curriculum work with a teacher's name on it, and settles as curriculum
+        // does. It was worth nothing here only while it was refused at the boundary for want of a
+        // class relation to resolve against; cohorts are that relation (§17.4).
+        //
+        // **What an assignment must not do is buy its evidence a stronger claim.** That is not
+        // decided here at all — settlement is about gameplay. Strength follows the conditions
+        // actually recorded, and the evidence contract decides whether it admits this context, so
+        // homework cannot become exam-grade by being set as homework.
+        bool onCurriculum =
+            context is PlayContextKind.Curriculum or PlayContextKind.Assignment;
 
-        bool affectsMastery = mode.CountsTowardMastery && context == PlayContextKind.Curriculum;
+        bool affectsMastery = mode.CountsTowardMastery && onCurriculum;
 
         return new PlaySettlementPolicy(
             AffectsMastery: affectsMastery,

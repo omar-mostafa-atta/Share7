@@ -1,0 +1,488 @@
+/* ===========================================================================
+   The Class Board, continued: the shapes particular screens need
+   Everything here is still the board — the same rules, strokes and chalk as
+   board.css, arranged for one job.
+   =========================================================================== */
+
+/* ---------------------------------------------------------------------------
+   A board standing on its own — signing in, and activating a setup link.
+   No places along the top yet: only the date, the name of the place, and the
+   one column that matters.
+   --------------------------------------------------------------------------- */
+
+.sheet.alone {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  min-height: calc(100vh - var(--rail) - var(--ledge));
+  padding-block: var(--s7);
+}
+
+.alone-column {
+  display: grid;
+  gap: var(--s5);
+  width: min(460px, 100%);
+}
+
+.alone-column.roomy {
+  width: min(660px, 100%);
+}
+
+.alone-title {
+  display: grid;
+  justify-items: center;
+  gap: var(--s4);
+  text-align: center;
+  margin-bottom: var(--s3);
+}
+
+.alone-title .said {
+  max-inline-size: 44ch;
+}
+
+.alone-ledge {
+  justify-content: center;
+}
+
+/* ---------------------------------------------------------------------------
+   The written lesson
+   The whole lesson on one board, the way it would be read aloud. No cards, no
+   panels, no containers: a number, the question after it, the three answers
+   indented beneath with the right one underlined, and each language under the
+   same number in its own direction.
+   --------------------------------------------------------------------------- */
+
+.written {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 270px;
+  gap: 0 var(--s6);
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .written {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.written-line {
+  grid-column: 1;
+  display: grid;
+  grid-template-columns: 2.4rem minmax(0, 1fr);
+  gap: 0 var(--s3);
+  padding-block: var(--s5);
+  border-top: 1px solid var(--rule-soft);
+}
+
+.written-line[data-first="true"],
+.written-margin[data-first="true"] {
+  border-top: none;
+}
+
+/* The double rule where the second-chance questions begin, right across the
+   board including the margin. */
+.written-divider {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: var(--s2);
+  margin-top: var(--s6);
+  padding-top: var(--s5);
+  border-top: 1px solid var(--rule);
+  box-shadow: inset 0 3px 0 -2px var(--rule);
+}
+
+.written-line[data-gone="true"] {
+  opacity: 0.6;
+}
+
+.written-no {
+  font-size: var(--t-md);
+  color: var(--ink-3);
+  padding-top: 3px;
+  font-variant-numeric: tabular-nums;
+}
+
+.written-body {
+  min-width: 0;
+  display: grid;
+  gap: var(--s4);
+}
+
+.written-lang {
+  display: grid;
+  gap: var(--s2);
+}
+
+.written-lang + .written-lang {
+  padding-top: var(--s3);
+  border-top: 1px dashed var(--rule-soft);
+}
+
+.written-langname {
+  font-size: var(--t-xs);
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--frame);
+}
+
+.written-q {
+  width: 100%;
+  font-family: inherit;
+  font-size: var(--t-md);
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--ink);
+  background: none;
+  padding: 2px 0;
+  border-bottom: 1px solid transparent;
+  resize: none;
+  overflow: hidden;
+}
+
+.written-q:hover:not(:disabled) {
+  border-bottom-color: var(--rule-soft);
+}
+
+.written-q:focus {
+  outline: none;
+  border-bottom-color: var(--ink);
+}
+
+.written-answers {
+  display: grid;
+  gap: 3px;
+  padding-inline-start: var(--s5);
+}
+
+.written-answer {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--s3);
+}
+
+.written-pick {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--s2);
+  padding: 2px 0;
+  font-size: var(--t-sm);
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.written-pick:hover:not(:disabled) {
+  color: var(--ink-2);
+}
+
+/* The right answer is underlined — the one mark a board has always used. The
+   underline is on the words, not on the field: a rule running the width of the
+   column would read as a ruled line, which is a different thing entirely. */
+.written-answer[data-right="true"] .written-a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.28em;
+  text-decoration-color: var(--ink);
+}
+
+.written-answer[data-right="true"] .written-pick {
+  color: var(--ink);
+}
+
+.written-a {
+  width: 100%;
+  padding: 2px 0;
+  font-size: var(--t-base);
+  color: var(--ink-2);
+  background: none;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+}
+
+.written-a:hover:not(:disabled) {
+  border-bottom-color: var(--rule-soft);
+}
+
+.written-a:focus {
+  outline: none;
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+
+.written-a[aria-invalid="true"],
+.written-q[aria-invalid="true"] {
+  border-bottom-color: var(--bad);
+}
+
+/* Problems and comments are chalked in the outer margin, on the line they
+   belong to, joined to it by a short leader. */
+.written-margin {
+  grid-column: 2;
+  display: grid;
+  gap: var(--s2);
+  align-content: start;
+  padding-block: var(--s5);
+  padding-inline-start: var(--s4);
+  border-top: 1px solid var(--rule-soft);
+  font-size: var(--t-sm);
+}
+
+@media (max-width: 1100px) {
+  .written-margin {
+    grid-column: 1;
+    padding-top: 0;
+    padding-bottom: var(--s5);
+    padding-inline-start: calc(2.4rem + var(--s3));
+    border-inline-start: none;
+  }
+}
+
+.written-margin:empty {
+  border-inline-start-color: transparent;
+}
+
+.written-note {
+  position: relative;
+  padding-inline-start: var(--s4);
+  color: var(--ink-3);
+}
+
+.written-note::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  top: 0.72em;
+  inline-size: 9px;
+  border-top: 1px solid var(--rule);
+}
+
+.written-note[data-tone="wrong"] {
+  color: var(--bad-ink);
+}
+
+.written-note[data-tone="wrong"]::before {
+  border-top-color: var(--bad);
+}
+
+.written-note[data-tone="live"] {
+  color: var(--live-ink);
+}
+
+.written-note[data-tone="live"]::before {
+  border-top-color: var(--live);
+}
+
+.written-note button {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  text-decoration-color: var(--rule);
+}
+
+/* A line's own actions sit quietly until the line is being worked on. */
+.written-line-acts {
+  display: flex;
+  gap: var(--s1);
+  opacity: 0;
+  transition: opacity var(--step) var(--ease);
+}
+
+.written-line:hover .written-line-acts,
+.written-line:focus-within .written-line-acts {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .written-line-acts {
+    opacity: 1;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Reading two things side by side — live against proposed, before against after
+   --------------------------------------------------------------------------- */
+
+.against {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s5);
+}
+
+@media (max-width: 760px) {
+  .against {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.against-side {
+  display: grid;
+  gap: var(--s2);
+  align-content: start;
+}
+
+.was {
+  color: var(--ink-3);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.now {
+  color: var(--ink);
+}
+
+/* ---------------------------------------------------------------------------
+   Small shared shapes
+   --------------------------------------------------------------------------- */
+
+.people {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex-wrap: wrap;
+  font-size: var(--t-sm);
+  color: var(--ink-2);
+}
+
+.stack {
+  display: grid;
+  gap: var(--s4);
+}
+
+.stack.tight {
+  gap: var(--s2);
+}
+
+.stack.loose {
+  gap: var(--s6);
+}
+
+/* Two readings side by side at a sane measure, rather than one at each end of
+   a very wide board. */
+.pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s5);
+  max-inline-size: 760px;
+}
+
+@media (max-width: 640px) {
+  .pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* A question is read, so it is set to be read. */
+.written-q,
+.written-a {
+  max-inline-size: 72ch;
+}
+
+.spread {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  flex-wrap: wrap;
+}
+
+.spread.apart {
+  justify-content: space-between;
+}
+
+.grow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.codes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--s2);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+}
+
+.codes span {
+  padding: var(--s2) var(--s3);
+  border: 1px dashed var(--rule);
+  border-radius: 2px;
+  text-align: center;
+}
+
+.key {
+  padding: var(--s3) var(--s4);
+  font-size: var(--t-md);
+  letter-spacing: 0.22em;
+  text-align: center;
+  color: var(--ink);
+  border: 1px dashed var(--rule);
+  border-radius: 2px;
+  overflow-wrap: anywhere;
+}
+
+/* What is in the handbook: one chapter a line, numbered once. */
+.contents {
+  display: grid;
+  gap: var(--s2);
+  list-style: none;
+  max-inline-size: 52ch;
+}
+
+.contents a {
+  text-decoration: none;
+}
+
+.contents a:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--go);
+}
+
+/* The handbook reads, so it is set for reading. */
+.reading {
+  max-inline-size: 70ch;
+  display: grid;
+  gap: var(--s4);
+}
+
+.reading h2 {
+  font-size: var(--t-lg);
+  margin-top: var(--s5);
+}
+
+.reading h2:first-child {
+  margin-top: 0;
+}
+
+.reading p,
+.reading li {
+  color: var(--ink-2);
+  line-height: 1.65;
+}
+
+.reading ul,
+.reading ol {
+  display: grid;
+  gap: var(--s2);
+  padding-inline-start: var(--s5);
+}
+
+.reading strong {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+@media print {
+  body::before,
+  body::after,
+  .rail,
+  .ledge,
+  .telling {
+    display: none !important;
+  }
+
+  body {
+    color: #000;
+    background: #fff;
+  }
+}

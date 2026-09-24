@@ -1,12 +1,30 @@
 using Microsoft.EntityFrameworkCore;
+using Share7.Application.Audit.Interfaces;
 using Share7.Application.Common.Models;
+using Share7.Application.Common.Interfaces;
 using Share7.Application.Curriculum.Interfaces;
 using Share7.Application.Curriculum.Models;
+using Share7.Application.Engine.Interfaces;
+using Share7.Application.Engine.Models;
+using Share7.Domain.Audit;
 using Share7.Domain.Curriculum;
 using Share7.Infrastructure.Persistence;
 
 namespace Share7.Infrastructure.Curriculum;
 
+/// <summary>
+/// The admin console's tree edits, as an adapter over the engine's structure writer
+/// (<see cref="ICurriculumStructureService"/>): its checks and messages are the console's own, and
+/// the write goes to the node first and the typed row beside it, in one transaction.
+/// <para>
+/// **Deleting retires** (approved 22 Sep 2026). A retired node is hidden from students with its
+/// history, progress and evidence kept, and can be restored; nothing is hard-deleted, and the old
+/// forced cascade — which took every question underneath with it and left progress pointing at ids
+/// that no longer existed — is gone. A node with nothing under it retires on a plain delete; one
+/// with content still asks for <c>force=true</c>, so the console's confirmation keeps meaning
+/// something.
+/// </para>
+/// </summary>
 public class CurriculumAdminService : ICurriculumAdminService
 {
     private const int TermNameMaxLength = 100;
@@ -17,10 +35,48 @@ public class CurriculumAdminService : ICurriculumAdminService
     private readonly ApplicationDbContext _dbContext;
     private readonly ILanguageService _languageService;
 
-    public CurriculumAdminService(ApplicationDbContext dbContext, ILanguageService languageService)
+    /// <summary>The only writer of the tree: node first, typed compatibility row beside it.</summary>
+    private readonly ICurriculumStructureService _structure;
+
+    private readonly ICurrentUserService _currentUser;
+
+    public CurriculumAdminService(ApplicationDbContext dbContext, ILanguageService languageService,
+        ICurriculumStructureService structure, ICurrentUserService currentUser)
     {
         _dbContext = dbContext;
         _languageService = languageService;
+        _structure = structure;
+        _currentUser = currentUser;
+    }
+
+    private EngineActor Actor => new(_currentUser.UserId);
+
+    /// <summary>
+    /// The console's checks have passed; the engine writes the node and its typed copy. The position
+    /// was resolved against live siblings above, so the engine is asked not to shift anything.
+    /// </summary>
+    private Task<ServiceResult<StructureChangeDto>> CreateAsync(
+        string kind, Guid parentId, List<NodeName> names, int order, CancellationToken cancellationToken) =>
+        _structure.CreateAsync(new CreateNodeCommand
+        {
+            ParentId = parentId,
+            Kind = kind,
+            Titles = names.Select(n => new NodeTitle(n.LangId, n.Name)).ToList(),
+            Position = order,
+            ShiftSiblings = false
+        }, Actor, cancellationToken);
+
+    /// <summary>
+    /// Retires the node and everything under it: hidden from students, history kept, reversible.
+    /// The counts come back so the console can say what was hidden.
+    /// </summary>
+    private async Task<ServiceResult<CurriculumNodeChildCounts>> RetireAsync(
+        Guid nodeId, CurriculumNodeChildCounts counts, CancellationToken cancellationToken)
+    {
+        var retired = await _structure.RetireAsync(nodeId, null, Actor, cancellationToken);
+        return retired.Succeeded
+            ? ServiceResult<CurriculumNodeChildCounts>.Success(counts)
+            : Propagate<CurriculumNodeChildCounts>(retired);
     }
 
     // ---------------------------------------------------------------- adds
@@ -58,8 +114,11 @@ public class CurriculumAdminService : ICurriculumAdminService
             Translations = names.Select(n => new TermTranslation { LangId = n.LangId, Name = n.Name }).ToList()
         };
 
-        _dbContext.Terms.Add(term);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        var created = await CreateAsync(NodeKinds.Term, gradeId, names, order.Value, cancellationToken);
+        if (!created.Succeeded)
+            return Propagate<TermDto>(created);
+
+        term.Id = created.Value!.Node.Id;
 
         var callerLangId = await _languageService.ResolveCurrentAsync(cancellationToken);
         return ServiceResult<TermDto>.Success(new TermDto
@@ -105,8 +164,11 @@ public class CurriculumAdminService : ICurriculumAdminService
             Translations = names.Select(n => new SubjectTranslation { LangId = n.LangId, Name = n.Name }).ToList()
         };
 
-        _dbContext.Subjects.Add(subject);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        var created = await CreateAsync(NodeKinds.Subject, termId, names, order.Value, cancellationToken);
+        if (!created.Succeeded)
+            return Propagate<SubjectDto>(created);
+
+        subject.Id = created.Value!.Node.Id;
 
         var callerLangId = await _languageService.ResolveCurrentAsync(cancellationToken);
         return ServiceResult<SubjectDto>.Success(new SubjectDto
@@ -152,8 +214,11 @@ public class CurriculumAdminService : ICurriculumAdminService
             Translations = names.Select(n => new ChapterTranslation { LangId = n.LangId, Name = n.Name }).ToList()
         };
 
-        _dbContext.Chapters.Add(chapter);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        var created = await CreateAsync(NodeKinds.Chapter, subjectId, names, order.Value, cancellationToken);
+        if (!created.Succeeded)
+            return Propagate<ChapterDto>(created);
+
+        chapter.Id = created.Value!.Node.Id;
 
         var callerLangId = await _languageService.ResolveCurrentAsync(cancellationToken);
         return ServiceResult<ChapterDto>.Success(new ChapterDto
@@ -199,8 +264,11 @@ public class CurriculumAdminService : ICurriculumAdminService
             Translations = names.Select(n => new LessonTranslation { LangId = n.LangId, Name = n.Name }).ToList()
         };
 
-        _dbContext.Lessons.Add(lesson);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        var created = await CreateAsync(NodeKinds.Lesson, chapterId, names, order.Value, cancellationToken);
+        if (!created.Succeeded)
+            return Propagate<LessonDto>(created);
+
+        lesson.Id = created.Value!.Node.Id;
 
         var callerLangId = await _languageService.ResolveCurrentAsync(cancellationToken);
 
@@ -236,9 +304,7 @@ public class CurriculumAdminService : ICurriculumAdminService
         if (!force && counts.HasChildren)
             return Blocked(counts, "term");
 
-        _dbContext.Terms.Remove(term);
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        return ServiceResult<CurriculumNodeChildCounts>.Success(counts);
+        return await RetireAsync(term.Id, counts, cancellationToken);
     }
 
     public async Task<ServiceResult<CurriculumNodeChildCounts>> DeleteSubjectAsync(
@@ -253,9 +319,7 @@ public class CurriculumAdminService : ICurriculumAdminService
         if (!force && counts.HasChildren)
             return Blocked(counts, "subject");
 
-        _dbContext.Subjects.Remove(subject);
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        return ServiceResult<CurriculumNodeChildCounts>.Success(counts);
+        return await RetireAsync(subject.Id, counts, cancellationToken);
     }
 
     public async Task<ServiceResult<CurriculumNodeChildCounts>> DeleteChapterAsync(
@@ -277,9 +341,7 @@ public class CurriculumAdminService : ICurriculumAdminService
         if (!force && counts.HasChildren)
             return Blocked(counts, "chapter");
 
-        _dbContext.Chapters.Remove(chapter);
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        return ServiceResult<CurriculumNodeChildCounts>.Success(counts);
+        return await RetireAsync(chapter.Id, counts, cancellationToken);
     }
 
     public async Task<ServiceResult<CurriculumNodeChildCounts>> DeleteLessonAsync(
@@ -297,19 +359,17 @@ public class CurriculumAdminService : ICurriculumAdminService
         if (!force && counts.HasChildren)
             return Blocked(counts, "lesson");
 
-        // Translations, question sets, choices and the upload audit rows all cascade from the
-        // lesson along with the questions.
-        _dbContext.Lessons.Remove(lesson);
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        return ServiceResult<CurriculumNodeChildCounts>.Success(counts);
+        // Nothing is removed: the lesson's questions, sets, progress and evidence all stay, and a
+        // restore brings the lesson back exactly as it was.
+        return await RetireAsync(lesson.Id, counts, cancellationToken);
     }
 
     // ------------------------------------------------------------- helpers
 
     private static ServiceResult<CurriculumNodeChildCounts> Blocked(CurriculumNodeChildCounts counts, string nodeType) =>
         ServiceResult<CurriculumNodeChildCounts>.Conflict(
-            $"This {nodeType} still contains {counts.Describe()}. Deleting it removes all of that too — " +
-            "resend with force=true to confirm.",
+            $"This {nodeType} still contains {counts.Describe()}. Deleting it retires all of that too — " +
+            "hidden from students, with its history kept, and it can be restored. Resend with force=true to confirm.",
             counts);
 
     private async Task<CurriculumNodeChildCounts> CountBelowSubjectsAsync(
@@ -422,7 +482,7 @@ public class CurriculumAdminService : ICurriculumAdminService
         names.FirstOrDefault(n => n.LangId == langId)?.Name ?? names[0].Name;
 
     private static ServiceResult<T> Propagate<T>(ServiceResult source) =>
-        new() { ErrorKind = source.ErrorKind, Errors = source.Errors };
+        new() { ErrorKind = source.ErrorKind, Errors = source.Errors, Error = source.Error, Details = source.Details };
 
     private sealed record NodeName(Guid LangId, string Name, string Comparable);
 }

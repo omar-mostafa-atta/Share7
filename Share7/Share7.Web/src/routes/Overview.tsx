@@ -6,7 +6,7 @@ import { Stat, StatRow } from '../components/ui/Stat'
 import { Meter, Note } from '../components/ui/bits'
 import { NAV_ENTRIES } from '../lib/nav'
 import { useResource } from '../lib/resource'
-import { formatDateTime } from '../lib/time'
+import { formatDateTime, greeting } from '../lib/time'
 import { useAuth } from '../store/auth'
 import { listVariants } from '../components/ui/motion'
 import type { AdminOverviewDto } from '../types/api'
@@ -70,8 +70,9 @@ export function Overview() {
           {greeting()}, {username || 'Admin'}.
         </h1>
         <p>
-          Everything the platform runs on, in one place — curriculum and games, the currencies and
-          rules that pay players, and the operational surfaces where a human still has to decide.
+          Everything the platform runs on, in one place — games and the people playing them, the
+          currencies and rules that pay players, and the operational surfaces where a human still
+          has to decide.
         </p>
 
         <div className="s7-hero-row">
@@ -162,13 +163,18 @@ export function Overview() {
                 </div>
 
                 {/* The single most actionable number on this page: a lesson with
-                    no questions cannot be played, and nothing else surfaces it. */}
+                    no questions cannot be played, and nothing else surfaces it.
+
+                    It no longer carries a link. Since cutover (plan P6) the act
+                    it calls for happens in the Content Studio, which nobody
+                    reading this console can open — so the honest thing is to
+                    report the number and name whose work it is. */}
                 {authoringGap > 0 ? (
                   <Note tone={authoringGap > data.lessonsWithQuestions ? 'warning' : undefined}>
                     <strong>{authoringGap.toLocaleString()}</strong> lesson
                     {authoringGap === 1 ? ' has' : 's have'} no questions in any language, so
-                    {authoringGap === 1 ? ' it is' : ' they are'} unplayable.{' '}
-                    <Link to="/curriculum">Open the curriculum</Link>
+                    {authoringGap === 1 ? ' it is' : ' they are'} unplayable. The content team
+                    writes them in the Content Studio.
                   </Note>
                 ) : (
                   <Note>Every lesson has at least one published question set.</Note>
@@ -259,14 +265,4 @@ export function Overview() {
       ) : null}
     </motion.div>
   )
-}
-
-/** Local-clock greeting. Cosmetic, and deliberately not from the server: it is
- *  about the person reading the screen, not about the platform. */
-function greeting(): string {
-  const hour = new Date().getHours()
-  if (hour < 5) return 'Still up'
-  if (hour < 12) return 'Good morning'
-  if (hour < 18) return 'Good afternoon'
-  return 'Good evening'
 }

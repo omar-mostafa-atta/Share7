@@ -1,0 +1,244 @@
+{
+  "title": "Choose how a lesson is written",
+  "question": "The Class Board is settled; this is only how the lesson workspace is arranged — the screen a specialist spends the day in. The roll dealt three arrangements. Lock one, steer it, or re-roll.",
+  "options": [
+    {
+      "id": "ledge-queue",
+      "label": "The chalk ledge",
+      "kicker": "THE ROLL",
+      "lineage": "the ledge under a classroom board, where what is not being written stays in order",
+      "thesis": "One question is up on the board at full size; the rest of the lesson waits on the ledge beneath it, in order, as numbered chalk cards you can pick up or slide along.",
+      "palette": [
+        "#1d3a31",
+        "#ecefe4",
+        "#f1d35b",
+        "#e57f76",
+        "#a7aca8"
+      ],
+      "materials": [
+        "one question filling the board, English and Arabic together",
+        "the aluminium ledge as the lesson's running order: solid card written, dashed card missing a language, struck card being taken out",
+        "the recovery question waits apart at the far end of the ledge"
+      ],
+      "viewport": "The trail is chalked along the top. The board itself carries question 4: its text in English, the same question in Arabic directly beneath in its own direction, the three answers indented under each, the right one underlined. What students get right now is chalked faintly behind it, so a change is visible as a change. The narrow margin beside it holds only this question's problems and its comment thread. Along the bottom, the ledge: every question as a small numbered card in running order, dragged along the ledge to reorder, with Check, Save and Submit on the frame beneath.",
+      "risk": "Only one question is readable at a time. \"Which of these twelve is missing its Arabic?\" becomes a question the ledge has to answer honestly by itself — if its marks are ever wrong or slow, the screen lies about the lesson.",
+      "wireframe": {
+        "cols": 12,
+        "rows": 10,
+        "regions": [
+          {
+            "label": "Grade 5 · Term 1 · Science · Chapter 2 · The water cycle",
+            "x": 0,
+            "y": 0,
+            "w": 12,
+            "h": 1
+          },
+          {
+            "label": "Question 4 — English above, Arabic beneath, live version faint behind",
+            "x": 0,
+            "y": 1,
+            "w": 9,
+            "h": 6,
+            "accent": true
+          },
+          {
+            "label": "This question: problems, comments",
+            "x": 9,
+            "y": 1,
+            "w": 3,
+            "h": 6
+          },
+          {
+            "label": "The ledge — 1 2 3 [4] 5 6 7 8 9 10 11 12 · · R",
+            "x": 0,
+            "y": 7,
+            "w": 12,
+            "h": 2
+          },
+          {
+            "label": "Check · Save · Submit for review",
+            "x": 0,
+            "y": 9,
+            "w": 12,
+            "h": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "chalk-page",
+      "label": "The written lesson",
+      "lineage": "a board written out in full before the class comes in",
+      "thesis": "The whole lesson is written out on one board, the way it would be read aloud — no cards, no panels; numbering, rules and indentation carry the structure, and you edit the words where they read.",
+      "palette": [
+        "#1d3a31",
+        "#ecefe4",
+        "#f1d35b",
+        "#8cbfe0",
+        "#a7aca8"
+      ],
+      "materials": [
+        "one continuous board, no containers anywhere",
+        "the correct answer marked by an underline, never by a box or a colour alone",
+        "a double rule where the recovery questions begin"
+      ],
+      "viewport": "One board, written top to bottom. \"1.\" on a ruled line, the question after it, its three answers indented beneath, the right one underlined; the Arabic of the same question in its own right-to-left block directly under the English, sharing the number. Then 2, then 3, down the board. A double rule, and the recovery questions after it. Every problem is chalked in the outer margin beside the exact line it belongs to, joined by a short leader. Check, Save and Submit sit on the frame at the bottom and stay there as you scroll.",
+      "risk": "A twelve-question lesson is a long board with no fixed landmarks, and prose that flows is the easiest place to lose the discipline of exactly three answers with exactly one correct.",
+      "wireframe": {
+        "cols": 12,
+        "rows": 10,
+        "regions": [
+          {
+            "label": "Grade 5 · Term 1 · Science · Chapter 2 · The water cycle",
+            "x": 0,
+            "y": 0,
+            "w": 12,
+            "h": 1
+          },
+          {
+            "label": "1. Question · three answers indented · correct underlined · Arabic beneath",
+            "x": 0,
+            "y": 1,
+            "w": 9,
+            "h": 3,
+            "accent": true
+          },
+          {
+            "label": "Problems chalked in the margin, on the line",
+            "x": 9,
+            "y": 1,
+            "w": 3,
+            "h": 7
+          },
+          {
+            "label": "2. …",
+            "x": 0,
+            "y": 4,
+            "w": 9,
+            "h": 2
+          },
+          {
+            "label": "═══ recovery ═══",
+            "x": 0,
+            "y": 6,
+            "w": 9,
+            "h": 1
+          },
+          {
+            "label": "R1. …",
+            "x": 0,
+            "y": 7,
+            "w": 9,
+            "h": 2
+          },
+          {
+            "label": "Check · Save · Submit for review",
+            "x": 0,
+            "y": 9,
+            "w": 12,
+            "h": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "margin-board",
+      "label": "The supervisor's margin",
+      "lineage": "the teacher's preparation book, ruled with a margin the supervisor writes in",
+      "thesis": "The board is ruled into two unequal columns on every screen: the work in the wide one, and a margin that never moves, carrying what students have now, what is wrong, and what the reviewer said.",
+      "palette": [
+        "#1d3a31",
+        "#ecefe4",
+        "#f1d35b",
+        "#e57f76",
+        "#8cbfe0"
+      ],
+      "materials": [
+        "the same two-column rule on every screen in the Studio, so nothing ever moves",
+        "each question a numbered block with both languages side by side inside it",
+        "the journey chalked as named steps across the top: Draft · Check · Review · Release"
+      ],
+      "viewport": "Steps across the top of the board, the current one underlined. The wide column is the lesson: every question as a numbered block, English and Arabic side by side inside it, three answers each, the right one underlined; the recovery questions after a double rule. The margin, always in the same place, answers for whichever block you are in: the version students have right now, the problems on it, the comment thread, and who else is on this board. Check, Save and Submit sit under the wide column, never in the margin.",
+      "risk": "The margin has four jobs at once. Unless it is ruthlessly ordered it becomes a junk drawer, and the wide column still has to hold two languages side by side at 1280 pixels once the margin has taken its share.",
+      "wireframe": {
+        "cols": 12,
+        "rows": 10,
+        "regions": [
+          {
+            "label": "Grade 5 · Term 1 · Science · Chapter 2 · The water cycle",
+            "x": 0,
+            "y": 0,
+            "w": 12,
+            "h": 1
+          },
+          {
+            "label": "Draft · Check · Review · Release",
+            "x": 0,
+            "y": 1,
+            "w": 12,
+            "h": 1
+          },
+          {
+            "label": "Questions, numbered · English | Arabic inside each",
+            "x": 0,
+            "y": 2,
+            "w": 8,
+            "h": 7,
+            "accent": true
+          },
+          {
+            "label": "What students have now",
+            "x": 8,
+            "y": 2,
+            "w": 4,
+            "h": 2
+          },
+          {
+            "label": "Problems on this question",
+            "x": 8,
+            "y": 4,
+            "w": 4,
+            "h": 2
+          },
+          {
+            "label": "Comments",
+            "x": 8,
+            "y": 6,
+            "w": 4,
+            "h": 2
+          },
+          {
+            "label": "Also here: Mona",
+            "x": 8,
+            "y": 8,
+            "w": 4,
+            "h": 1
+          },
+          {
+            "label": "Check · Save · Submit for review",
+            "x": 0,
+            "y": 9,
+            "w": 8,
+            "h": 1
+          }
+        ]
+      }
+    }
+  ],
+  "reroll": {
+    "registers": [
+      "safer",
+      "bolder"
+    ]
+  },
+  "buildPath": {
+    "value": "code"
+  },
+  "steer": true,
+  "seedKey": "e73f91c1",
+  "scope": "surface",
+  "mode": "operate",
+  "chosen": "chalk-page",
+  "chosenAt": "2026-09-22",
+  "chosenVia": "structured question tool (the decision page went unanswered for eleven minutes)"
+}

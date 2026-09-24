@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Share7.Infrastructure.Users;
 using Share7.Tests.Infrastructure;
@@ -31,11 +31,22 @@ public class AccountDeletionCoverageTests
 
         foreach (var entityType in context.Model.GetEntityTypes())
         {
-            var userIdProperty = entityType.FindProperty("UserId");
+            // Not just "UserId": the evidence log names its owner LearnerId, and a guard that only
+            // knows one spelling lets the next such table escape deletion silently. The list is
+            // UserOwnedData's, so the guard and the purge can never disagree about what counts.
+            var userIdProperty = UserOwnedData.UserKeyProperties
+                .Select(entityType.FindProperty)
+                .FirstOrDefault(p => p is not null);
+
             if (userIdProperty is null)
                 continue;
 
             if (UserOwnedData.ManuallyPurged.Contains(entityType.ClrType))
+                continue;
+
+            // Audit trails that name the actor and are kept on purpose, with their personal
+            // details scrubbed — see UserOwnedData.RetainedOnDeletion for the rule.
+            if (UserOwnedData.RetainedOnDeletion.Contains(entityType.ClrType))
                 continue;
 
             if (CascadesFromUser(entityType, userIdProperty))
@@ -68,7 +79,10 @@ public class AccountDeletionCoverageTests
             var entityType = context.Model.FindEntityType(clrType);
             Assert.True(entityType is not null, $"{clrType.Name} is in ManuallyPurged but not in the EF model.");
             Assert.NotNull(entityType!.GetTableName());
-            Assert.NotNull(entityType.FindProperty("UserId"));
+
+            // Resolved rather than assumed: the evidence log names its owner LearnerId. Throws with
+            // a useful message if a purged type carries no owning column at all.
+            Assert.NotNull(UserOwnedData.UserKeyColumn(entityType));
         }
     }
 

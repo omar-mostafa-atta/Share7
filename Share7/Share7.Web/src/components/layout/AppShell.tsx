@@ -8,11 +8,18 @@ import { RouteErrorBoundary } from './ErrorBoundary'
 import { CommandPalette } from '../ui/CommandPalette'
 import { PageTitle } from '../ui/bits'
 import { entryForPath } from '../../lib/nav'
+import type { Portal } from '../../lib/portals'
 import { usePrefs } from '../../store/prefs'
 import type { ThemeChoice } from '../../store/prefs'
 import { pageVariants } from '../ui/motion'
 
-export function AppShell() {
+/**
+ * The frame every portal's pages render inside: sidebar, top bar, command palette.
+ *
+ * One shell for every portal, fed that portal's name and nav, rather than a copy per audience —
+ * two copies of this would drift the way the two copies of the old console did.
+ */
+export function AppShell({ portal }: { portal: Portal }) {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const location = useLocation()
@@ -22,7 +29,12 @@ export function AppShell() {
   const density = usePrefs((s) => s.density)
   const setDensity = usePrefs((s) => s.setDensity)
 
-  const entry = entryForPath(location.pathname)
+  const entry = entryForPath(location.pathname, portal.nav)
+
+  // index.html can only name one portal. A content-team member's tab should not say "Admin".
+  useEffect(() => {
+    document.title = `Share7 ${portal.name}`
+  }, [portal.name])
 
   // Close the mobile drawer whenever the route changes, including on browser back — otherwise it
   // stays open over the page just navigated to.
@@ -61,6 +73,7 @@ export function AppShell() {
 
       <div className="s7-shell">
         <Sidebar
+          portal={portal}
           open={drawerOpen}
           onNavigate={() => setDrawerOpen(false)}
           onClose={() => setDrawerOpen(false)}
@@ -79,7 +92,7 @@ export function AppShell() {
           <div className="s7-topbar">
             <div className="s7-topbar-title">
               <strong>{entry?.label ?? 'Share7'}</strong>
-              <span>{entry?.section ?? 'Admin Console'}</span>
+              <span>{entry?.section ?? portal.name}</span>
             </div>
 
             <button type="button" className="s7-omni" onClick={() => setPaletteOpen(true)}>
@@ -139,7 +152,7 @@ export function AppShell() {
         </main>
       </div>
 
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <CommandPalette nav={portal.nav} open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </>
   )
 }

@@ -4,21 +4,24 @@ import {
   BarChart3,
   Eye,
   EyeOff,
+  GraduationCap,
   LogIn,
   Monitor,
   Moon,
-  Network,
   ShieldCheck,
   Sparkles,
   Sun,
 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import type { ReactNode } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Button } from '../components/ui/primitives'
 import { BrandBadge, BrandCharacter } from '../components/ui/Logo'
 import { Field, Input, Select } from '../components/ui/form'
 import { api } from '../lib/client'
 import { ApiError } from '../lib/errors'
+import { landingFor, portalForPath, type Portal } from '../lib/portals'
 import { useAuth } from '../store/auth'
 import { useLanguages } from '../store/languages'
 import { usePrefs } from '../store/prefs'
@@ -37,16 +40,45 @@ import type { AuthResult, LoginRequest } from '../types/api'
 // white. The replacement paints an explicit surface and ink.
 // ===========================================================================
 
-const POINTS = [
-  { icon: Network, label: 'Curriculum & questions' },
-  { icon: Sparkles, label: 'Signal economy' },
-  { icon: BarChart3, label: 'Leaderboards & runs' },
-  { icon: ShieldCheck, label: 'Cheat review' },
-]
+// One screen signs in to every portal; what it says depends on where the person is headed. Keyed by
+// portal id, so a new portal does not compile until it has a pitch of its own.
+//
+// There is one portal now. The Content Portal's pitch went with it at cutover (plan P6) — and so
+// did "Curriculum & questions" from the admin's, which would otherwise promise, on the sign-in
+// screen, the one thing this console no longer does.
+const PITCH: Record<
+  Portal['id'],
+  { headline: string; body: string; points: { icon: LucideIcon; label: string }[]; account: ReactNode }
+> = {
+  admin: {
+    headline: 'Everything the platform runs on, in one place.',
+    body:
+      'Games and the people playing them, the currencies and rules that pay players, and the ' +
+      'operational surfaces where a human still has to decide.',
+    points: [
+      { icon: GraduationCap, label: 'Exams & coverage' },
+      { icon: Sparkles, label: 'Signal economy' },
+      { icon: BarChart3, label: 'Leaderboards & runs' },
+      { icon: ShieldCheck, label: 'Cheat review' },
+    ],
+    account: (
+      <>
+        Use an <code className="s7-key">Admin</code> or <code className="s7-key">SuperAdmin</code>{' '}
+        account. The content team signs in to the Content Studio instead.
+      </>
+    ),
+  },
+}
+
+const NO_ACCESS =
+  'That account signed in, but it has no access here. Ask an admin to give it a role — or, if it ' +
+  'is a content-team account, sign in to the Content Studio instead.'
 
 export function Login() {
   const accessToken = useAuth((s) => s.accessToken)
+  const roles = useAuth((s) => s.roles)
   const setSession = useAuth((s) => s.setSession)
+  const clear = useAuth((s) => s.clear)
 
   const languages = useLanguages((s) => s.languages)
   const selectedLangId = useLanguages((s) => s.selectedLangId)
@@ -65,6 +97,18 @@ export function Login() {
 
   const navigate = useNavigate()
   const location = useLocation() as { state?: { from?: string } }
+  const from = location.state?.from
+
+  // Where the person is headed, for the pitch. Arriving at /login directly shows the Admin
+  // Console's, as it always has.
+  const headedTo = portalForPath(from ?? '/')
+  const pitch = PITCH[headedTo.id]
+
+  const landing = accessToken ? landingFor(roles, from) : null
+
+  useEffect(() => {
+    document.title = `Share7 ${headedTo.name}`
+  }, [headedTo.name])
 
   useEffect(() => {
     // The picker is a convenience; a server that cannot answer should not block sign-in. The old
@@ -72,10 +116,19 @@ export function Login() {
     void loadLanguages().catch(() => undefined)
   }, [loadLanguages])
 
+  useEffect(() => {
+    // Signed in to nothing this app serves — a session from before a role was taken away. Left in
+    // place it would bounce between here and the route guard, so it is signed out instead.
+    if (accessToken && !landing) {
+      clear()
+      setError(NO_ACCESS)
+    }
+  }, [accessToken, landing, clear])
+
   // Already signed in — nothing to do here. `replace` keeps the login screen out of history, so
   // Back from the dashboard does not land on it and bounce straight back.
-  if (accessToken) {
-    return <Navigate to={location.state?.from ?? '/'} replace />
+  if (landing) {
+    return <Navigate to={landing} replace />
   }
 
   const nextTheme: Record<ThemeChoice, ThemeChoice> = {
@@ -103,17 +156,17 @@ export function Login() {
         return
       }
 
-      // Signing in as a non-admin succeeds at the API and then fails on every
-      // screen, because every admin route is role-gated. Saying so here beats
-      // dropping them into a dashboard where each panel 403s on its own.
-      const privileged = auth.roles?.some((r) => r === 'Admin' || r === 'SuperAdmin')
-      if (!privileged) {
-        setError('That account signed in, but it is not an Admin or SuperAdmin — this console would be empty.')
+      // A player account signs in successfully at the API and then has nowhere to go: every page
+      // here is behind a staff role. Saying so here beats dropping them into a portal where each
+      // panel 403s on its own.
+      const destination = landingFor(auth.roles ?? [], from)
+      if (!destination) {
+        setError(NO_ACCESS)
         return
       }
 
       setSession(auth)
-      navigate(location.state?.from ?? '/', { replace: true })
+      navigate(destination, { replace: true })
     } catch (err) {
       const message =
         err instanceof ApiError ? err.message : 'Sign-in failed. Check credentials and try again.'
@@ -135,7 +188,7 @@ export function Login() {
           <BrandBadge size={40} />
           <div>
             <strong>شارع العلوم</strong>
-            <span>Admin Console</span>
+            <span>{headedTo.name}</span>
           </div>
         </motion.div>
 
@@ -145,14 +198,11 @@ export function Login() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
         >
-          <h2>Everything the platform runs on, in one place.</h2>
-          <p>
-            Curriculum and games, the currencies and rules that pay players, and the operational
-            surfaces where a human still has to decide.
-          </p>
+          <h2>{pitch.headline}</h2>
+          <p>{pitch.body}</p>
 
           <div className="s7-auth-points">
-            {POINTS.map((point, i) => (
+            {pitch.points.map((point, i) => (
               <motion.span
                 key={point.label}
                 className="s7-auth-point"
@@ -201,10 +251,7 @@ export function Login() {
           transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
         >
           <h1>Sign in</h1>
-          <p>
-            Use an <code className="s7-key">Admin</code> or{' '}
-            <code className="s7-key">SuperAdmin</code> account.
-          </p>
+          <p>{pitch.account}</p>
 
           <form onSubmit={submit} className="s7-auth-fields">
             <Field label="Username">
@@ -212,7 +259,9 @@ export function Login() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 autoComplete="username"
-                placeholder="admin"
+                // Only where it is the right answer — on the content team's screen it would read
+                // as an instruction to type "admin".
+                placeholder={headedTo.id === 'admin' ? 'admin' : undefined}
                 autoFocus
                 required
               />

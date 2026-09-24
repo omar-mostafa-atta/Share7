@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Share7.API.Authorization;
 using Share7.Application.Common.Interfaces;
 using Share7.Application.Curriculum.Interfaces;
 using Share7.Application.Curriculum.Models;
-using Share7.Domain.Constants;
 
 namespace Share7.API.Controllers;
 
@@ -18,7 +18,7 @@ namespace Share7.API.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/admin/lessons/{lessonId:guid}/sheet")]
-[Authorize(Roles = $"{Roles.Admin},{Roles.SuperAdmin}")]
+[Authorize(Policy = Policies.ContentAuthoring)]
 public class AdminLessonSheetController : ControllerBase
 {
     private readonly ILessonSheetService _sheets;
@@ -66,6 +66,7 @@ public class AdminLessonSheetController : ControllerBase
     /// </para>
     /// </summary>
     [HttpPost("upload")]
+    [ClosedAtCutover("Uploading a lesson sheet", Now = "the lesson's own board")]
     [RequestSizeLimit(MaxUploadBytes)]
     public async Task<IActionResult> Upload(
         Guid lessonId,
@@ -92,6 +93,7 @@ public class AdminLessonSheetController : ControllerBase
     /// upload — sending a subset publishes that subset and retires the rest.
     /// </summary>
     [HttpPut]
+    [ClosedAtCutover("Editing a lesson sheet", Now = "the lesson's own board")]
     public async Task<IActionResult> Save(
         Guid lessonId, SaveLessonSheetRequest request, CancellationToken cancellationToken)
     {
@@ -106,6 +108,7 @@ public class AdminLessonSheetController : ControllerBase
     /// </para>
     /// </summary>
     [HttpDelete("{rowNumber:int}")]
+    [ClosedAtCutover("Deleting a row from a lesson sheet", Now = "the lesson's own board")]
     public async Task<IActionResult> Delete(
         Guid lessonId, int rowNumber, CancellationToken cancellationToken)
     {

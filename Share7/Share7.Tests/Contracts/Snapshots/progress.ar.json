@@ -1,0 +1,344 @@
+[
+  {
+    "request": "GET /api/progress/games/game:lane-runner/snapshot?gradeId=grade:PrimaryFour",
+    "as": "student-ar",
+    "requestBody": null,
+    "status": 200,
+    "body": {
+      "gameId": "game:lane-runner",
+      "langId": "lang:ar",
+      "gradeId": "grade:PrimaryFour",
+      "gradeName": "الصف الرابع الابتدائي",
+      "percent": 0,
+      "terms": [
+        {
+          "id": "term:first",
+          "name": "الفصل الدراسي الأول",
+          "order": 1,
+          "isUnlocked": true,
+          "percent": 0,
+          "subjects": [
+            {
+              "id": "subject:science",
+              "name": "العلوم",
+              "order": 1,
+              "isUnlocked": true,
+              "percent": 0,
+              "chapters": [
+                {
+                  "id": "chapter:matter",
+                  "name": "حالات المادة",
+                  "order": 1,
+                  "isUnlocked": true,
+                  "percent": 0,
+                  "lessons": [
+                    {
+                      "id": "lesson:solids",
+                      "name": "المواد الصلبة",
+                      "order": 1,
+                      "isUnlocked": true,
+                      "hasQuestions": true,
+                      "completionState": "Uncompleted",
+                      "percent": 0,
+                      "attempts": 0,
+                      "contentUpdated": false
+                    },
+                    {
+                      "id": "lesson:liquids-english-only",
+                      "name": "السوائل",
+                      "order": 2,
+                      "isUnlocked": false,
+                      "hasQuestions": false,
+                      "completionState": "Uncompleted",
+                      "percent": 0,
+                      "attempts": 0,
+                      "contentUpdated": false
+                    },
+                    {
+                      "id": "lesson:gases-no-questions",
+                      "name": "الغازات",
+                      "order": 3,
+                      "isUnlocked": false,
+                      "hasQuestions": false,
+                      "completionState": "Uncompleted",
+                      "percent": 0,
+                      "attempts": 0,
+                      "contentUpdated": false
+                    }
+                  ]
+                },
+                {
+                  "id": "chapter:energy",
+                  "name": "الطاقة",
+                  "order": 2,
+                  "isUnlocked": false,
+                  "percent": 0,
+                  "lessons": [
+                    {
+                      "id": "lesson:heat",
+                      "name": "الحرارة",
+                      "order": 1,
+                      "isUnlocked": false,
+                      "hasQuestions": true,
+                      "completionState": "Uncompleted",
+                      "percent": 0,
+                      "attempts": 0,
+                      "contentUpdated": false
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "subject:maths-no-arabic",
+              "name": "",
+              "order": 2,
+              "isUnlocked": true,
+              "percent": 0,
+              "chapters": []
+            }
+          ]
+        },
+        {
+          "id": "term:second",
+          "name": "الفصل الدراسي الثاني",
+          "order": 2,
+          "isUnlocked": false,
+          "percent": 0,
+          "subjects": []
+        }
+      ]
+    }
+  },
+  {
+    "request": "POST /api/progress/attempts",
+    "as": "student-ar",
+    "requestBody": {
+      "gameId": "game:lane-runner",
+      "lessonId": "lesson:solids",
+      "answers": [
+        {
+          "questionId": "lesson:solids/ar/q1",
+          "choiceId": "lesson:solids/ar/q1/correct",
+          "elapsedMs": 4000
+        },
+        {
+          "questionId": "lesson:solids/ar/q2",
+          "choiceId": "lesson:solids/ar/q2/correct",
+          "elapsedMs": 4000
+        },
+        {
+          "questionId": "lesson:solids/ar/q3",
+          "choiceId": null,
+          "elapsedMs": 4000
+        }
+      ],
+      "requestId": "contract-run-ar"
+    },
+    "status": 200,
+    "body": {
+      "gameId": "game:lane-runner",
+      "lessonId": "lesson:solids",
+      "langId": "lang:ar",
+      "correctCount": 2,
+      "totalCount": 3,
+      "percent": 67,
+      "attempts": 1,
+      "completionState": "Completed",
+      "firstAttemptWasPerfect": false,
+      "questionsVersion": 1,
+      "answers": [
+        {
+          "questionId": "lesson:solids/ar/q2",
+          "choiceId": "lesson:solids/ar/q2/correct",
+          "correctChoiceId": "lesson:solids/ar/q2/correct",
+          "isCorrect": true
+        },
+        {
+          "questionId": "lesson:solids/ar/q3",
+          "choiceId": null,
+          "correctChoiceId": "lesson:solids/ar/q3/correct",
+          "isCorrect": false
+        },
+        {
+          "questionId": "lesson:solids/ar/q1",
+          "choiceId": "lesson:solids/ar/q1/correct",
+          "correctChoiceId": "lesson:solids/ar/q1/correct",
+          "isCorrect": true
+        }
+      ],
+      "unrecognisedAnswers": 0,
+      "unlocked": [
+        {
+          "nodeType": "Lesson",
+          "nodeId": "lesson:liquids-english-only"
+        },
+        {
+          "nodeType": "Chapter",
+          "nodeId": "chapter:energy"
+        },
+        {
+          "nodeType": "Lesson",
+          "nodeId": "lesson:heat"
+        }
+      ],
+      "rewards": [],
+      "balances": [],
+      "level": {
+        "level": 1,
+        "xp": 0,
+        "xpIntoLevel": 0,
+        "xpForNextLevel": 50,
+        "xpToNextLevel": 50,
+        "isMaxLevel": false
+      },
+      "levelsGained": []
+    }
+  },
+  {
+    "request": "GET /api/progress/games/game:lane-runner/lessons/lesson:solids/wrong-questions",
+    "as": "student-ar",
+    "requestBody": null,
+    "status": 200,
+    "body": [
+      {
+        "questionId": "lesson:solids/ar/q3",
+        "text": "ما حالة الحديد في درجة حرارة الغرفة؟",
+        "correctAnswerId": "lesson:solids/ar/q3/correct",
+        "correctAnswerText": "صلب",
+        "attempts": 1,
+        "lastAttemptAt": "<timestamp>"
+      }
+    ]
+  },
+  {
+    "request": "GET /api/progress/games/game:lane-runner/chapters/chapter:matter",
+    "as": "student-ar",
+    "requestBody": null,
+    "status": 200,
+    "body": {
+      "gameId": "game:lane-runner",
+      "nodeType": "Chapter",
+      "nodeId": "chapter:matter",
+      "lessonsTotal": 1,
+      "lessonsAttempted": 1,
+      "lessonsCompleted": 1,
+      "lessonsAced": 0,
+      "correctCount": 2,
+      "totalCount": 3,
+      "percent": 67,
+      "isUnlocked": true
+    }
+  },
+  {
+    "request": "GET /api/progress/games/game:lane-runner/snapshot?gradeId=grade:PrimaryFour",
+    "as": "student-ar",
+    "requestBody": null,
+    "status": 200,
+    "body": {
+      "gameId": "game:lane-runner",
+      "langId": "lang:ar",
+      "gradeId": "grade:PrimaryFour",
+      "gradeName": "الصف الرابع الابتدائي",
+      "percent": 50,
+      "terms": [
+        {
+          "id": "term:first",
+          "name": "الفصل الدراسي الأول",
+          "order": 1,
+          "isUnlocked": true,
+          "percent": 50,
+          "subjects": [
+            {
+              "id": "subject:science",
+              "name": "العلوم",
+              "order": 1,
+              "isUnlocked": true,
+              "percent": 50,
+              "chapters": [
+                {
+                  "id": "chapter:matter",
+                  "name": "حالات المادة",
+                  "order": 1,
+                  "isUnlocked": true,
+                  "percent": 67,
+                  "lessons": [
+                    {
+                      "id": "lesson:solids",
+                      "name": "المواد الصلبة",
+                      "order": 1,
+                      "isUnlocked": true,
+                      "hasQuestions": true,
+                      "completionState": "Completed",
+                      "percent": 67,
+                      "attempts": 1,
+                      "contentUpdated": false
+                    },
+                    {
+                      "id": "lesson:liquids-english-only",
+                      "name": "السوائل",
+                      "order": 2,
+                      "isUnlocked": true,
+                      "hasQuestions": false,
+                      "completionState": "Uncompleted",
+                      "percent": 0,
+                      "attempts": 0,
+                      "contentUpdated": false
+                    },
+                    {
+                      "id": "lesson:gases-no-questions",
+                      "name": "الغازات",
+                      "order": 3,
+                      "isUnlocked": false,
+                      "hasQuestions": false,
+                      "completionState": "Uncompleted",
+                      "percent": 0,
+                      "attempts": 0,
+                      "contentUpdated": false
+                    }
+                  ]
+                },
+                {
+                  "id": "chapter:energy",
+                  "name": "الطاقة",
+                  "order": 2,
+                  "isUnlocked": true,
+                  "percent": 0,
+                  "lessons": [
+                    {
+                      "id": "lesson:heat",
+                      "name": "الحرارة",
+                      "order": 1,
+                      "isUnlocked": true,
+                      "hasQuestions": true,
+                      "completionState": "Uncompleted",
+                      "percent": 0,
+                      "attempts": 0,
+                      "contentUpdated": false
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "subject:maths-no-arabic",
+              "name": "",
+              "order": 2,
+              "isUnlocked": true,
+              "percent": 0,
+              "chapters": []
+            }
+          ]
+        },
+        {
+          "id": "term:second",
+          "name": "الفصل الدراسي الثاني",
+          "order": 2,
+          "isUnlocked": false,
+          "percent": 0,
+          "subjects": []
+        }
+      ]
+    }
+  }
+]

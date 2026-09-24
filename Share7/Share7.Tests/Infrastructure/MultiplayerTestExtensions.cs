@@ -41,7 +41,7 @@ public static class MultiplayerTest
         ApplicationDbContext context, MultiplayerOptions? options = null, Guid? langId = null) =>
         new(context,
             new MultiplayerRequestLogStore(context),
-            new SessionLessonMatcher(context, new UnlockService(context)),
+            new SessionLessonMatcher(context, EngineTest.Unlocks(context), EngineTest.Reads(context)),
             new PlaySelectionResolver(context, new LevelService(context)),
             new StubLanguageService(langId ?? LanguageIds.English),
             MSOptions.Create(options ?? Options()));
@@ -55,7 +55,7 @@ public static class MultiplayerTest
             context,
             Sessions(context, resolved, langId),
             new MultiplayerRequestLogStore(context),
-            new SessionLessonMatcher(context, new UnlockService(context)),
+            new SessionLessonMatcher(context, EngineTest.Unlocks(context), EngineTest.Reads(context)),
             new PlaySelectionResolver(context, new LevelService(context)),
             new StubLanguageService(langId ?? LanguageIds.English),
             MSOptions.Create(resolved));

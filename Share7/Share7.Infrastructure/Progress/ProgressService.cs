@@ -11,6 +11,8 @@ using Share7.Application.Leaderboards.Models;
 using Share7.Application.Play.Interfaces;
 using Share7.Application.Play.Models;
 using Share7.Application.Progress.Interfaces;
+using Share7.Application.Evidence.Interfaces;
+using Share7.Application.Evidence.Models;
 using Share7.Application.Progress.Models;
 using Share7.Application.Objectives.Interfaces;
 using Share7.Application.Progression.Interfaces;
@@ -18,7 +20,9 @@ using Share7.Application.Rewards.Interfaces;
 using Share7.Application.Rewards.Models;
 using Share7.Domain.Leaderboards;
 using Share7.Domain.Play;
+using Share7.Domain.Evidence;
 using Share7.Domain.Progress;
+using Share7.Infrastructure.Engine.Reads;
 using Share7.Infrastructure.Persistence;
 
 namespace Share7.Infrastructure.Progress;
@@ -35,6 +39,39 @@ namespace Share7.Infrastructure.Progress;
 /// </summary>
 public class ProgressService : IProgressService
 {
+    /// <summary>
+    /// What one answer's conditions were, carried from the request to the evidence log without
+    /// passing through anything that scores.
+    /// </summary>
+    private readonly record struct AnswerConditions(
+        bool Answered,
+        int? ElapsedMs,
+        int HintsUsed,
+        int? TimeLimitMs,
+        bool? RetryPermitted);
+
+    /// <summary>
+    /// One graded answer plus the conditions it was given under, as the evidence log wants it.
+    /// <para>
+    /// The grader nulls <c>ChoiceId</c> both for a question that was never reached and for one
+    /// answered with a choice belonging to some other question. Those are very different things —
+    /// the second is the fingerprint of a stale cached question set — so the request's own view of
+    /// whether an answer was submitted is what separates them.
+    /// </para>
+    /// </summary>
+    private static EvidenceAnswer ToEvidence(AnswerResultDto graded, AnswerConditions conditions) =>
+        new()
+        {
+            ItemLocalizationId = graded.QuestionId,
+            ChoiceId = graded.ChoiceId,
+            IsCorrect = graded.IsCorrect,
+            WasUnrecognised = graded.ChoiceId is null && conditions.Answered,
+            ElapsedMs = conditions.ElapsedMs,
+            HintsUsed = conditions.HintsUsed,
+            TimeLimitMs = conditions.TimeLimitMs,
+            RetryPermitted = conditions.RetryPermitted
+        };
+
     /// <summary>A lesson counts as passed at half marks. This is also the unlock threshold.</summary>
     private const int PassPercent = 50;
 
@@ -61,6 +98,13 @@ public class ProgressService : IProgressService
     private readonly ISignalPricer _pricer;
     private readonly IObjectiveProjector _objectives;
     private readonly IPlaySelectionResolver _play;
+    private readonly IEvidenceRecorder _evidence;
+
+    /// <summary>
+    /// The curriculum reads: which lessons exist, where they sit, what version they are on. Typed
+    /// tables or node tree per Curriculum:ReadModel; the rules below are the same either way.
+    /// </summary>
+    private readonly ICurriculumReads _reads;
 
     public ProgressService(
         ApplicationDbContext dbContext,
@@ -72,8 +116,11 @@ public class ProgressService : IProgressService
         ILevelService levels,
         ISignalPricer pricer,
         IObjectiveProjector objectives,
-        IPlaySelectionResolver play)
+        IPlaySelectionResolver play,
+        IEvidenceRecorder evidence,
+        ICurriculumReads reads)
     {
+        _reads = reads;
         _dbContext = dbContext;
         _languageService = languageService;
         _unlockService = unlockService;
@@ -84,6 +131,7 @@ public class ProgressService : IProgressService
         _pricer = pricer;
         _objectives = objectives;
         _play = play;
+        _evidence = evidence;
     }
 
     // ------------------------------------------------------------- writing
@@ -111,18 +159,12 @@ public class ProgressService : IProgressService
         if (!game.IsActive)
             return ServiceResult<AttemptResultDto>.Conflict("This game is disabled.");
 
-        var lesson = await _dbContext.Lessons
-            .Where(l => l.Id == request.LessonId)
-            .Select(l => new
-            {
-                l.Id,
-                GradeId = l.Chapter!.Subject!.Term!.GradeId,
-                Version = l.QuestionSets.Where(s => s.LangId == langId).Select(s => s.Version).FirstOrDefault()
-            })
-            .FirstOrDefaultAsync(cancellationToken);
+        var header = await _reads.LessonHeaderAsync(request.LessonId, langId, cancellationToken);
 
-        if (lesson is null)
+        if (header is null)
             return ServiceResult<AttemptResultDto>.NotFound("Lesson not found.");
+
+        var lesson = new { Id = header.LessonId, header.GradeId, Version = header.CurrentVersion };
 
         // The tree is shared across languages but question sets are not, so a lesson can be
         // perfectly real and still have nothing to play in this student's language.
@@ -174,6 +216,7 @@ public class ProgressService : IProgressService
                 ModeKey = request.ModeKey,
                 ContextKey = request.ContextKey,
                 EventId = request.EventId,
+                AssignmentId = request.AssignmentId,
                 PlayerCount = 1
             },
             cancellationToken);
@@ -195,11 +238,30 @@ public class ProgressService : IProgressService
         // submission does not undo the unlock seeding above.
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
+        // The request id is claimed before anything else is written, so it — not whichever unique
+        // index the attempt happens to reach first — decides which of two in-flight retries runs.
+        // The twin blocks on the key until this transaction ends, then replays what it stored.
+        var claim = await ClaimRequestAsync(userId, request, transaction, cancellationToken);
+        if (claim.Outcome is { } decided)
+            return decided;
+
         // **Grading happens here and nowhere else.** The payload says which choice was picked; this
         // is where it is compared against the question's own correct answer. A client cannot assert
         // a score because there is no field in which to assert one.
         var picked = request.Answers.ToDictionary(a => a.QuestionId, a => a.ChoiceId);
         var choicesByQuestion = questions.ToDictionary(q => q.Id, q => q.ChoiceIds.ToHashSet());
+
+        // The conditions the answer was given under, kept beside the grading rather than derived
+        // from it. A question absent from the payload has no conditions at all — it was never
+        // reached — and defaults to an unanswered record rather than to a zero-millisecond one.
+        var conditionsByQuestion = request.Answers.ToDictionary(
+            a => a.QuestionId,
+            a => new AnswerConditions(
+                Answered: a.ChoiceId is not null,
+                ElapsedMs: a.ElapsedMs,
+                HintsUsed: a.HintsUsed,
+                TimeLimitMs: a.TimeLimitMs,
+                RetryPermitted: a.RetryPermitted));
 
         var answerResults = new List<AnswerResultDto>(questions.Count);
         var correctQuestionIds = new HashSet<Guid>();
@@ -244,16 +306,47 @@ public class ProgressService : IProgressService
 
         var now = DateTime.UtcNow;
 
+        // **The evidence log, written before the settlement split and on every path through it.**
+        //
+        // This is the one thing every attempt does regardless of what it is worth. Scoring, unlocks
+        // and rewards are settlement decisions and differ by context; *what the child actually
+        // answered* is a historical fact and does not. Practice runs in particular produced no
+        // educational record at all before this — they returned below without touching a table —
+        // which discarded the single richest diagnostic signal the product collects.
+        //
+        // Added to the ambient transaction and deliberately not saved here: evidence that survived
+        // a rolled-back attempt would describe gameplay that never happened.
+        await _evidence.RecordAsync(
+            new EvidenceRecordingContext
+            {
+                LearnerId = userId,
+                LangId = langId,
+                PlayContext = play.Context,
+                GameId = request.GameId,
+                ModeId = play.ModeId,
+                EventId = play.EventId,
+                NodeId = request.LessonId,
+                ContentVersion = lesson.Version,
+                DeliveryMode = EvidenceDeliveryMode.Solo,
+                IdempotencyKey = request.RequestId?.Trim(),
+                ReceivedAtUtc = now
+            },
+            [.. answerResults.Select(a => ToEvidence(a, conditionsByQuestion.GetValueOrDefault(a.QuestionId)))],
+            cancellationToken);
+
         // **Graded in full, recorded as nothing.** A practice run, a free-play replay or an event
         // entry is answered with the same breakdown a curriculum attempt gets — the child still sees
         // what they got right — but it moves no progress, unlocks nothing and pays nothing. That is
         // the whole point of the context axis, and it is enforced here rather than trusted to the
         // client's copy of the rule.
+        //
+        // Note what is *above* this line now: the evidence. "Worth nothing" is a settlement verdict,
+        // not a reason to forget what happened.
         if (!play.Policy.AffectsMastery)
             return await RecordUnscoredAttemptAsync(
                 userId, request, play, langId, gradeId, lesson.Version,
                 answerResults, correctCount, totalCount, percent, unrecognised, now, transaction,
-                cancellationToken);
+                claim.Log, cancellationToken);
 
         var existingQuestionRows = await _dbContext.UserQuestionProgress
             .Where(p => p.UserId == userId && p.GameId == request.GameId && p.LessonId == request.LessonId)
@@ -433,43 +526,10 @@ public class ProgressService : IProgressService
                 : []
         };
 
-        if (!string.IsNullOrWhiteSpace(request.RequestId))
-        {
-            var log = new ProgressRequestLog
-            {
-                UserId = userId,
-                RequestId = request.RequestId.Trim(),
-                Operation = AttemptOperation,
-                LessonId = request.LessonId,
-                ResponseJson = JsonSerializer.Serialize(response, AttemptJson),
-                CreatedAtUtc = now
-            };
-
-            _dbContext.ProgressRequestLogs.Add(log);
-
-            try
-            {
-                // Inside the transaction on purpose: the log row and the attempt it describes
-                // commit together, so there is no window where the attempt is recorded but the
-                // key that guards it is not.
-                await _dbContext.SaveChangesAsync(cancellationToken);
-            }
-            catch (DbUpdateException)
-            {
-                // Another retry of this same run won the race and committed first. The key is the
-                // concurrency guard: roll this one back and hand back their answer, so two
-                // in-flight retries still produce exactly one attempt.
-                _dbContext.Entry(log).State = EntityState.Detached;
-                await transaction.RollbackAsync(cancellationToken);
-
-                var winner = await TryReplayAttemptAsync(userId, request.RequestId, cancellationToken);
-
-                return winner is not null
-                    ? ServiceResult<AttemptResultDto>.Success(winner)
-                    : ServiceResult<AttemptResultDto>.Conflict(
-                        "This attempt is already being recorded. Retry with the same requestId.");
-            }
-        }
+        // Inside the transaction on purpose: the stored answer and the attempt it describes commit
+        // together, so there is no window where the attempt is recorded but the key that guards
+        // it is not.
+        await CompleteClaimAsync(claim.Log, response, now, cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
 
@@ -528,6 +588,7 @@ public class ProgressService : IProgressService
         int unrecognised,
         DateTime now,
         IDbContextTransaction transaction,
+        ProgressRequestLog? claim,
         CancellationToken cancellationToken)
     {
         // The record as it stands, untouched. Null when this lesson has never been played for real,
@@ -589,44 +650,92 @@ public class ProgressService : IProgressService
             LevelsGained = []
         };
 
-        if (!string.IsNullOrWhiteSpace(request.RequestId))
-        {
-            var log = new ProgressRequestLog
-            {
-                UserId = userId,
-                RequestId = request.RequestId.Trim(),
-                Operation = AttemptOperation,
-                LessonId = request.LessonId,
-                ResponseJson = JsonSerializer.Serialize(response, AttemptJson),
-                CreatedAtUtc = now
-            };
+        // **The evidence the caller queued, persisted.** This path used to write nothing at all, so
+        // it could reach the commit below without ever calling SaveChanges — and an attempt with no
+        // requestId then committed an empty transaction. That is no longer true: the caller records
+        // a response per question before the settlement split, and practice is the context those
+        // responses matter most in. Saving here rather than relying on the requestId branch below,
+        // which a client is not obliged to send.
+        await _dbContext.SaveChangesAsync(cancellationToken);
 
-            _dbContext.ProgressRequestLogs.Add(log);
-
-            try
-            {
-                await _dbContext.SaveChangesAsync(cancellationToken);
-            }
-            catch (DbUpdateException)
-            {
-                // Another retry of this same submission won the race. Hand back their answer, so two
-                // in-flight retries still produce exactly one recorded entry.
-                _dbContext.Entry(log).State = EntityState.Detached;
-                await transaction.RollbackAsync(cancellationToken);
-
-                var winner = await TryReplayAttemptAsync(userId, request.RequestId, cancellationToken);
-
-                return winner is not null
-                    ? ServiceResult<AttemptResultDto>.Success(winner)
-                    : ServiceResult<AttemptResultDto>.Conflict(
-                        "This attempt is already being recorded. Retry with the same requestId.");
-            }
-        }
+        // The key was claimed when the transaction opened, so a racing retry of this submission is
+        // already waiting on it and will replay this answer; the evidence saved above commits once.
+        await CompleteClaimAsync(claim, response, now, cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
 
         return ServiceResult<AttemptResultDto>.Success(response);
     }
+
+    /// <summary>What claiming a request id decided: carry on with <see cref="Log"/>, or return <see cref="Outcome"/>.</summary>
+    private readonly record struct RequestClaim(ProgressRequestLog? Log, ServiceResult<AttemptResultDto>? Outcome);
+
+    /// <summary>
+    /// Takes the attempt's request id as the transaction's first write.
+    /// <para>
+    /// <b>The key has to be taken first, not last.</b> It used to be written at the end, so two
+    /// in-flight retries of one run both did all the work and collided on whichever unique index
+    /// they reached first — the leaderboard result, a reward row — which surfaced as a 500 rather
+    /// than a replay. Inserted first, the key serialises them: the twin's insert waits on this
+    /// transaction, fails once it commits, and hands back the stored answer. A submission without a
+    /// request id stays non-idempotent, exactly as before.
+    /// </para>
+    /// </summary>
+    private async Task<RequestClaim> ClaimRequestAsync(
+        Guid userId, SubmitAttemptRequest request, IDbContextTransaction transaction, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.RequestId))
+            return new RequestClaim(null, null);
+
+        // Placeholder body, never committed as-is: CompleteClaimAsync overwrites it before commit,
+        // and a transaction that ends without committing takes the row with it.
+        var log = new ProgressRequestLog
+        {
+            UserId = userId,
+            RequestId = request.RequestId.Trim(),
+            Operation = AttemptOperation,
+            LessonId = request.LessonId,
+            ResponseJson = string.Empty,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        _dbContext.ProgressRequestLogs.Add(log);
+
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            return new RequestClaim(log, null);
+        }
+        catch (DbUpdateException exception) when (IsUniqueViolation(exception))
+        {
+            // Another retry of this same run committed first. Hand back its answer, so two
+            // in-flight retries still produce exactly one attempt.
+            _dbContext.Entry(log).State = EntityState.Detached;
+            await transaction.RollbackAsync(cancellationToken);
+
+            var winner = await TryReplayAttemptAsync(userId, request.RequestId, cancellationToken);
+
+            return new RequestClaim(null, winner is not null
+                ? ServiceResult<AttemptResultDto>.Success(winner)
+                : ServiceResult<AttemptResultDto>.Conflict(
+                    "This attempt is already being recorded. Retry with the same requestId."));
+        }
+    }
+
+    /// <summary>Stores the finished answer on the claimed key, for a later retry to replay.</summary>
+    private async Task CompleteClaimAsync(
+        ProgressRequestLog? claim, AttemptResultDto response, DateTime now, CancellationToken cancellationToken)
+    {
+        if (claim is null)
+            return;
+
+        claim.ResponseJson = JsonSerializer.Serialize(response, AttemptJson);
+        claim.CreatedAtUtc = now;
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private static bool IsUniqueViolation(DbUpdateException exception) =>
+        exception.InnerException is Microsoft.Data.SqlClient.SqlException { Number: 2601 or 2627 };
 
     /// <para>
     /// Returns reward lines shaped exactly like a rule's, so the client renders one list and does not
@@ -817,17 +926,12 @@ public class ProgressService : IProgressService
     {
         var langId = await _languageService.ResolveCurrentAsync(cancellationToken);
 
-        var lesson = await _dbContext.Lessons
-            .Where(l => l.Id == lessonId)
-            .Select(l => new
-            {
-                l.Id,
-                CurrentVersion = l.QuestionSets.Where(s => s.LangId == langId).Select(s => s.Version).FirstOrDefault()
-            })
-            .FirstOrDefaultAsync(cancellationToken);
+        var header = await _reads.LessonHeaderAsync(lessonId, langId, cancellationToken);
 
-        if (lesson is null)
+        if (header is null)
             return ServiceResult<LessonProgressDto>.NotFound("Lesson not found.");
+
+        var lesson = new { Id = header.LessonId, header.CurrentVersion };
 
         var row = await _dbContext.UserLessonProgress
             .AsNoTracking()
@@ -860,27 +964,23 @@ public class ProgressService : IProgressService
     public Task<ServiceResult<NodeProgressDto>> GetNodeProgressAsync(
         Guid userId, Guid gameId, CurriculumNodeType nodeType, Guid nodeId, CancellationToken cancellationToken = default)
     {
-        var lessons = _dbContext.Lessons.AsQueryable();
-
-        lessons = nodeType switch
+        var scope = nodeType switch
         {
-            CurriculumNodeType.Chapter => lessons.Where(l => l.ChapterId == nodeId),
-            CurriculumNodeType.Subject => lessons.Where(l => l.Chapter!.SubjectId == nodeId),
-            CurriculumNodeType.Term => lessons.Where(l => l.Chapter!.Subject!.TermId == nodeId),
-            _ => lessons.Where(l => l.Id == nodeId)
+            CurriculumNodeType.Chapter => TreeScope.Chapter,
+            CurriculumNodeType.Subject => TreeScope.Subject,
+            CurriculumNodeType.Term => TreeScope.Term,
+            _ => TreeScope.Lesson
         };
 
-        return AggregateAsync(userId, gameId, nodeType.ToString(), nodeId, lessons, checkUnlock: true, cancellationToken);
+        return AggregateAsync(userId, gameId, nodeType.ToString(), nodeId, scope, checkUnlock: true, cancellationToken);
     }
 
     public Task<ServiceResult<NodeProgressDto>> GetGradeProgressAsync(
         Guid userId, Guid gameId, Guid gradeId, CancellationToken cancellationToken = default)
     {
-        var lessons = _dbContext.Lessons.Where(l => l.Chapter!.Subject!.Term!.GradeId == gradeId);
-
         // Grades are never locked — a student only ever sees their own — so there is no unlock
         // row to look for and IsUnlocked is reported as true.
-        return AggregateAsync(userId, gameId, "Grade", gradeId, lessons, checkUnlock: false, cancellationToken);
+        return AggregateAsync(userId, gameId, "Grade", gradeId, TreeScope.Grade, checkUnlock: false, cancellationToken);
     }
 
     public async Task<ServiceResult<IReadOnlyList<WrongQuestionDto>>> GetWrongQuestionsAsync(
@@ -888,7 +988,7 @@ public class ProgressService : IProgressService
     {
         var langId = await _languageService.ResolveCurrentAsync(cancellationToken);
 
-        if (!await _dbContext.Lessons.AnyAsync(l => l.Id == lessonId, cancellationToken))
+        if (!await _reads.LessonExistsAsync(lessonId, cancellationToken))
             return ServiceResult<IReadOnlyList<WrongQuestionDto>>.NotFound("Lesson not found.");
 
         // Joined against active questions only. After a re-upload the old question rows still
@@ -935,14 +1035,7 @@ public class ProgressService : IProgressService
             return ServiceResult<ProgressSnapshotDto>.Invalid(
                 "No grade to snapshot: pass gradeId, or complete your profile so it can be inferred.");
 
-        var grade = await _dbContext.Grades
-            .Where(g => g.Id == resolvedGradeId)
-            .Select(g => new
-            {
-                g.Id,
-                Name = g.Translations.Where(t => t.LangId == langId).Select(t => t.Name).FirstOrDefault() ?? string.Empty
-            })
-            .FirstOrDefaultAsync(cancellationToken);
+        var grade = await _reads.GradeAsync(resolvedGradeId, langId, cancellationToken);
 
         if (grade is null)
             return ServiceResult<ProgressSnapshotDto>.NotFound("Grade not found.");
@@ -954,54 +1047,12 @@ public class ProgressService : IProgressService
 
         // Loaded flat and assembled in memory — clearer than a four-deep nested projection, and
         // it keeps the query count fixed regardless of how big the grade is.
-        var terms = await _dbContext.Terms
-            .Where(t => t.GradeId == resolvedGradeId)
-            .OrderBy(t => t.Order)
-            .Select(t => new
-            {
-                t.Id,
-                t.Order,
-                Name = t.Translations.Where(x => x.LangId == langId).Select(x => x.Name).FirstOrDefault() ?? string.Empty
-            })
-            .ToListAsync(cancellationToken);
+        var tree = await _reads.GradeTreeAsync(resolvedGradeId, langId, cancellationToken);
 
-        var subjects = await _dbContext.Subjects
-            .Where(s => s.Term!.GradeId == resolvedGradeId)
-            .OrderBy(s => s.Order)
-            .Select(s => new
-            {
-                s.Id,
-                s.TermId,
-                s.Order,
-                Name = s.Translations.Where(x => x.LangId == langId).Select(x => x.Name).FirstOrDefault() ?? string.Empty
-            })
-            .ToListAsync(cancellationToken);
-
-        var chapters = await _dbContext.Chapters
-            .Where(c => c.Subject!.Term!.GradeId == resolvedGradeId)
-            .OrderBy(c => c.Order)
-            .Select(c => new
-            {
-                c.Id,
-                c.SubjectId,
-                c.Order,
-                Name = c.Translations.Where(x => x.LangId == langId).Select(x => x.Name).FirstOrDefault() ?? string.Empty
-            })
-            .ToListAsync(cancellationToken);
-
-        var lessons = await _dbContext.Lessons
-            .Where(l => l.Chapter!.Subject!.Term!.GradeId == resolvedGradeId)
-            .OrderBy(l => l.Order)
-            .Select(l => new
-            {
-                l.Id,
-                l.ChapterId,
-                l.Order,
-                Name = l.Translations.Where(x => x.LangId == langId).Select(x => x.Name).FirstOrDefault() ?? string.Empty,
-                LiveTotal = l.Questions.Count(q => q.IsActive && q.LangId == langId),
-                CurrentVersion = l.QuestionSets.Where(s => s.LangId == langId).Select(s => s.Version).FirstOrDefault()
-            })
-            .ToListAsync(cancellationToken);
+        var terms = tree.Terms;
+        var subjects = tree.Subjects.Select(s => new { s.Id, TermId = s.ParentId, s.Order, s.Name }).ToList();
+        var chapters = tree.Chapters.Select(c => new { c.Id, SubjectId = c.ParentId, c.Order, c.Name }).ToList();
+        var lessons = tree.Lessons;
 
         var lessonIds = lessons.Select(l => l.Id).ToList();
 
@@ -1150,22 +1201,16 @@ public class ProgressService : IProgressService
         Guid gameId,
         string nodeType,
         Guid nodeId,
-        IQueryable<Domain.Curriculum.Lesson> lessons,
+        TreeScope scope,
         bool checkUnlock,
         CancellationToken cancellationToken)
     {
         var langId = await _languageService.ResolveCurrentAsync(cancellationToken);
 
-        var shape = await lessons
-            .Select(l => new
-            {
-                l.Id,
-                LiveTotal = l.Questions.Count(q => q.IsActive && q.LangId == langId)
-            })
-            .ToListAsync(cancellationToken);
+        var shape = await _reads.LessonTotalsAsync(scope, nodeId, langId, cancellationToken);
 
         var playable = shape.Where(l => l.LiveTotal > 0).ToList();
-        var playableIds = playable.Select(l => l.Id).ToList();
+        var playableIds = playable.Select(l => l.LessonId).ToList();
 
         var rows = await _dbContext.UserLessonProgress
             .AsNoTracking()

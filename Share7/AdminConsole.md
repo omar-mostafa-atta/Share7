@@ -3,8 +3,18 @@
 **2026-08-24.** What the console authors, the two changes made to it today, and the one backend
 route that had to exist before the second was possible.
 
-The console is the vanilla-JS app under `wwwroot/` (mirrored at `Share7 front/`). It is the only
-way boards, games, offers, currencies and curriculum are authored — there is no other tool.
+> **Historical.** This file records one day's work on the **vanilla-JS console**, which no longer
+> exists: it was replaced by `Share7.Web` (React) and deleted at cutover on 24 September 2026, with
+> a copy kept at `ops/archive/share7-front-2026-09-24.zip`. Curriculum and questions are no longer
+> authored in any admin console at all — they moved to the Content Studio (`ContentStudioPhase6.md`).
+>
+> Kept because §1 and §2 are the reasoning behind API shapes that are still live — the games
+> payload, and `GET /api/admin/leaderboards/boards/{id}/cycles`, which exists because this page
+> needed it. §4 is kept for a different reason: it named a hazard, and the hazard is what cutover
+> finally removed.
+
+The console described below was the vanilla-JS app under `wwwroot/` (mirrored at `Share7 front/`).
+At the time it was the only way boards, games, offers, currencies and curriculum were authored.
 
 ---
 
@@ -221,17 +231,25 @@ the behaviour it was written for, but it is a change somebody should see before 
 
 ---
 
-## 4. The two copies of the console
+## 4. The two copies of the console — **resolved at cutover**
 
-`Share7 front/` and `Share7/Share7/wwwroot/` are **byte-identical mirrors**, save for
-`wwwroot/admin.html` — a redirect stub that only needs to exist where the server serves from. Both
-are tracked. Every change above was written into `wwwroot/` and copied across, and
-`diff -rq "Share7 front" Share7/Share7/wwwroot` now reports only `admin.html`.
+At the time of writing, `Share7 front/` and `Share7/Share7/wwwroot/` were **byte-identical
+mirrors**, save for `wwwroot/admin.html` — a redirect stub that only needed to exist where the
+server serves from. Every change above was written into `wwwroot/` and copied across.
 
-Worth saying plainly: **this duplication is a hazard.** It is how `GameCatalogueBoundary.md` §4 item
-12 came to describe a change that was not in either copy — with two places to edit and no build step
-tying them together, "done" and "deployed" drift apart silently. A symlink, a copy task in the
-`.csproj`, or deleting one of the two would all be better than the convention of remembering.
+What this section said next was:
+
+> Worth saying plainly: **this duplication is a hazard.** It is how `GameCatalogueBoundary.md` §4
+> item 12 came to describe a change that was not in either copy — with two places to edit and no
+> build step tying them together, "done" and "deployed" drift apart silently. A symlink, a copy
+> task in the `.csproj`, or deleting one of the two would all be better than the convention of
+> remembering.
+
+**Deleting one of the two is what happened**, on 24 September 2026, and rather later than it should
+have: `Share7.Web` had already replaced the vanilla console, so by then there were not two copies
+but two consoles, one of them unmaintained and still able to author. The directory is gone and
+`wwwroot/` now holds only the built React bundle. The archive is
+`ops/archive/share7-front-2026-09-24.zip`.
 
 ---
 

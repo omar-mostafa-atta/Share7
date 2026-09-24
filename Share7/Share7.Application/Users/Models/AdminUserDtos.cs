@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Share7.Application.Users.Models;
 
 /// <summary>
@@ -47,6 +49,30 @@ public class AdminUserPageDto
     public int Page { get; init; }
 
     public int PageSize { get; init; }
+}
+
+/// <summary>
+/// An account created by an admin, rather than by someone signing up — which is how a staff
+/// account such as <c>ContentTeam</c> comes to exist at all, since registration only ever grants
+/// <c>Student</c>.
+/// </summary>
+/// <remarks>
+/// Deliberately the same three things a person needs to sign in with, and nothing more. The
+/// password rules are Identity's, configured in <c>AddInfrastructure</c> — 8+ characters with an
+/// upper-case letter, a lower-case letter and a digit — and are enforced there rather than
+/// repeated here, so the two cannot drift.
+/// </remarks>
+public class CreateAdminUserRequest
+{
+    [Required, MinLength(3), MaxLength(256)]
+    public string Username { get; set; } = string.Empty;
+
+    [Required, MinLength(8)]
+    public string Password { get; set; } = string.Empty;
+
+    /// <summary>Exactly one role. Which ones the caller may hand out is the service's decision.</summary>
+    [Required]
+    public string Role { get; set; } = string.Empty;
 }
 
 /// <summary>Filter for the roster. Every member is optional.</summary>

@@ -30,7 +30,9 @@ public class GoogleLoginValidator : IExternalLoginValidator
             if (string.IsNullOrWhiteSpace(payload.Email))
                 return null;
 
-            return new ExternalUserInfo(payload.Subject, payload.Email, payload.Name);
+            // Google states whether it has verified the address. Carried through so an unverified
+            // one can never be used to take over an existing account that happens to share it.
+            return new ExternalUserInfo(payload.Subject, payload.Email, payload.Name, payload.EmailVerified);
         }
         catch (InvalidJwtException)
         {

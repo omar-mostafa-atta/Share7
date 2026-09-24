@@ -1,0 +1,76 @@
+[
+  {
+    "request": "GET /api/games",
+    "as": "student-en",
+    "requestBody": null,
+    "status": 200,
+    "body": [
+      {
+        "gameId": "game:lane-runner",
+        "gameKey": "contract-lane-runner",
+        "displayName": "Lane Runner",
+        "description": "Run the lane with the right answer.",
+        "langId": "lang:en",
+        "minPlayers": 1,
+        "maxPlayers": 2,
+        "readyTimeoutSeconds": 20,
+        "supportsSinglePlayer": true,
+        "supportsMultiplayer": true,
+        "useLobby": true,
+        "useMatchmaking": true,
+        "isActive": true
+      }
+    ]
+  },
+  {
+    "request": "GET /api/games/game:lane-runner",
+    "as": "student-en",
+    "requestBody": null,
+    "status": 200,
+    "body": {
+      "gameId": "game:lane-runner",
+      "gameKey": "contract-lane-runner",
+      "displayName": "Lane Runner",
+      "description": "Run the lane with the right answer.",
+      "langId": "lang:en",
+      "minPlayers": 1,
+      "maxPlayers": 2,
+      "readyTimeoutSeconds": 20,
+      "supportsSinglePlayer": true,
+      "supportsMultiplayer": true,
+      "useLobby": true,
+      "useMatchmaking": true,
+      "isActive": true
+    }
+  },
+  {
+    "request": "GET /api/learning/targets?nodeId=lesson:solids",
+    "as": "student-en",
+    "requestBody": null,
+    "status": 200,
+    "body": [
+      {
+        "targetId": "<id:1>",
+        "statement": "Solids",
+        "isPlaceholder": true,
+        "state": "Insufficient",
+        "estimate": null,
+        "intervalLow": null,
+        "intervalHigh": null,
+        "observationCount": 3,
+        "assessmentCount": 3,
+        "observationsUntilReportable": 5,
+        "lastObservedAtUtc": "<timestamp>",
+        "ruleKey": "platform.default",
+        "ruleVersion": 1
+      }
+    ]
+  },
+  {
+    "request": "GET /api/learning/exams",
+    "as": "student-en",
+    "requestBody": null,
+    "status": 200,
+    "body": []
+  }
+]

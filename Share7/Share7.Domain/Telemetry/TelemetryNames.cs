@@ -116,6 +116,14 @@ public static class TelemetryNames
     public const string ErrorShown = "error_shown";
     public const string TelemetryQueueOverflow = "telemetry_queue_overflow";
 
+    // ── Guidance ─────────────────────────────────────────────────────────
+
+    public const string GuidanceFlowStart = "guidance_flow_start";
+    public const string GuidanceFlowEnd = "guidance_flow_end";
+    public const string GuidanceStep = "guidance_step";
+    public const string GuidanceBeatShown = "guidance_beat_shown";
+    public const string GuidanceAnchorMissing = "guidance_anchor_missing";
+
     /// <summary>Column width, and the client's own limit. Several SDKs truncate around 40.</summary>
     public const int MaxNameLength = 64;
 }

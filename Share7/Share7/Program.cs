@@ -2,6 +2,8 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
+using Share7.API.Authorization;
+using Share7.API.Hosting;
 using Share7.API.RateLimiting;
 using Share7.API.Services;
 using Share7.Application;
@@ -50,7 +52,14 @@ builder.Services.AddInfrastructure(builder.Configuration);
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+
+// Who the audit trail names for a request. Registered after AddInfrastructure, so it replaces the
+// platform-as-actor default there; outside a request it reads as the platform anyway.
+builder.Services.AddScoped<Share7.Application.Audit.Interfaces.IAuditActor, HttpAuditActor>();
 builder.Services.AddShare7RateLimiting(builder.Configuration);
+
+// Named policies for the endpoints more than the admins can reach — see Authorization/Policies.cs.
+builder.Services.AddShare7Authorization();
 
 var app = builder.Build();
 
@@ -59,6 +68,11 @@ app.UseSwagger();
 app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
+
+// The Content Studio on its own host name, when this process serves it (Studio:Host). Before the
+// console's static files, so the Studio's host never serves the Admin Console. See StudioHosting.
+app.UseStudioHosting();
+
 // `/` resolves to wwwroot/index.html — the console's SPA shell. Must precede UseStaticFiles.
 app.UseDefaultFiles();
 
@@ -72,21 +86,32 @@ app.UseDefaultFiles();
 // Revalidation is nearly free because the ETag is still sent: the browser asks, and the answer is
 // a 304 with no body until the file genuinely changes. Applied only to the console's own source —
 // anything fingerprinted can be cached hard, but nothing here is.
-app.UseStaticFiles(new StaticFileOptions
+//
+// Held in a variable because MapFallbackToFile below must be handed the SAME options. Without
+// them it builds its own static-file pipeline with defaults, so the SPA shell served for `/`,
+// `/login` and every other client route went out with no Cache-Control at all — only
+// `/index.html` asked for by name got `no-cache`. The browser then kept serving a shell that
+// pointed at a days-old bundle, which is how a content-team account typing `/content` once met a
+// sign-in screen from before the portal existed and was told it was "not an Admin or SuperAdmin".
+// (That route now lands on the page saying authoring moved; the caching bug it exposed is what
+// this block fixes.) Keyed on the file served rather than the request path for the same reason —
+// on the fallback the path is the client route.
+var consoleStaticFiles = new StaticFileOptions
 {
     OnPrepareResponse = context =>
     {
-        var path = context.Context.Request.Path.Value;
+        var name = context.File.Name;
 
-        if (path is not null &&
-            (path.EndsWith(".js", StringComparison.OrdinalIgnoreCase) ||
-             path.EndsWith(".css", StringComparison.OrdinalIgnoreCase) ||
-             path.EndsWith(".html", StringComparison.OrdinalIgnoreCase)))
+        if (name.EndsWith(".js", StringComparison.OrdinalIgnoreCase) ||
+            name.EndsWith(".css", StringComparison.OrdinalIgnoreCase) ||
+            name.EndsWith(".html", StringComparison.OrdinalIgnoreCase))
         {
             context.Context.Response.Headers.CacheControl = "no-cache";
         }
     }
-});
+};
+
+app.UseStaticFiles(consoleStaticFiles);
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -104,12 +129,20 @@ app.MapControllers();
 // Unscoped now that this is the only console — it used to be limited to /app/ so that the
 // hand-written one at / was left alone. `:nonfile` still keeps real assets going to UseStaticFiles
 // above, and MapControllers has already claimed /api, so neither is swallowed by the shell.
-app.MapFallbackToFile("{*path:nonfile}", "/index.html");
+app.MapFallbackToFile("{*path:nonfile}", "/index.html", consoleStaticFiles);
 
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+    // The engine backfill (20260922145343_EngineAuthoritative) copies every existing lesson into
+    // the node tree and the item bank in one statement. On a database with real content that is
+    // minutes of work, and the provider's 30-second default kills it part way through — the
+    // migration rolls back, the process exits, and the next start tries the whole thing again.
+    // Migrations are a startup step nothing is waiting on, so they get an hour.
+    dbContext.Database.SetCommandTimeout(TimeSpan.FromHours(1));
     await dbContext.Database.MigrateAsync();
+    dbContext.Database.SetCommandTimeout(null);
 
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<ApplicationRole>>();
     foreach (var roleName in Roles.All)
@@ -137,49 +170,17 @@ using (var scope = app.Services.CreateScope())
         await contentSeeder.SeedAsync(CancellationToken.None);
     }
 
-    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-    var seedConfig = app.Configuration.GetSection("SeedAdmin");
-    var adminUsername = seedConfig["Username"] ?? "admin";
-    var adminEmail = seedConfig["Email"] ?? "admin@admin.com";
-    var adminPassword = seedConfig["Password"] ?? "Admin123";
+    // The platform's own accounts — see IdentitySeeder. In Production the seed admin is never
+    // created with the built-in default password, and the first SuperAdmin comes from the one-time
+    // SeedSuperAdmin section, which is ignored as soon as any SuperAdmin exists.
+    var identitySeeder = scope.ServiceProvider.GetRequiredService<IdentitySeeder>();
 
-    var adminUser = await userManager.FindByNameAsync(adminUsername);
+    await identitySeeder.SeedAdminAsync(
+        app.Configuration.GetSection("SeedAdmin").Get<SeedAccountOptions>() ?? new SeedAccountOptions(),
+        isProduction: app.Environment.IsProduction());
 
-    if (adminUser is null)
-    {
-        var legacyAdmin = await userManager.FindByNameAsync(adminEmail);
-        if (legacyAdmin is not null)
-        {
-            await userManager.SetUserNameAsync(legacyAdmin, adminUsername);
-            adminUser = legacyAdmin;
-        }
-    }
-
-    if (adminUser is null)
-    {
-        adminUser = new ApplicationUser
-        {
-            UserName = adminUsername,
-            Email = adminEmail,
-            EmailConfirmed = true,
-            PreferredLanguageId = LanguageIds.English
-        };
-
-        var createResult = await userManager.CreateAsync(adminUser, adminPassword);
-        if (createResult.Succeeded)
-            await userManager.AddToRoleAsync(adminUser, Roles.Admin);
-    }
-    else
-    {
-        if (adminUser.PreferredLanguageId is null)
-        {
-            adminUser.PreferredLanguageId = LanguageIds.English;
-            await userManager.UpdateAsync(adminUser);
-        }
-
-        if (!await userManager.IsInRoleAsync(adminUser, Roles.Admin))
-            await userManager.AddToRoleAsync(adminUser, Roles.Admin);
-    }
+    await identitySeeder.BootstrapSuperAdminAsync(
+        app.Configuration.GetSection("SeedSuperAdmin").Get<SeedAccountOptions>());
 }
 
 app.Run();

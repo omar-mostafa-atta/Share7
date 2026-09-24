@@ -2,8 +2,36 @@
 
 # EduPlatform — Curriculum Content & Question Versioning
 
-Companion to `CLAUDE.md` / `Architecture.md`. Covers the content tables, the Excel upload
-pipeline, and the question-cache protocol the Unity client uses.
+Companion to `CLAUDE.md` / `Architecture.md`. Covers the content tables, the Excel sheet format,
+and the question-cache protocol the Unity client uses.
+
+> ## Read this first — cutover, 24 September 2026
+>
+> **Content is authored in the Content Studio (`Share7.Studio`), and nowhere else.** Every
+> authoring endpoint described below still exists and still answers, but it answers **`410 Gone`**
+> with a sentence saying where the work went (`ClosedAtCutoverAttribute`). The reads beside them
+> are untouched. A content-team account is refused `POST /api/auth/login` entirely and signs in at
+> the Studio. This is plan P6; `ContentStudioPhase6.md` is the record of it.
+>
+> **Why the file was kept rather than deleted.** Three things in it are still exactly true and
+> still load-bearing:
+>
+> 1. **The Excel column format** (§ Excel format). The Studio's own sheet upload reads the same
+>    columns, so this is the specification a delivered sheet is written against.
+> 2. **The version protocol** (§ Versioning & the client cache protocol). It is part of the frozen
+>    game contract and has not moved.
+> 3. **The table shapes** (§ Content tables). They are still written — as a *compatibility copy*
+>    since the engine rebuild, which is a distinction worth holding on to while reading on.
+>
+> **What changed underneath, 2026-09-22** (`ContentStudioPhase2.md`): the source of truth is the
+> node tree (`CurriculumNodes`) and the item bank (`Items` → `ItemVersions` → `Questions`, every
+> pool), with `PublishedItemSets` behind the version protocol. The recovery pool lives in
+> `Questions` with `Role = Recovery` under its old ids; deleting a node retires it rather than
+> destroying it; and a question that did not change keeps its id across publishes.
+>
+> **What has not happened yet.** The typed tables below are still read: `Curriculum:ReadModel` is
+> `Shadow`, not `Generic`. Dropping them waits on fourteen clean days of `Generic` in production,
+> and is deliberately not part of cutover.
 
 ## Languages and the shared tree
 
@@ -260,7 +288,11 @@ Grades in one language. With a bearer token the caller's preferred language is u
 `langId` overrides it and is how the admin page picks a language explicitly. Defaults to
 English.
 
-### Building the tree — Admin / SuperAdmin
+### Building the tree — **closed at cutover**
+
+> Every endpoint in this section answers `410 Gone`. The tree is built in the Studio, on
+> Curriculum. Kept here as the record of what the routes were, and because the request shape is
+> still what the structure writer takes underneath.
 
 | Endpoint | Creates |
 |---|---|
@@ -306,7 +338,10 @@ a *different* parent is fine — two grades can both have a "First Term".
 
 Each call creates one node; there is no bulk form yet.
 
-### Deleting nodes — Admin / SuperAdmin
+### Deleting nodes — **closed at cutover**
+
+> `410 Gone`, and doubly superseded: since the engine rebuild a delete is a *retire*, and since
+> cutover it happens in the Studio. Read on for what the routes did, not for what to call.
 
 | Endpoint | Removes |
 |---|---|
@@ -336,7 +371,11 @@ Note that questions retired by a re-upload are **soft-deleted, not removed**, so
 toward `questions` here — the number reflects rows that would actually be destroyed, which is what
 matters for a delete confirmation.
 
-### `POST /api/admin/lessons/{lessonId}/questions/upload?langId={guid}&hasHeaderRow=true` — Admin / SuperAdmin
+### `POST …/questions/upload` — **closed at cutover**
+
+> `410 Gone`. A sheet is uploaded on the lesson's own board in the Studio, which reads the same
+> columns (§ Excel format) and shows a dry run before anything is saved. The original route was
+> `POST /api/admin/lessons/{lessonId}/questions/upload?langId={guid}&hasHeaderRow=true`.
 
 `multipart/form-data` with a `file` field. **`langId` is required** — it says which of the
 lesson's question sets this sheet publishes. On success:
@@ -359,7 +398,10 @@ touches the Arabic set or its version.
 On failure, `400` with the same shape, `succeeded: false`, and `errors[]` of
 `{ row, message }` — including a missing or unknown `langId`.
 
-### `POST /api/admin/lessons/{lessonId}/questions/manual?langId={guid}` — Admin / SuperAdmin
+### `POST …/questions/manual` — **closed at cutover**
+
+> `410 Gone`. Questions are written on the lesson's own board in the Studio. The original route
+> was `POST /api/admin/lessons/{lessonId}/questions/manual?langId={guid}`.
 
 Publishes questions **typed by hand**, for content that arrives as a handful of questions rather
 than a spreadsheet. Same tables, same versioning, same validation; only the input differs.
@@ -395,7 +437,7 @@ problem with the request as a whole.
 The recovery mirror is `POST /api/admin/lessons/{lessonId}/recovery-questions/manual?langId={guid}`,
 identical in every respect and on its own version counter.
 
-### `GET /api/admin/lessons/{lessonId}/questions?langId={guid}` — Admin / SuperAdmin
+### `GET /api/admin/lessons/{lessonId}/questions?langId={guid}` — Admin / SuperAdmin · **still open**
 
 The active set in a **named** language, for loading into an editor before republishing it. Same
 response body as the player-facing read below.
@@ -407,15 +449,17 @@ Arabic one. Upload has always taken an explicit `langId` for the same reason. Th
 
 ### Which authoring path to use
 
-|  | Excel upload | Hand entry |
-|---|---|---|
-| Good for | a delivered sheet, bulk content | a few questions, a correction, a typo |
-| Can add to the current set | no — always replaces | yes, with `APPEND` |
-| Can edit or delete one question | only by re-uploading the whole sheet | yes, with `REPLACE` |
-| Recorded as | `Source = EXCEL_UPLOAD`, with the file name | `Source = MANUAL_ENTRY`, no file name |
+**There is one, and it is the Content Studio.** That is the whole point of cutover: while two
+existed, only one of them put a second person between a change and a child, and the other one was
+still open.
 
-Both write to the same tables and both bump the same counter — a lesson's history can freely mix
-the two, and `LessonQuestionUploads.Source` is what says which produced any given version.
+Inside the Studio a lesson is worked on one board, and a sheet and hand entry are two ways into the
+same draft rather than two paths — the draft is what gets reviewed, whichever way it was filled in.
+Nothing is published until somebody other than its author approves it and a Lead releases it.
+
+Underneath, both still write through the one publisher and both still record their origin:
+`LessonQuestionUploads.Source` is `EXCEL_UPLOAD` with the file name, or `MANUAL_ENTRY` without one,
+and a lesson's history can freely mix the two.
 
 ### `GET /api/lessons/{lessonId}/questions/version` — authenticated
 
@@ -483,21 +527,23 @@ The one thing to hold onto: **the two versions move independently.** A recovery 
 the recovery version and leaves the main set alone, so a client caching both keeps two version
 numbers per lesson and re-downloads only the one that changed.
 
-## Not built yet
+## What was missing here, and where it went
 
-- **Rename and move.** Create, read and delete exist; there is no way to rename a node, edit one
-  of its translations, or move it to a different parent yet.
-- **Reordering.** `Order` is set at create time and there is no endpoint to change it
-  afterwards. Because the unique `(ParentId, Order)` index forbids duplicates, a future reorder
-  has to shuffle through a temporary value rather than swapping directly.
-- **Creating and deleting grades.** The 14 seeded grades are fixed; there is no endpoint to add
-  or remove one.
-- **The admin HTML page** (cascading dropdowns + file picker + a language picker for uploads).
-- **A missing-translation report.** Nothing surfaces nodes lacking a name in some language, or
-  lessons with no question sheet in some language — both show up only as an empty `name` or
-  `hasQuestions: false` at read time. Worth having, especially since the progress module treats
-  a lesson that is unplayable in a student's language as satisfied for unlock purposes.
-- **`recoveryQuestions` trigger logic.** The pool itself is built — tables, upload endpoint,
-  read endpoints and an admin tab, all cloned from the main pool. What is still undefined is
-  *when* the game should serve a recovery question, which remains a content-team decision as
-  noted in `Architecture.md`. Nothing in the backend assumes an answer to it.
+Everything this section used to list as absent was built between the engine rebuild and cutover.
+Left as a list rather than deleted, because knowing *which* gaps drove the rebuild explains why it
+took the shape it did.
+
+- **Rename, move and reorder.** Built in Phase 2 (`ICurriculumStructureService`). A reorder writes
+  the typed rows in two phases so a permutation never collides with its own unique index.
+- **Creating and deleting grades.** Still deliberately absent. Grade ids are on student profiles
+  and gate game modes and worlds; the 14 are fixed.
+- **The admin HTML page.** Superseded. The whole authoring surface is the Studio.
+- **A missing-translation report.** Built. The Studio will not let a lesson be released without
+  every language a language is `RequiredToPublish` in, and the Curriculum board shows where a name
+  or a question set is missing before anybody opens the lesson.
+- **`recoveryQuestions` trigger logic.** Answered in Phase 5, as a content-team decision rather
+  than a backend assumption: a recovery rule is authored in the Studio at a grade, subject or
+  lesson — after how many wrong answers, and how many questions to serve — proposed as a draft,
+  approved by somebody else and released. The game reads it from the **opt-in** endpoint
+  `GET /api/recovery/lessons/{nodeId}`; the current build does not call it, and its behaviour is
+  unchanged until one does.

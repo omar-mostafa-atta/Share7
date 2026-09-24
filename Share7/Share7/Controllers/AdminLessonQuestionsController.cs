@@ -1,11 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Share7.API.Authorization;
 using Share7.API.RateLimiting;
 using Share7.Application.Common.Interfaces;
 using Share7.Application.Curriculum.Interfaces;
 using Share7.Application.Curriculum.Models;
-using Share7.Domain.Constants;
 
 namespace Share7.API.Controllers;
 
@@ -15,7 +15,7 @@ namespace Share7.API.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/admin/lessons")]
-[Authorize(Roles = $"{Roles.Admin},{Roles.SuperAdmin}")]
+[Authorize(Policy = Policies.ContentAuthoring)]
 public class AdminLessonQuestionsController : ControllerBase
 {
     private const long MaxUploadBytes = 10 * 1024 * 1024;
@@ -48,6 +48,7 @@ public class AdminLessonQuestionsController : ControllerBase
     /// </para>
     /// </summary>
     [HttpPost("{lessonId:guid}/questions/upload")]
+    [ClosedAtCutover("Uploading a lesson's questions", Now = "the lesson's own board")]
     [RequestSizeLimit(MaxUploadBytes)]
     [EnableRateLimiting(RateLimitPolicies.Writes)]
     public async Task<IActionResult> UploadQuestions(
@@ -113,6 +114,7 @@ public class AdminLessonQuestionsController : ControllerBase
     /// </para>
     /// </summary>
     [HttpPost("{lessonId:guid}/questions/manual")]
+    [ClosedAtCutover("Writing a lesson's questions", Now = "the lesson's own board")]
     [EnableRateLimiting(RateLimitPolicies.Writes)]
     public async Task<IActionResult> PublishQuestionsManually(
         Guid lessonId,

@@ -1,8 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using Share7.Application.Admin.Interfaces;
 using Share7.Application.Admin.Models;
+using Share7.Domain.Competency;
 using Share7.Domain.Constants;
+using Share7.Domain.Content;
 using Share7.Domain.Curriculum;
+using Share7.Domain.Structure;
+using Share7.Infrastructure.Content;
 using Share7.Infrastructure.Persistence;
 
 namespace Share7.Infrastructure.Seeding;
@@ -27,6 +31,10 @@ internal sealed class CurriculumSeeder
 {
     private readonly ApplicationDbContext _db;
     private readonly ContentSeedOptions _options;
+
+    private HashSet<Guid> _existingItemIds = [];
+    private HashSet<Guid> _existingTargetIds = [];
+    private Dictionary<(Guid LessonId, Guid LangId), string> _lessonNames = [];
 
     public CurriculumSeeder(ApplicationDbContext db, ContentSeedOptions options)
     {
@@ -227,6 +235,15 @@ internal sealed class CurriculumSeeder
         var haveRecovery = (await _db.LessonRecoveryQuestionSets.Select(s => new { s.LessonId, s.LangId }).ToListAsync(ct))
             .Select(s => (s.LessonId, s.LangId)).ToHashSet();
 
+        // Item identity is written once per lesson rather than once per language, because that is
+        // what an item is: the question, not the rendering. These sets make the pass re-runnable —
+        // the ids are derived from the seed's own vocabulary, so a second run recognises its own
+        // rows instead of inserting a second copy.
+        _existingItemIds = (await _db.Items.Select(i => i.Id).ToListAsync(ct)).ToHashSet();
+        _existingTargetIds = (await _db.LearningTargets.Select(t => t.Id).ToListAsync(ct)).ToHashSet();
+        _lessonNames = (await _db.LessonTranslations.Select(t => new { t.LessonId, t.LangId, t.Name }).ToListAsync(ct))
+            .ToDictionary(t => (t.LessonId, t.LangId), t => t.Name);
+
         _db.ChangeTracker.Clear();
         var autoDetect = _db.ChangeTracker.AutoDetectChangesEnabled;
         _db.ChangeTracker.AutoDetectChangesEnabled = false;
@@ -238,6 +255,12 @@ internal sealed class CurriculumSeeder
 
             foreach (var site in sites)
             {
+                if (_options.QuestionsPerLesson > 0
+                    && Languages.Any(l => !haveMain.Contains((site.LessonId, l.Id))))
+                {
+                    pending += WriteItemIdentity(site, now);
+                }
+
                 foreach (var (langId, isArabic) in Languages)
                 {
                     if (_options.QuestionsPerLesson > 0 && !haveMain.Contains((site.LessonId, langId)))
@@ -270,6 +293,108 @@ internal sealed class CurriculumSeeder
         }
     }
 
+    /// <summary>
+    /// Mints the item identity for one lesson: an <see cref="Item"/> per sheet row, one immutable
+    /// <see cref="ItemVersion"/>, its place at the node, and the placeholder learning target the
+    /// item is about.
+    /// <para>
+    /// **Once per lesson, not once per language.** The English and Arabic questions are two
+    /// renderings of one item and must share its identity — writing this inside the language loop
+    /// would recreate exactly the fault the item layer exists to fix.
+    /// </para>
+    /// <para>
+    /// The ids are derived with <see cref="SeedId"/> rather than through
+    /// <c>IItemIdentityMinter</c>, which is how the importer does it: the seeder clears its change
+    /// tracker between batches, so cached entity references would not survive, and the seed has to
+    /// be re-runnable and identical across environments regardless.
+    /// </para>
+    /// </summary>
+    private int WriteItemIdentity(LessonSite site, DateTime now)
+    {
+        var written = 0;
+        var targetId = SeedId.For("target", site.Path);
+
+        if (_existingTargetIds.Add(targetId))
+        {
+            _db.LearningTargets.Add(new LearningTarget
+            {
+                Id = targetId,
+                FrameworkId = EducationIds.PlaceholderFramework,
+                TargetKey = ItemIdentityMinter.PlaceholderTargetKeyFor(site.LessonId),
+                TargetKindKey = TargetKinds.LessonPlaceholder,
+                IsPlaceholder = true,
+                ReviewState = TargetReviewState.Unreviewed,
+                CreatedAtUtc = now
+            });
+            written++;
+
+            // The statement is the lesson's own name. Honest about what this is: a lesson typed as
+            // a target, not a claim a specialist wrote.
+            foreach (var (langId, _) in Languages)
+            {
+                if (!_lessonNames.TryGetValue((site.LessonId, langId), out var name)) continue;
+
+                _db.LearningTargetTranslations.Add(new LearningTargetTranslation
+                {
+                    TargetId = targetId,
+                    LangId = langId,
+                    Statement = name
+                });
+                written++;
+            }
+        }
+
+        for (var i = 0; i < _options.QuestionsPerLesson; i++)
+        {
+            var itemId = SeedId.For("item", site.Path, i.ToString());
+            if (!_existingItemIds.Add(itemId)) continue;
+
+            _db.Items.Add(new Item
+            {
+                Id = itemId,
+                ItemBankId = ContentIds.PlatformCurriculumBank,
+                SourceKey = ItemIdentityMinter.SourceKeyFor(site.LessonId, NodeItemRole.Core, i + 1),
+                IsAnchor = false,
+                CreatedAtUtc = now
+            });
+
+            _db.ItemVersions.Add(new ItemVersion
+            {
+                Id = SeedId.For("itemversion", site.Path, i.ToString(), "1"),
+                ItemId = itemId,
+                VersionNumber = 1,
+                ItemKindKey = ItemKinds.SingleChoice,
+                PsychometricContinuity = false,
+                CreatedAtUtc = now
+            });
+
+            _db.NodeItemMappings.Add(new NodeItemMapping
+            {
+                Id = SeedId.For("nodeitem", site.Path, i.ToString()),
+                CurriculumVersionId = EducationIds.EgyptianNationalAsMigrated,
+                NodeId = site.LessonId,
+                ItemId = itemId,
+                Role = NodeItemRole.Core,
+                Order = i + 1,
+                CreatedAtUtc = now
+            });
+
+            _db.ItemTargetMappings.Add(new ItemTargetMapping
+            {
+                Id = SeedId.For("itemtarget", site.Path, i.ToString()),
+                ItemId = itemId,
+                TargetId = targetId,
+                Emphasis = 1.0m,
+                IsPrimary = true,
+                CreatedAtUtc = now
+            });
+
+            written += 4;
+        }
+
+        return written;
+    }
+
     private int WriteMain(LessonSite site, Guid langId, bool isArabic, DateTime now, ContentSeedReport report)
     {
         var written = 0;
@@ -293,6 +418,7 @@ internal sealed class CurriculumSeeder
             _db.Questions.Add(new Question
             {
                 Id = questionId,
+                ItemVersionId = SeedId.For("itemversion", site.Path, i.ToString(), "1"),
                 LessonId = site.LessonId,
                 LangId = langId,
                 Text = generated.Text,
