@@ -243,6 +243,7 @@ public static class DependencyInjection
         services.AddScoped<IReviewService, ReviewService>();
         services.AddScoped<IReleaseService, ReleaseService>();
         services.AddScoped<IStudioCurriculumService, StudioCurriculumService>();
+        services.AddScoped<IStudioCurriculaService, StudioCurriculaService>();
         services.AddScoped<IStudioImportService, StudioImportService>();
         services.AddScoped<IStudioInboxService, StudioInboxService>();
         services.AddHostedService<ReleaseScheduler>();

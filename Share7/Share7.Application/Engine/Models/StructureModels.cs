@@ -9,6 +9,12 @@ public static class NodeKinds
     public const string Chapter = "chapter";
     public const string Lesson = "lesson";
 
+    /// <summary>
+    /// The one node every curriculum declared in the Studio hangs from, carrying its name. The
+    /// Egyptian tree has none — its grades are its top — so nothing that reads it changes.
+    /// </summary>
+    public const string CurriculumRoot = "curriculum";
+
     /// <summary>The kind a node of <paramref name="kind"/> must sit under, or null for a grade.</summary>
     public static string? ParentOf(string kind) => kind switch
     {
@@ -92,4 +98,59 @@ public sealed record StructureChangeDto
 
     /// <summary>Whether students' unlocks are being brought in line with the new shape (see UnlockRepair).</summary>
     public bool UnlocksQueued { get; init; }
+}
+
+/// <summary>One level a curriculum declares: its key, where it sits, whether it is played, and what it is called.</summary>
+public sealed record CurriculumLevel(
+    Guid KindId,
+    string Key,
+    int Depth,
+    string? ParentKey,
+    bool IsPlayable,
+    IReadOnlyList<NodeTitle> Names);
+
+/// <summary>
+/// A curriculum's levels, read from its version's <c>CurriculumNodeKinds</c> rather than assumed.
+/// <para>
+/// **Every structural rule asks this, not <see cref="NodeKinds"/>.** Egypt's five levels are data
+/// too — seeded, with the same parent chain the static helpers spell out — so the served curriculum
+/// answers every question exactly as before. What differs is decided by <see cref="IsServed"/>:
+/// the curriculum the game serves keeps its fourteen fixed grades and its legacy compatibility
+/// copy; one declared in the Studio has neither, because nothing may reach a student from it.
+/// </para>
+/// </summary>
+public sealed record CurriculumShape
+{
+    public required Guid VersionId { get; init; }
+    public required Guid CurriculumId { get; init; }
+
+    /// <summary>Whether the game serves this curriculum. Today exactly one does: the Egyptian national tree.</summary>
+    public required bool IsServed { get; init; }
+
+    /// <summary>In depth order, the curriculum's own root first when it has one.</summary>
+    public required IReadOnlyList<CurriculumLevel> Levels { get; init; }
+
+    public CurriculumLevel? Level(string key) => Levels.FirstOrDefault(l => l.Key == key);
+
+    public bool Knows(string key) => Level(key) is not null;
+
+    /// <summary>The level a node of <paramref name="key"/> must sit under, or null at the top.</summary>
+    public string? ParentOf(string key) => Level(key)?.ParentKey;
+
+    /// <summary>The level that goes under <paramref name="key"/>, or null for the played level.</summary>
+    public string? ChildOf(string key) => Levels.FirstOrDefault(l => l.ParentKey == key)?.Key;
+
+    public bool IsPlayable(string key) => Level(key)?.IsPlayable ?? false;
+
+    /// <summary>
+    /// Whether nodes of this level can be added, renamed, moved, reordered, retired and restored.
+    /// The served curriculum answers as it always has (its grades are fixed); anywhere else every
+    /// declared level can, except the root that carries the curriculum's own name.
+    /// </summary>
+    public bool CanEdit(string key) =>
+        IsServed ? NodeKinds.IsEditable(key) : Knows(key) && key != NodeKinds.CurriculumRoot;
+
+    /// <summary>Whether a parent of this level may have its children put in a new order.</summary>
+    public bool CanReorderUnder(string key) =>
+        CanEdit(key) || (IsServed ? key == NodeKinds.Grade : key == NodeKinds.CurriculumRoot);
 }

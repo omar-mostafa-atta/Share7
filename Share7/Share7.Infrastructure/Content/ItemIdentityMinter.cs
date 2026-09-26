@@ -5,6 +5,7 @@ using Share7.Domain.Constants;
 using Share7.Domain.Content;
 using Share7.Domain.Structure;
 using Share7.Infrastructure.Persistence;
+using Share7.Infrastructure.Structure;
 
 namespace Share7.Infrastructure.Content;
 
@@ -22,6 +23,7 @@ public class ItemIdentityMinter : IItemIdentityMinter
     private readonly Dictionary<string, Item> _itemsBySourceKey = [];
     private readonly Dictionary<(Guid ItemId, int Version), ItemVersion> _versions = [];
     private readonly Dictionary<Guid, LearningTarget> _targetsByLesson = [];
+    private readonly Dictionary<Guid, Guid> _versionOfNode = [];
 
     public ItemIdentityMinter(ApplicationDbContext dbContext) => _dbContext = dbContext;
 
@@ -245,10 +247,17 @@ public class ItemIdentityMinter : IItemIdentityMinter
         // The statement is the lesson's own name, in each language the lesson has one. That is
         // honest about what the target is: it is the lesson, typed as a target, and the wording
         // should not pretend a specialist wrote it.
-        var titles = await _dbContext.LessonTranslations
-            .Where(t => t.LessonId == lessonId)
-            .Select(t => new { t.LangId, t.Name })
-            .ToListAsync(cancellationToken);
+        var versionId = await VersionOfAsync(lessonId, cancellationToken);
+
+        var titles = CurriculumShapes.IsServed(versionId)
+            ? await _dbContext.LessonTranslations
+                .Where(t => t.LessonId == lessonId)
+                .Select(t => new { t.LangId, t.Name })
+                .ToListAsync(cancellationToken)
+            : await _dbContext.CurriculumNodeTranslations
+                .Where(t => t.NodeId == lessonId)
+                .Select(t => new { t.LangId, Name = t.Title })
+                .ToListAsync(cancellationToken);
 
         foreach (var title in titles)
         {
@@ -291,7 +300,7 @@ public class ItemIdentityMinter : IItemIdentityMinter
         _dbContext.NodeTargetMappings.Add(new NodeTargetMapping
         {
             Id = Guid.NewGuid(),
-            CurriculumVersionId = EducationIds.EgyptianNationalAsMigrated,
+            CurriculumVersionId = await VersionOfAsync(lessonId, cancellationToken),
 
             // The lesson's own id. Node ids are preserved from the legacy tree, so this resolves
             // whether the reader walks the typed tables or the node projection.
@@ -299,6 +308,23 @@ public class ItemIdentityMinter : IItemIdentityMinter
             TargetId = targetId,
             CreatedAtUtc = nowUtc
         });
+    }
+
+    /// <summary>
+    /// The curriculum version a node belongs to. The Egyptian tree's for anything not (yet) a node —
+    /// the importers' paths, which have only ever written there.
+    /// </summary>
+    private async Task<Guid> VersionOfAsync(Guid nodeId, CancellationToken cancellationToken)
+    {
+        if (_versionOfNode.TryGetValue(nodeId, out var cached))
+            return cached;
+
+        var version = await _dbContext.CurriculumNodes
+            .Where(n => n.Id == nodeId)
+            .Select(n => (Guid?)n.CurriculumVersionId)
+            .FirstOrDefaultAsync(cancellationToken) ?? EducationIds.EgyptianNationalAsMigrated;
+
+        return _versionOfNode[nodeId] = version;
     }
 
     /// <summary>

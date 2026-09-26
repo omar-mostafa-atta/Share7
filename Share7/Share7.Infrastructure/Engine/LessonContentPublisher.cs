@@ -11,6 +11,7 @@ using Share7.Domain.Curriculum;
 using Share7.Domain.Structure;
 using Share7.Infrastructure.Content;
 using Share7.Infrastructure.Persistence;
+using Share7.Infrastructure.Structure;
 
 namespace Share7.Infrastructure.Engine;
 
@@ -48,12 +49,18 @@ public sealed class LessonContentPublisher : ILessonContentPublisher
     {
         var lessonId = request.LessonId;
 
-        var lessonIsLive = await _db.CurriculumNodes.AnyAsync(
-            n => n.Id == lessonId && n.KindKey == NodeKinds.Lesson && n.RetiredAtUtc == null, cancellationToken);
+        // Any node at its curriculum's played level. Which curriculum decides where the words go:
+        // the game's own Questions for the one it serves, NodeItemRenderings for any other.
+        var target = await _db.CurriculumNodes.AsNoTracking()
+            .Where(n => n.Id == lessonId && n.IsPlayable && n.RetiredAtUtc == null)
+            .Select(n => new { n.CurriculumVersionId })
+            .FirstOrDefaultAsync(cancellationToken);
 
-        if (!lessonIsLive)
+        if (target is null)
             return ServiceResult<ContentPublishOutcome>.Failure(
                 EngineErrors.NodeNotFound, ServiceErrorKind.NotFound, "Lesson not found.");
+
+        var served = CurriculumShapes.IsServed(target.CurriculumVersionId);
 
         var covers = request.Covers.Distinct().ToList();
         if (covers.Count == 0)
@@ -131,23 +138,28 @@ public sealed class LessonContentPublisher : ILessonContentPublisher
         }
 
         // ── write ────────────────────────────────────────────────────────────────────────
-        await RetireRowsAsync(plan.Retired, now, cancellationToken);
-        await RepositionAsync(plan.Kept.Where(k => k.RowNumber != k.Row.RowNumber).ToList(), cancellationToken);
+        await RetireRowsAsync(plan.Retired, served, now, cancellationToken);
+        await RepositionAsync(plan.Kept.Where(k => k.RowNumber != k.Row.RowNumber).ToList(), served, cancellationToken);
 
         var itemIds = await MintItemsAsync(lessonId, plan, now, cancellationToken);
         var versionIds = await MintVersionsAsync(plan, itemIds, now, cancellationToken);
 
         foreach (var row in plan.New)
-            AddRendering(lessonId, row, itemIds[row.ItemKey], versionIds[row.ItemKey], newVersions[new(row.Role, row.LangId)], now);
+            AddRendering(lessonId, served, row, itemIds[row.ItemKey], versionIds[row.ItemKey], newVersions[new(row.Role, row.LangId)], now);
 
         await RetireOrphanedVersionsAsync(plan, now, cancellationToken);
-        await UpdateMappingsAsync(lessonId, plan, itemIds, now, cancellationToken);
+        await UpdateMappingsAsync(lessonId, target.CurriculumVersionId, served, plan, itemIds, now, cancellationToken);
 
-        var legacyMain = await _db.LessonQuestionSets.Where(s => s.LessonId == lessonId).ToListAsync(cancellationToken);
-        var legacyRecovery = await _db.LessonRecoveryQuestionSets.Where(s => s.LessonId == lessonId).ToListAsync(cancellationToken);
+        // The legacy set tables are keyed to legacy lessons; a node of any other curriculum has none.
+        var legacyMain = served
+            ? await _db.LessonQuestionSets.Where(s => s.LessonId == lessonId).ToListAsync(cancellationToken)
+            : [];
+        var legacyRecovery = served
+            ? await _db.LessonRecoveryQuestionSets.Where(s => s.LessonId == lessonId).ToListAsync(cancellationToken)
+            : [];
 
         foreach (var outcome in outcomes.Where(o => o.Changed))
-            RecordSet(lessonId, outcome, sets, legacyMain, legacyRecovery, request, now);
+            RecordSet(lessonId, served, outcome, sets, legacyMain, legacyRecovery, request, now);
 
         _audit.Record(new AuditEntry(
             AuditActions.QuestionsPublished,
@@ -340,11 +352,21 @@ public sealed class LessonContentPublisher : ILessonContentPublisher
     }
 
     /// <summary>Retired, never deleted: progress and evidence name these rows. Both tables of the recovery pool.</summary>
-    private async Task RetireRowsAsync(List<LessonContentReader.ActiveRow> rows, DateTime now, CancellationToken cancellationToken)
+    private async Task RetireRowsAsync(
+        List<LessonContentReader.ActiveRow> rows, bool served, DateTime now, CancellationToken cancellationToken)
     {
         if (rows.Count == 0) return;
 
         var ids = rows.Select(r => r.Id).ToList();
+
+        if (!served)
+        {
+            await _db.NodeItemRenderings
+                .Where(r => ids.Contains(r.Id))
+                .ExecuteUpdateAsync(s => s.SetProperty(r => r.IsActive, false).SetProperty(r => r.DeactivatedAtUtc, now),
+                    cancellationToken);
+            return;
+        }
 
         await _db.Set<Question>().IgnoreQueryFilters()
             .Where(q => ids.Contains(q.Id))
@@ -365,10 +387,18 @@ public sealed class LessonContentPublisher : ILessonContentPublisher
     /// A kept row that moved position. Its content is untouched — only the order it is served in —
     /// so it keeps its id and is updated in place.
     /// </summary>
-    private async Task RepositionAsync(List<KeptRow> moved, CancellationToken cancellationToken)
+    private async Task RepositionAsync(List<KeptRow> moved, bool served, CancellationToken cancellationToken)
     {
         foreach (var kept in moved)
         {
+            if (!served)
+            {
+                await _db.NodeItemRenderings
+                    .Where(r => r.Id == kept.Row.Id)
+                    .ExecuteUpdateAsync(s => s.SetProperty(r => r.RowNumber, kept.RowNumber), cancellationToken);
+                continue;
+            }
+
             await _db.Set<Question>().IgnoreQueryFilters()
                 .Where(q => q.Id == kept.Row.Id)
                 .ExecuteUpdateAsync(s => s.SetProperty(q => q.RowNumber, kept.RowNumber), cancellationToken);
@@ -463,8 +493,31 @@ public sealed class LessonContentPublisher : ILessonContentPublisher
         return versionIds;
     }
 
-    private void AddRendering(Guid lessonId, NewRow row, Guid itemId, Guid itemVersionId, int setVersion, DateTime now)
+    private void AddRendering(Guid lessonId, bool served, NewRow row, Guid itemId, Guid itemVersionId, int setVersion, DateTime now)
     {
+        if (!served)
+        {
+            // The same row, keyed to the node: never a Questions row, so never anything the game reads.
+            _db.NodeItemRenderings.Add(new NodeItemRendering
+            {
+                Id = row.QuestionId,
+                NodeId = lessonId,
+                ItemVersionId = itemVersionId,
+                Role = row.Role,
+                LangId = row.LangId,
+                Text = row.Text,
+                CorrectChoiceId = row.CorrectChoiceId,
+                Version = setVersion,
+                IsActive = true,
+                RowNumber = row.RowNumber,
+                CreatedAtUtc = now,
+                Choices = row.Choices
+                    .Select((c, index) => new NodeItemRenderingChoice { Id = c.Id, RenderingId = row.QuestionId, Text = c.Text, OrderIndex = index })
+                    .ToList()
+            });
+            return;
+        }
+
         var question = new Question
         {
             Id = row.QuestionId,
@@ -520,11 +573,17 @@ public sealed class LessonContentPublisher : ILessonContentPublisher
         if (candidates.Count == 0) return;
 
         // Other lessons' rows are not in the plan; a version shared outside this lesson stays live.
-        var elsewhere = await _db.ItemLocalizations
-            .Where(q => q.IsActive && candidates.Contains(q.ItemVersionId))
-            .Select(q => q.ItemVersionId)
-            .Distinct()
-            .ToListAsync(cancellationToken);
+        var elsewhere = (await _db.ItemLocalizations
+                .Where(q => q.IsActive && candidates.Contains(q.ItemVersionId))
+                .Select(q => q.ItemVersionId)
+                .Distinct()
+                .ToListAsync(cancellationToken))
+            .Concat(await _db.NodeItemRenderings
+                .Where(r => r.IsActive && candidates.Contains(r.ItemVersionId))
+                .Select(r => r.ItemVersionId)
+                .Distinct()
+                .ToListAsync(cancellationToken))
+            .ToHashSet();
 
         var retire = candidates.Except(elsewhere).ToList();
         if (retire.Count == 0) return;
@@ -542,7 +601,8 @@ public sealed class LessonContentPublisher : ILessonContentPublisher
     /// has always done — recovery items never are.
     /// </summary>
     private async Task UpdateMappingsAsync(
-        Guid lessonId, PublishPlan plan, Dictionary<Guid, Guid> itemIds, DateTime now, CancellationToken cancellationToken)
+        Guid lessonId, Guid versionId, bool isServed, PublishPlan plan, Dictionary<Guid, Guid> itemIds, DateTime now,
+        CancellationToken cancellationToken)
     {
         var served = plan.New.Select(n => (ItemId: itemIds[n.ItemKey], n.Role))
             .Concat(plan.Kept.Select(k => (k.Row.ItemId, k.Row.Role)))
@@ -572,7 +632,7 @@ public sealed class LessonContentPublisher : ILessonContentPublisher
                 _db.NodeItemMappings.Add(new NodeItemMapping
                 {
                     Id = Guid.NewGuid(),
-                    CurriculumVersionId = Domain.Constants.EducationIds.EgyptianNationalAsMigrated,
+                    CurriculumVersionId = versionId,
                     NodeId = lessonId,
                     ItemId = itemId,
                     Role = role,
@@ -588,13 +648,21 @@ public sealed class LessonContentPublisher : ILessonContentPublisher
         }
 
         // Anything the lesson still serves in another pool or language keeps its mapping there.
-        var stillActive = (await _db.ItemLocalizations
-                .Where(q => q.LessonId == lessonId && q.IsActive && touched.Contains(q.ItemVersion!.ItemId))
-                .Select(q => new { q.ItemVersion!.ItemId, q.Role })
-                .Distinct()
-                .ToListAsync(cancellationToken))
-            .Select(x => (x.ItemId, x.Role))
-            .ToHashSet();
+        var stillActive = isServed
+            ? (await _db.ItemLocalizations
+                    .Where(q => q.LessonId == lessonId && q.IsActive && touched.Contains(q.ItemVersion!.ItemId))
+                    .Select(q => new { q.ItemVersion!.ItemId, q.Role })
+                    .Distinct()
+                    .ToListAsync(cancellationToken))
+                .Select(x => (x.ItemId, x.Role))
+                .ToHashSet()
+            : (await _db.NodeItemRenderings
+                    .Where(r => r.NodeId == lessonId && r.IsActive && touched.Contains(r.ItemVersion!.ItemId))
+                    .Select(r => new { r.ItemVersion!.ItemId, r.Role })
+                    .Distinct()
+                    .ToListAsync(cancellationToken))
+                .Select(x => (x.ItemId, x.Role))
+                .ToHashSet();
 
         foreach (var mapping in mappings.Where(m => m.RemovedAtUtc == null))
         {
@@ -620,6 +688,7 @@ public sealed class LessonContentPublisher : ILessonContentPublisher
     /// <summary>The set's new version, its history row, and both compatibility copies of each.</summary>
     private void RecordSet(
         Guid lessonId,
+        bool served,
         ContentSetOutcome outcome,
         List<PublishedItemSet> sets,
         List<LessonQuestionSet> legacyMain,
@@ -656,6 +725,11 @@ public sealed class LessonContentPublisher : ILessonContentPublisher
             PublishedAtUtc = now,
             ReleaseId = request.ReleaseId
         });
+
+        // The legacy set and upload rows are the game's version protocol for legacy lessons. A node
+        // of a curriculum the game does not serve has no legacy lesson, and must not get one.
+        if (!served)
+            return;
 
         if (outcome.Role == NodeItemRole.Core)
         {
@@ -716,7 +790,13 @@ public sealed class LessonContentPublisher : ILessonContentPublisher
             .Distinct()
             .ToListAsync(cancellationToken);
 
-        return [.. mapped, .. rendered];
+        var renderedElsewhere = await _db.NodeItemRenderings
+            .Where(r => r.NodeId == lessonId)
+            .Select(r => r.ItemVersion!.ItemId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        return [.. mapped, .. rendered, .. renderedElsewhere];
     }
 
     private static ServiceResult<ContentPublishOutcome> Invalid(IReadOnlyList<ContentProblem> problems) =>

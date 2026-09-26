@@ -42,6 +42,58 @@
 
 .alone-ledge {
   justify-content: center;
+  gap: var(--s3);
+}
+
+/* The fields of a standing-alone board, at the rhythm the column itself keeps —
+   the activation form is one element inside the column now rather than being
+   the column, so that the journey above it survives the step advancing. */
+.alone-fields {
+  display: grid;
+  gap: var(--s5);
+}
+
+/* ---------------------------------------------------------------------------
+   The loop, read once on the first morning
+   The four states a piece of work passes through, drawn with the same marks
+   that carry them on every row afterwards. Numbered, because the order is the
+   rule itself. Ruled, not boxed: one hairline between steps, and the number
+   column is the written lesson's own, so a new member has already met the
+   shape by the time they open a lesson.
+   --------------------------------------------------------------------------- */
+
+.loop {
+  display: grid;
+  list-style: none;
+  counter-reset: loop-step;
+}
+
+.loop > li {
+  display: grid;
+  grid-template-columns: 2.4rem minmax(0, 1fr);
+  align-items: baseline;
+  row-gap: var(--s2);
+  padding-block: var(--s4);
+  border-top: 1px solid var(--rule-soft);
+}
+
+.loop > li:first-child {
+  border-top: none;
+  padding-top: var(--s2);
+}
+
+.loop > li::before {
+  content: counter(loop-step) ".";
+  counter-increment: loop-step;
+  font-size: var(--t-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+
+.loop > li > .said {
+  grid-column: 2;
+  font-size: var(--t-sm);
+  max-inline-size: 58ch;
 }
 
 /* ---------------------------------------------------------------------------

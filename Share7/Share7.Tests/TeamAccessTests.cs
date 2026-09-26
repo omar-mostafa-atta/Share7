@@ -71,7 +71,7 @@ public abstract class StaffTestBase : IDisposable
             AllNodes: true, NodeIds: null, AllLanguages: true, LanguageIds: null, InterfaceLanguage: "en"));
 
         Assert.True(result.Succeeded, string.Join("; ", result.Errors));
-        return new Member(result.Value!.Member.UserId, result.Value.Member.Username, SecretOf(result.Value.SetupLink));
+        return new Member(result.Value!.Member.UserId, result.Value.Member.Username, SecretOf(result.Value.SetupLink!));
     }
 
     protected async Task<StudioSessionTokens> ActivateAsync(Member member, string password = Password)
@@ -159,7 +159,7 @@ public class TeamAccessTests : StaffTestBase
         var created = await scope.Get<ITeamAdminService>().CreateMemberAsync(new CreateTeamMemberRequest(
             "Karim Nabil", NewUsername(), "karim@example.test", null, StudioRole.Author, true, null, true, null, null));
 
-        var link = created.Value!.SetupLink;
+        var link = created.Value!.SetupLink!;
         Assert.True(link.IsAbsolute);
         Assert.StartsWith($"{StaffTestHost.StudioUrl}/activate#", link.Url);
         Assert.DoesNotContain("?", link.Url);

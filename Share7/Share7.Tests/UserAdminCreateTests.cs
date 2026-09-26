@@ -133,19 +133,22 @@ public class UserAdminCreateTests
     // -----------------------------------------------------------------------------------------
 
     [Fact]
-    public async Task An_admin_cannot_create_a_privileged_account()
+    public async Task An_admin_creates_an_admin_but_never_a_super_admin()
     {
         await using var context = _fixture.CreateContext();
         var service = await ServiceAsync(context);
+
+        // Every role but SuperAdmin is an Admin's to give (decided 2026-09-26).
+        var admin = await service.CreateUserAsync(Request(NewUsername(), Roles.Admin), actorIsSuperAdmin: false);
+        Assert.True(admin.Succeeded);
+
+        // A SuperAdmin they could mint is a SuperAdmin they could sign in as.
         var username = NewUsername();
-
-        var admin = await service.CreateUserAsync(Request(username, Roles.Admin), actorIsSuperAdmin: false);
         var superAdmin = await service.CreateUserAsync(Request(username, Roles.SuperAdmin), actorIsSuperAdmin: false);
-
-        Assert.Equal(ServiceErrorKind.Forbidden, admin.ErrorKind);
         Assert.Equal(ServiceErrorKind.Forbidden, superAdmin.ErrorKind);
 
         await using var check = _fixture.CreateContext();
+        Assert.Equal([Roles.Admin], await RolesOfAsync(check, admin.Value!.UserId));
         Assert.False(await check.Users.AnyAsync(u => u.UserName == username));
     }
 
@@ -184,9 +187,9 @@ public class UserAdminCreateTests
         await using var context = _fixture.CreateContext();
         var service = await ServiceAsync(context);
 
-        Assert.Equal([Roles.Student], service.GetAssignableRoles(actorIsSuperAdmin: false));
+        Assert.Equal([Roles.Student, Roles.ContentTeam, Roles.Admin], service.GetAssignableRoles(actorIsSuperAdmin: false));
         Assert.Equal(
-            [Roles.Student, Roles.Admin, Roles.SuperAdmin],
+            [Roles.Student, Roles.ContentTeam, Roles.Admin, Roles.SuperAdmin],
             service.GetAssignableRoles(actorIsSuperAdmin: true));
     }
 

@@ -27,6 +27,7 @@ builder.Services.AddControllers()
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
+    options.CustomSchemaIds(SchemaIds.For);
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Description = "JWT Authorization header using the Bearer scheme. Example: \"Bearer {token}\"",
@@ -69,8 +70,8 @@ app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
 
-// The Content Studio on its own host name, when this process serves it (Studio:Host). Before the
-// console's static files, so the Studio's host never serves the Admin Console. See StudioHosting.
+// The Content Studio at /studio, when it has been built into wwwroot-studio. Before the console's
+// static files and fallback, so /studio never answers with the Admin Console. See StudioHosting.
 app.UseStudioHosting();
 
 // `/` resolves to wwwroot/index.html — the console's SPA shell. Must precede UseStaticFiles.

@@ -39,6 +39,9 @@ public interface ITeamAdminService
     /// password is cleared (and 2-step too, if asked); for an Invited one it simply replaces the
     /// link they have not used.
     /// </summary>
+    /// <summary>Sets the member's password (decided 2026-09-26: admins set passwords, no links), signing them out everywhere.</summary>
+    Task<ServiceResult<TeamMemberDetailDto>> SetPasswordAsync(Guid userId, SetTeamMemberPasswordRequest request, CancellationToken cancellationToken = default);
+
     Task<ServiceResult<SetupLinkDto>> ResetAccessAsync(Guid userId, ResetTeamMemberAccessRequest request, CancellationToken cancellationToken = default);
 
     Task<ServiceResult> RevokeSetupLinkAsync(Guid userId, CancellationToken cancellationToken = default);

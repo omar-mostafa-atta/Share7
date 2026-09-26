@@ -113,6 +113,92 @@ test that signs a member in over HTTP and works a draft through the API.
 
 ## 7. Still open
 
-- The Team & Access screens and the Studio's own pages (UI, `impeccable`).
+- ~~The Team & Access screens~~ — built 26 Sep 2026, see §8. The Studio's own pages were built in
+  Phase 4.
 - **CI**, Facebook linking policy, and whether Google's audience check should fail closed — all three
   still need a decision.
+
+## 9. The admin sets the password; the Studio has one address (26 Sep 2026, later)
+
+**Decided by the product owner:** no setup link and no activation. Whoever creates a content-team
+member types their username **and password**, and the member signs in straight away. And the Studio
+has **one constant address** for every role, to hand to anybody in the content team.
+
+- `CreateTeamMemberRequest` takes a `Password`, held to the staff rules (`StaffPasswordPolicy`: at
+  least `MinimumPasswordLength`, 12 by default; upper, lower, digit; not the username; not a common
+  one). With it the member is created **Active**, with no link. The console always sends it. A request
+  without one still gets the old link, so nothing that relied on it broke.
+- `POST /api/admin/team/{id}/password` (SuperAdmin) sets a new password: signs the member out
+  everywhere, withdraws any link, and activates a member who never had one. Audited as
+  `team.member.password_set`. It replaces "Reset access" in the console.
+- **The Studio lives at `/studio`.** In production the API serves the built Studio there, on the same
+  site as the Admin Console (`StudioHosting`, `app.Map("/studio")`, before the console's fallback;
+  `Studio:Host` is gone). Locally the Vite dev server serves it at `http://localhost:5174/studio`
+  (`base: '/studio/'`, router `basename`, and a redirect from the bare port). Both dev servers now use
+  `strictPort`: the console had none, so a busy 5173 moved it onto 5174 and the Studio's address
+  opened the Admin Console's sign-in — the bug the product owner hit.
+- The Admin Console shows the address, username and password once after creating a member, and Team
+  & Access shows the address at the top. `Studio:PublicUrl` sets the address
+  (`http://localhost:5174/studio` in Development); when it is empty the console shows `/studio` on
+  its own site, which is where the API serves it.
+- **Trade-off, said plainly:** the Studio now shares an origin with the Admin Console, which the
+  separate host name had avoided. Its sign-in is unaffected — access token in memory, refresh token
+  in an HttpOnly cookie scoped to `/api/studio/auth`, Studio-audience tokens only.
+
+Proven by `AdminSetPasswordTests` (created with a password → Active, no link, signs in; weak
+passwords refused with nothing created; setting a password activates a never-activated member and
+withdraws their link; a new password ends every session and the old one stops working) and
+`AdminAccountsTests` (over HTTP: an Admin's member comes back Active with no link; an Admin cannot
+set a password afterwards). In the browser: an Admin created a Lead with a generated password, and
+that Lead signed in at `http://localhost:5174/studio` straight away; `/`, `/studio` and `/Studio` on
+the API answer with the console, the Studio and the Studio.
+
+## 8. Team & Access screens, and who creates accounts (26 Sep 2026)
+
+**Decided with the product owner on 26 Sep 2026:**
+
+1. **An Admin creates an account of every role but SuperAdmin** — Students and Admins on the Users
+   page (`POST /api/admin/users`), and content-team members, with their Studio role, scope and
+   one-time setup link (`POST /api/admin/team`). Only a SuperAdmin creates a SuperAdmin: one an
+   Admin could mint is one they could sign in as.
+2. **Creating is all an Admin does to the content team.** Everything after the account exists —
+   the team list, a member's record, changing their profile, role or scope, suspending, resetting,
+   closing, their sessions — and the audit log and staff security stay SuperAdmin-only. Deleting an
+   Admin stays SuperAdmin-only too.
+3. **Layout: one ledger.** A dense, searchable table of members; a row opens in place into that
+   member's full record. The audit log is the same ledger over what everybody did.
+
+**Server.** Two policies draw the line: `AddTeamMembers` (Admin, SuperAdmin) on a controller of its
+own, `AdminTeamAddController`, which holds only `POST /api/admin/team` and
+`GET /api/admin/team/scope-options`; and `ManageStaff` (SuperAdmin) on `AdminTeamController` and
+`AdminAuditController`, unchanged. Keeping the two actions in their own class means nothing else in
+Team & Access can be opened to Admins by a forgotten attribute. `GetAssignableRoles` offers an Admin
+`Student, ContentTeam, Admin` and a SuperAdmin those plus `SuperAdmin`; `CreateUserAsync` still
+refuses `ContentTeam`, which the console sends to the team endpoint.
+
+**Console (`Share7.Web`).**
+
+- **Users → Add a user**: the role comes first. Student and Admin get a username and password as
+  before; *Content team* turns the dialog into the member form — who they are, their Studio role,
+  what part of the curriculum and which languages — and it ends on the setup link, shown once.
+- **Team & Access** (`/team`, SuperAdmins only; the sidebar and command palette hide it from
+  anybody else, and the page sends them home): tabs *Team · Audit log · Security*. The team tab
+  counts members by state, lists pre-Studio content accounts to set up, and holds the ledger; a
+  member's record has their details, access, sign-in (2-step, devices, recent attempts, a pending
+  link), notes for other SuperAdmins, and *Reset access · Sign out everywhere · Suspend / Let them
+  back in · Close the account* (username retyped). The audit tab filters by person, area, action,
+  dates and text, opens a row into everything recorded, and exports the filtered trail as CSV.
+  Security holds the 2-step requirement (saying how many active members it would reach) and the
+  four lifetimes.
+- The member form (`features/team/MemberForm.tsx`) is one component used in all three places a
+  member is described — added from Users, added from Team & Access, a pre-Studio account set up —
+  so they cannot ask for different things.
+
+**Proven.** `Contracts/AdminAccountsTests.cs` signs a real Admin in over HTTP: offered every role
+but SuperAdmin; creates an Admin, refused a SuperAdmin; adds a content-team member and gets the
+link; refused (403) the team list, a member's record, suspend, reset, security and the audit log.
+`UserAdminCreateTests` follow the same line. In the browser, as an Admin: the dialog offers Student
+· Content team · Admin, a member was added with one subject in scope and got their link, Team &
+Access is absent from the sidebar and `/team` sends them home; the dialog was checked at phone
+width. **The SuperAdmin side of the page has not been exercised in a browser** — it needs a
+SuperAdmin sign-in.

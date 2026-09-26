@@ -67,11 +67,15 @@ public sealed class ReviewService : IReviewService
         }).ToList();
     }
 
-    /// <summary>Why this member may not review this draft, or null when they may.</summary>
-    private static string? WhyNot(StudioMember member, Draft draft, bool isContributor)
+    /// <summary>
+    /// Why this member may not review this draft, or null when they may. Authors' and reviewers' work
+    /// needs somebody else; a Lead's does not — they may approve what they wrote themselves, and each
+    /// time they do it is recorded as its own action.
+    /// </summary>
+    internal static string? WhyNot(StudioMember member, Draft draft, bool isContributor)
     {
         if (!member.IsAtLeast(StudioRole.Reviewer)) return "role";
-        if (isContributor) return "ownWork";
+        if (isContributor && !member.IsAtLeast(StudioRole.Lead)) return "ownWork";
         if (!draft.IsPractice && !member.CoversPath(draft.ScopePath)) return "node";
         if (member.LanguagesOutside(DraftService.ParseLanguages(draft.LanguagesTouched)).Count > 0) return "languages";
         return null;
@@ -172,9 +176,13 @@ public sealed class ReviewService : IReviewService
             member.UserId, draft.Id, nodeId: draft.NodeId);
 
         _audit.Record(new AuditEntry(
-            verdict == ReviewVerdict.Approved ? AuditActions.DraftApproved : AuditActions.DraftChangesRequested,
+            verdict != ReviewVerdict.Approved ? AuditActions.DraftChangesRequested
+                : isContributor ? AuditActions.DraftSelfApproved
+                : AuditActions.DraftApproved,
             AuditAreas.Workspace,
-            verdict == ReviewVerdict.Approved ? "Approved a draft." : "Sent a draft back with changes to make.",
+            verdict != ReviewVerdict.Approved ? "Sent a draft back with changes to make."
+                : isContributor ? "Approved their own draft, as a Lead."
+                : "Approved a draft.",
             "draft",
             draft.Id.ToString(),
             new { kind = draft.Kind.ToString(), nodeId = draft.NodeId, revision = draft.Revision }));

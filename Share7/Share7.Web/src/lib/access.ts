@@ -54,17 +54,19 @@ const ROLE_INFO: Record<RoleName, RoleInfo> = {
     label: 'Content team',
     tone: 'info',
     description:
-      'Works in the Content Studio, a separate application. Opens nothing here, and cannot sign in.',
+      'Works in the Content Studio, at its own address (/studio), and opens nothing here. You set their username and password.',
   },
   Admin: {
     label: 'Admin',
     tone: 'brand',
-    description: 'Opens the Admin Console: everything, except creating or removing other admins.',
+    description:
+      'Opens the Admin Console and creates accounts of every role but super admin. Cannot remove admins, or manage the content team once added.',
   },
   SuperAdmin: {
     label: 'Super admin',
     tone: 'danger',
-    description: 'Everything an admin can do, plus creating and removing admins.',
+    description:
+      'Everything an admin can do, plus super admins, removing admins, and Team & Access: the content team, the audit log and staff security.',
   },
 }
 
@@ -78,8 +80,15 @@ export function roleInfo(role: string): RoleInfo {
 // ---------------------------------------------------------------------------
 
 const PERMISSIONS = {
-  /** Open the Admin Console — every page in it. */
+  /** Open the Admin Console — every page in it but Team & Access. */
   'console.admin': [Role.Admin, Role.SuperAdmin],
+
+  /**
+   * Team & Access: the content team once it exists, the audit log, staff security. Adding a member
+   * is not this — an Admin may do that from Users (decided 2026-09-26) — and the server draws the
+   * same line (Policies.ManageStaff and Policies.AddTeamMembers).
+   */
+  'team.manage': [Role.SuperAdmin],
 } satisfies Record<string, readonly RoleName[]>
 
 export type Permission = keyof typeof PERMISSIONS

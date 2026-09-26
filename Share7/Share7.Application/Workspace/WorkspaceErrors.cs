@@ -74,4 +74,21 @@ public static class WorkspaceErrors
     public static readonly ApiErrorCode AssignmentNotFound = new("ASSIGNMENT_NOT_FOUND", "errors.assignment.notFound");
 
     public static readonly ApiErrorCode NodeNotFound = new("NODE_NOT_FOUND", "errors.node.notFound");
+
+    public static readonly ApiErrorCode CurriculumNotFound = new("CURRICULUM_NOT_FOUND", "errors.curriculum.notFound");
+
+    /// <summary>
+    /// A curriculum or its levels cannot be written as given. <c>details.problems</c> names each
+    /// (a missing name, a level without one, fewer than one level, too many).
+    /// </summary>
+    public static readonly ApiErrorCode CurriculumInvalid = new("CURRICULUM_INVALID", "errors.curriculum.invalid");
+
+    /// <summary>
+    /// Something in the curriculum has already been released, so its levels are fixed: every node
+    /// sits at a level, and changing the levels under it would leave it at one that no longer exists.
+    /// </summary>
+    public static readonly ApiErrorCode CurriculumLocked = new("CURRICULUM_LOCKED", "errors.curriculum.locked");
+
+    /// <summary>The Egyptian curriculum is the one the game serves; its name and levels are not the Studio's to change.</summary>
+    public static readonly ApiErrorCode CurriculumServed = new("CURRICULUM_SERVED", "errors.curriculum.served");
 }

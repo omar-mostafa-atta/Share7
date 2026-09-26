@@ -42,7 +42,10 @@ public sealed record TeamOverviewDto(
     bool RequireTwoStep,
 
     /// <summary>False when <c>Studio:PublicUrl</c> is not configured: setup links are then relative paths.</summary>
-    bool StudioAddressConfigured);
+    bool StudioAddressConfigured,
+
+    /// <summary><c>Studio:PublicUrl</c> — the one address the content team signs in at — or null, when it is <c>/studio</c> on this site.</summary>
+    string? StudioAddress = null);
 
 public sealed record TeamCountsDto(int Active, int Invited, int Suspended, int Deactivated);
 
@@ -120,8 +123,18 @@ public sealed record StaffSignInDto(DateTime OccurredAtUtc, StaffSignInOutcome O
 /// </summary>
 public sealed record SetupLinkDto(string Url, bool IsAbsolute, DateTime ExpiresAtUtc, StaffSetupPurpose Purpose);
 
-public sealed record CreatedTeamMemberDto(TeamMemberDetailDto Member, SetupLinkDto SetupLink);
+/// <summary>
+/// The member as created. <see cref="SetupLink"/> is null when the admin set their password — the
+/// way the console creates every member since 2026-09-26 — and present only for a request without
+/// one, which still gets the old one-time link.
+/// </summary>
+public sealed record CreatedTeamMemberDto(TeamMemberDetailDto Member, SetupLinkDto? SetupLink);
 
+/// <param name="Password">
+/// The member's password, chosen by the admin creating them (decided 2026-09-26: no setup link, no
+/// activation — the member signs in at the Studio's address straight away). Held to the staff
+/// password rules. Null only for a caller that still wants the one-time link instead.
+/// </param>
 public sealed record CreateTeamMemberRequest(
     string FullName,
     string Username,
@@ -132,7 +145,11 @@ public sealed record CreateTeamMemberRequest(
     IReadOnlyList<Guid>? NodeIds,
     bool AllLanguages,
     IReadOnlyList<Guid>? LanguageIds,
-    string? InterfaceLanguage);
+    string? InterfaceLanguage,
+    string? Password = null);
+
+/// <summary>A SuperAdmin sets a member's password directly: signs them out everywhere, and activates a member who never had one.</summary>
+public sealed record SetTeamMemberPasswordRequest(string Password, bool ClearTwoStep);
 
 public sealed record AdoptLegacyAccountRequest(
     string FullName,
@@ -169,8 +186,16 @@ public sealed record DeactivateTeamMemberRequest(string Reason, string ConfirmUs
 
 public sealed record ResetTeamMemberAccessRequest(bool ClearTwoStep);
 
-/// <summary>The curriculum and languages a scope can be built from.</summary>
-public sealed record TeamScopeOptionsDto(IReadOnlyList<ScopeTreeNodeDto> Nodes, IReadOnlyList<ScopeLanguageDto> Languages);
+/// <summary>
+/// The curriculum and languages a scope can be built from, the rules a member's password must meet,
+/// and where the Studio is — <c>Studio:PublicUrl</c>, or null when it is not configured and the
+/// Studio is at <c>/studio</c> on the API's own address.
+/// </summary>
+public sealed record TeamScopeOptionsDto(
+    IReadOnlyList<ScopeTreeNodeDto> Nodes,
+    IReadOnlyList<ScopeLanguageDto> Languages,
+    StaffPasswordRulesDto PasswordRules,
+    string? StudioAddress);
 
 public sealed record ScopeTreeNodeDto(Guid Id, Guid? ParentId, string Kind, LocalizedTitleDto Title, int Depth, int Order);
 

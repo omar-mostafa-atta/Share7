@@ -7,6 +7,14 @@ does). This file answers only: which of the four roles is allowed to call it.
 Every statement below was read out of the code, not out of the design docs. Where the
 two disagree, the code is what ships and this file follows the code.
 
+> **2026-09-26 — who creates which account.** An Admin now creates an account of **every role but
+> SuperAdmin**: Students and Admins through `POST /api/admin/users`, content-team members through
+> `POST /api/admin/team` (with their Studio role, scope and one-time setup link). Creating is all an
+> Admin does to the content team: everything after the account exists — Team & Access, the audit
+> log, staff security — stays SuperAdmin-only, and so does deleting an Admin. Two policies draw it:
+> `AddTeamMembers` (Admin, SuperAdmin) and `ManageStaff` (SuperAdmin). The Admin Console now has
+> the Team & Access page (`/team`), for SuperAdmins.
+
 > **2026-09-21 — the content team.** A fifth role, `ContentTeam`; a way for an admin to create
 > an account with a username, password and role (`POST /api/admin/users`); the first named
 > authorization policies; and a Content Portal in the console at `/content`. See
@@ -45,9 +53,9 @@ startup by the `Roles.All` loop in `Program.cs`:
 | --- | --- | --- | --- |
 | `Student` | yes | automatically, on every registration and first external login; or an admin, via `POST /api/admin/users` | everyone |
 | `Teacher` | yes | **nothing — no code path assigns it**, and account creation refuses it | nobody |
-| `Admin` | yes | the startup seed, to the `admin` account; or a SuperAdmin, via `POST /api/admin/users` | the seed account |
-| `SuperAdmin` | yes | the one-time `SeedSuperAdmin` config section on startup (only while none exists); or a SuperAdmin, via `POST /api/admin/users` | whoever the bootstrap created |
-| `ContentTeam` | yes | a **SuperAdmin**, via Team & Access (`POST /api/admin/team`), which also makes the Studio profile | staff who author in the Content Studio — and who may sign in *nowhere on this API* |
+| `Admin` | yes | the startup seed, to the `admin` account; or an Admin or SuperAdmin, via `POST /api/admin/users` | the seed account, and whoever an admin creates |
+| `SuperAdmin` | yes | the one-time `SeedSuperAdmin` config section on startup (only while none exists); or a **SuperAdmin only**, via `POST /api/admin/users` | whoever the bootstrap created |
+| `ContentTeam` | yes | an **Admin or SuperAdmin**, via `POST /api/admin/team` (the Users page's "Content team", or Team & Access), which also makes the Studio profile | staff who author in the Content Studio — and who may sign in *nowhere on this API* |
 
 `Teacher` and `SuperAdmin` are still rows in a table and nothing else. See
 [What should change](#what-should-change).
@@ -207,7 +215,8 @@ Everything a Student can, plus all 72 admin endpoints:
 | Multiplayer | `/api/admin/multiplayer/sessions` | list any session, read any roster, force-close any session |
 | Runs | `/api/admin/…` | pickup-valuation CRUD, list flagged runs, read any run, review a run |
 | Users | `DELETE /api/admin/users/{id}` | hard-delete a **non-privileged** account |
-| Users | `POST /api/admin/users`, `GET …/assignable-roles` | create an account with a username, password and one role — `Student` or `ContentTeam` |
+| Users | `POST /api/admin/users`, `GET …/assignable-roles` | create an account with a username, password and one role — `Student` or `Admin` (2026-09-26) |
+| Team (add only) | `POST /api/admin/team`, `GET /api/admin/team/scope-options` | add a content-team member with a Studio role and scope; answers with the one-time setup link (2026-09-26) |
 | Currencies | `/api/currencies` | create and update currencies |
 
 Plus two elevations on the ordinary user endpoints, both driven by
@@ -228,9 +237,13 @@ And one self-scoped economy power:
   refuses when the target is the caller. (They can still use `DELETE /api/users/me`,
   which has no such guard. An admin can delete themselves; they just cannot do it
   through the admin endpoint.)
-- **Create an Admin or SuperAdmin account.** `UserAdminService.CreateUserAsync` refuses with
-  *"Only a Super Admin can create an Admin or Super Admin account."* — the same line the delete
-  path draws.
+- **Create a SuperAdmin account.** `UserAdminService.CreateUserAsync` refuses with *"Only a Super
+  Admin can create a Super Admin account."* An Admin may create another Admin (since 2026-09-26),
+  but a SuperAdmin they could mint is a SuperAdmin they could sign in as.
+- **Manage the content team once it exists** — read the team or a member's record, change a
+  member's profile, role or scope, suspend, reset access, close, end sessions — or read the audit
+  log or change staff security. All `ManageStaff`, SuperAdmin only. Adding a member is the one
+  exception (`AddTeamMembers`).
 - **Change the roles of an existing account.** Creation sets one role; nothing edits it
   afterwards. Promoting an existing user to Admin still requires a manual `INSERT` into
   `AspNetUserRoles`.
@@ -247,15 +260,15 @@ And one self-scoped economy power:
 
 ### Can
 
-Everything an Admin can, plus **two** things:
+Everything an Admin can, plus:
 
 - Delete an account that holds `Admin` or `SuperAdmin` (`AdminUsersController` passes
   `User.IsInRole(Roles.SuperAdmin)` into `UserAdminService.DeleteUserAsync`).
-- Create an account that holds `Admin` or `SuperAdmin` (the same flag, passed into
-  `UserAdminService.CreateUserAsync`).
+- Create a `SuperAdmin` account (the same flag, passed into `UserAdminService.CreateUserAsync`).
+- Team & Access, the audit log and staff security (`ManageStaff`): everything about the content
+  team after a member is added.
 
-Those two conditionals are the **entire** difference between Admin and SuperAdmin in the
-codebase. Every other admin route accepts both roles interchangeably.
+Every other admin route accepts both roles interchangeably.
 
 ### Cannot
 
@@ -343,7 +356,8 @@ to roles, in one place:
 | Policy | Roles | Used by |
 | --- | --- | --- |
 | `ContentAuthoring` | Admin, SuperAdmin | `AdminCurriculumController`, `AdminLessonQuestionsController`, `AdminLessonRecoveryQuestionsController`, `AdminLessonSheetController`, `AdminCurriculumInsightController` |
-| `ManageStaff` | SuperAdmin | Team & Access and the audit log |
+| `ManageStaff` | SuperAdmin | Team & Access (`AdminTeamController`) and the audit log |
+| `AddTeamMembers` | Admin, SuperAdmin | adding a content-team member and its scope options (`AdminTeamAddController`) |
 | `StudioSession` / `StudioMember` / `StudioAuthor` / `StudioReviewer` / `StudioLead` | *not roles from this table* | `/api/studio/**`, on the Studio scheme only |
 
 `ContentAuthoring` kept its name and lost its meaning: since cutover every **write** it guarded

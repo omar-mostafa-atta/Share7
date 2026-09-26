@@ -1586,6 +1586,86 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.ToTable("ItemVersions", (string)null);
                 });
 
+            modelBuilder.Entity("Share7.Domain.Content.NodeItemRendering", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CorrectChoiceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DeactivatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<Guid>("ItemVersionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("LangId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("NodeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Role")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.Property<int>("RowNumber")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LangId");
+
+                    b.HasIndex("ItemVersionId", "LangId");
+
+                    b.HasIndex("NodeId", "Role", "LangId", "IsActive");
+
+                    b.ToTable("NodeItemRenderings", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Content.NodeItemRenderingChoice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("OrderIndex")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("RenderingId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RenderingId");
+
+                    b.ToTable("NodeItemRenderingChoices", (string)null);
+                });
+
             modelBuilder.Entity("Share7.Domain.Content.PublishedItemSet", b =>
                 {
                     b.Property<Guid>("NodeId")
@@ -7566,6 +7646,26 @@ namespace Share7.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Share7.Domain.Structure.CurriculumNodeKindTranslation", b =>
+                {
+                    b.Property<Guid>("NodeKindId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("LangId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.HasKey("NodeKindId", "LangId");
+
+                    b.HasIndex("LangId");
+
+                    b.ToTable("CurriculumNodeKindTranslations", (string)null);
+                });
+
             modelBuilder.Entity("Share7.Domain.Structure.CurriculumNodeTranslation", b =>
                 {
                     b.Property<Guid>("NodeId")
@@ -9141,6 +9241,44 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.Navigation("Item");
                 });
 
+            modelBuilder.Entity("Share7.Domain.Content.NodeItemRendering", b =>
+                {
+                    b.HasOne("Share7.Domain.Content.ItemVersion", "ItemVersion")
+                        .WithMany()
+                        .HasForeignKey("ItemVersionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Domain.LookUps.Language", "Language")
+                        .WithMany()
+                        .HasForeignKey("LangId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Domain.Structure.CurriculumNode", "Node")
+                        .WithMany()
+                        .HasForeignKey("NodeId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("ItemVersion");
+
+                    b.Navigation("Language");
+
+                    b.Navigation("Node");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Content.NodeItemRenderingChoice", b =>
+                {
+                    b.HasOne("Share7.Domain.Content.NodeItemRendering", "Rendering")
+                        .WithMany("Choices")
+                        .HasForeignKey("RenderingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Rendering");
+                });
+
             modelBuilder.Entity("Share7.Domain.Content.PublishedItemSet", b =>
                 {
                     b.HasOne("Share7.Domain.LookUps.Language", null)
@@ -10513,6 +10651,25 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.Navigation("CurriculumVersion");
                 });
 
+            modelBuilder.Entity("Share7.Domain.Structure.CurriculumNodeKindTranslation", b =>
+                {
+                    b.HasOne("Share7.Domain.LookUps.Language", "Language")
+                        .WithMany()
+                        .HasForeignKey("LangId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Domain.Structure.CurriculumNodeKind", "NodeKind")
+                        .WithMany("Translations")
+                        .HasForeignKey("NodeKindId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Language");
+
+                    b.Navigation("NodeKind");
+                });
+
             modelBuilder.Entity("Share7.Domain.Structure.CurriculumNodeTranslation", b =>
                 {
                     b.HasOne("Share7.Domain.LookUps.Language", "Language")
@@ -10748,6 +10905,11 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.Navigation("Localizations");
                 });
 
+            modelBuilder.Entity("Share7.Domain.Content.NodeItemRendering", b =>
+                {
+                    b.Navigation("Choices");
+                });
+
             modelBuilder.Entity("Share7.Domain.Curriculum.Chapter", b =>
                 {
                     b.Navigation("Lessons");
@@ -10926,6 +11088,11 @@ namespace Share7.Infrastructure.Persistence.Migrations
                 });
 
             modelBuilder.Entity("Share7.Domain.Structure.CurriculumNode", b =>
+                {
+                    b.Navigation("Translations");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Structure.CurriculumNodeKind", b =>
                 {
                     b.Navigation("Translations");
                 });

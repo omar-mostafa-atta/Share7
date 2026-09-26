@@ -276,6 +276,135 @@ public sealed class ReleaseService : IReleaseService
         return await GetAsync(member, releaseId, cancellationToken);
     }
 
+    // =====================================================================================
+    // A Lead's change, live in one step
+    // =====================================================================================
+
+    /// <summary>
+    /// A Lead does not need a second person (decided 25 Sep 2026). The draft is approved by them if it
+    /// is not already — as its own audited action when it is their own work — and carried by a
+    /// release of its own, published at once. Everything a release does still happens: the checks,
+    /// the out-of-date test, the release lock, a before and after a rollback can use. A release that
+    /// is refused is cancelled rather than left failed, so the draft is free to fix and try again.
+    /// </summary>
+    public async Task<ServiceResult<DraftDto>> ReleaseNowAsync(
+        StudioMember member, Guid draftId, DraftActionRequest request, CancellationToken cancellationToken = default)
+    {
+        if (!member.IsAtLeast(StudioRole.Lead))
+            return DraftService.OutOfScope<DraftDto>("role");
+
+        var draft = await _db.Drafts.FirstOrDefaultAsync(d => d.Id == draftId, cancellationToken);
+        if (draft is null) return DraftService.DraftMissing<DraftDto>();
+        if (!draft.IsOpen) return DraftService.Closed<DraftDto>();
+
+        if (draft.IsPractice)
+            return ServiceResult<DraftDto>.Failure(WorkspaceErrors.PracticeNotReleasable, ServiceErrorKind.Validation,
+                "Practice drafts cannot be released.", new Dictionary<string, object?> { ["draftId"] = draft.Id });
+
+        if (draft.Status is not (DraftStatus.Editing or DraftStatus.ChangesRequested or DraftStatus.InReview or DraftStatus.Approved))
+            return DraftService.WrongStatus<DraftDto>(draft);
+
+        // What goes live is exactly what the Lead was looking at.
+        if (request.Revision != draft.Revision)
+            return ServiceResult<DraftDto>.Failure(WorkspaceErrors.DraftRevisionMoved, ServiceErrorKind.Conflict,
+                "The draft changed while you were reading it.", new Dictionary<string, object?> { ["revision"] = draft.Revision });
+
+        if (!member.CoversPath(draft.ScopePath))
+            return DraftService.OutOfScope<DraftDto>("node");
+
+        var outside = member.LanguagesOutside(DraftService.ParseLanguages(draft.LanguagesTouched));
+        if (outside.Count > 0)
+            return DraftService.OutOfScope<DraftDto>("languages", outside);
+
+        if (draft.Status != DraftStatus.Approved)
+        {
+            if (await _kinds.IsOutOfDateAsync(draft, cancellationToken))
+                return DraftService.OutOfDate<DraftDto>();
+
+            var problems = await _kinds.CheckAsync(draft, cancellationToken);
+            if (problems.Count > 0)
+            {
+                return ServiceResult<DraftDto>.Failure(WorkspaceErrors.DraftHasProblems, ServiceErrorKind.Validation,
+                    "This draft has problems to fix before it can go live.",
+                    new Dictionary<string, object?> { ["problems"] = problems });
+            }
+
+            var now = DateTime.UtcNow;
+            var own = await _db.DraftContributors.AnyAsync(c => c.DraftId == draft.Id && c.UserId == member.UserId, cancellationToken);
+
+            _db.ReviewDecisions.Add(new ReviewDecision
+            {
+                Id = Guid.NewGuid(),
+                DraftId = draft.Id,
+                ReviewerUserId = member.UserId,
+                Verdict = ReviewVerdict.Approved,
+                DraftRevision = draft.Revision,
+                CreatedAtUtc = now
+            });
+
+            draft.Status = DraftStatus.Approved;
+            draft.SubmittedAtUtc ??= now;
+            draft.SubmittedByUserId ??= member.UserId;
+
+            _audit.Record(new AuditEntry(
+                own ? AuditActions.DraftSelfApproved : AuditActions.DraftApproved,
+                AuditAreas.Workspace,
+                own ? "Approved their own draft, as a Lead, to put it live now." : "Approved a draft, to put it live now.",
+                "draft",
+                draft.Id.ToString(),
+                new { kind = draft.Kind.ToString(), nodeId = draft.NodeId, revision = draft.Revision, releasedNow = true }));
+
+            try
+            {
+                await _db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return ServiceResult<DraftDto>.Failure(WorkspaceErrors.DraftRevisionMoved, ServiceErrorKind.Conflict,
+                    "The draft changed while you were reading it.");
+            }
+        }
+
+        var release = new Release
+        {
+            Id = Guid.NewGuid(),
+            Title = draft.Title.Length > 200 ? draft.Title[..200] : draft.Title,
+            CreatedByUserId = member.UserId,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        var added = await AddDraftsAsync(member, release, [draft.Id], cancellationToken);
+        if (!added.Succeeded)
+            return DraftService.Propagate<DraftDto>(added);
+
+        _db.Releases.Add(release);
+        Record(AuditActions.ReleaseCreated, release, "Started a release of one draft, to put it live now.");
+        await _db.SaveChangesAsync(cancellationToken);
+
+        var published = await ApplyAsync(member, release.Id, rollback: null, cancellationToken);
+        if (!published.Succeeded)
+        {
+            await CancelRefusedAsync(release.Id, cancellationToken);
+            return DraftService.Propagate<DraftDto>(published);
+        }
+
+        _db.ChangeTracker.Clear();
+        var released = await _db.Drafts.AsNoTracking().FirstAsync(d => d.Id == draftId, cancellationToken);
+        return ServiceResult<DraftDto>.Success(await _drafts.ToDtoAsync(member, released, cancellationToken));
+    }
+
+    /// <summary>A one-draft release that was refused is cancelled, so its draft is free again. Why it failed stays on the row.</summary>
+    private async Task CancelRefusedAsync(Guid releaseId, CancellationToken cancellationToken)
+    {
+        _db.ChangeTracker.Clear();
+        var release = await _db.Releases.FirstOrDefaultAsync(r => r.Id == releaseId, cancellationToken);
+        if (release is null || release.Status is not (ReleaseStatus.Building or ReleaseStatus.Failed)) return;
+
+        release.Status = ReleaseStatus.Cancelled;
+        Record(AuditActions.ReleaseCancelled, release, "Cancelled a release that could not go out. Its draft is free to fix.");
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<int> PublishDueAsync(CancellationToken cancellationToken = default)
     {
         var now = DateTime.UtcNow;
@@ -487,7 +616,7 @@ public sealed class ReleaseService : IReleaseService
 
                 Outcome(draft, created);
 
-                if (draft.NodeKind == NodeKinds.Lesson && proposal.Items is { Count: > 0 } items)
+                if (await _kinds.IsPlayableLevelAsync(draft, cancellationToken) && proposal.Items is { Count: > 0 } items)
                 {
                     var published = await _publisher.PublishAsync(new ContentPublishRequest
                     {

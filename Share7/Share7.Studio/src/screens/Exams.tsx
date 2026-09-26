@@ -141,7 +141,21 @@ export function OneBlueprint() {
   )
 
   if (found.loading) return <Wiping rows={6} tall />
-  if (!one) return <Nothing title={t('exams.none')}>{t('exams.noneSaid')}</Nothing>
+  // Not 'no paper has been written yet' — papers exist; this particular one
+  // does not, and saying the former sends somebody off to build a second copy.
+  if (!one)
+    return (
+      <Nothing
+        title={t('exams.gone')}
+        action={
+          <Link to="/exams" className="act">
+            {t('place.exams')}
+          </Link>
+        }
+      >
+        {t('exams.goneSaid')}
+      </Nothing>
+    )
 
   const lines = one.areas.reduce((all, area) => all + area.lines.length, 0)
 

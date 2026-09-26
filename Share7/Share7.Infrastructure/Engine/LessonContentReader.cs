@@ -3,6 +3,7 @@ using Share7.Application.Engine.Interfaces;
 using Share7.Application.Engine.Models;
 using Share7.Domain.Content;
 using Share7.Infrastructure.Persistence;
+using Share7.Infrastructure.Structure;
 
 namespace Share7.Infrastructure.Engine;
 
@@ -15,8 +16,10 @@ public sealed class LessonContentReader : ILessonContentReader
 
     public async Task<LessonContentDto?> ReadAsync(Guid lessonId, CancellationToken cancellationToken = default)
     {
+        // Any node at its curriculum's played level: a lesson in the Egyptian tree, whatever the
+        // curriculum calls its last level anywhere else.
         var live = await _db.CurriculumNodes.AsNoTracking().AnyAsync(
-            n => n.Id == lessonId && n.KindKey == NodeKinds.Lesson && n.RetiredAtUtc == null,
+            n => n.Id == lessonId && n.IsPlayable && n.RetiredAtUtc == null,
             cancellationToken);
 
         if (!live)
@@ -62,10 +65,47 @@ public sealed class LessonContentReader : ILessonContentReader
         }
     }
 
-    /// <summary>Every served rendering of a lesson, every pool and language. Shared with the publisher.</summary>
+    /// <summary>
+    /// Every served rendering of a lesson, every pool and language. Shared with the publisher.
+    /// <para>
+    /// From the game's own <c>Questions</c> for the curriculum it serves, and from
+    /// <c>NodeItemRenderings</c> for any other — the same rows, the same shape, kept apart so that
+    /// nothing written under a curriculum the game does not play can be read by the game.
+    /// </para>
+    /// </summary>
     internal static async Task<List<ActiveRow>> LoadActiveRowsAsync(
         ApplicationDbContext db, Guid lessonId, CancellationToken cancellationToken)
     {
+        if (!await IsServedAsync(db, lessonId, cancellationToken))
+        {
+            var declared = await db.NodeItemRenderings
+                .AsNoTracking()
+                .Where(r => r.NodeId == lessonId && r.IsActive)
+                .Select(r => new
+                {
+                    r.Id,
+                    r.Role,
+                    r.LangId,
+                    r.RowNumber,
+                    r.Version,
+                    r.Text,
+                    r.CorrectChoiceId,
+                    r.ItemVersionId,
+                    ItemId = r.ItemVersion!.ItemId,
+                    Choices = r.Choices
+                        .OrderBy(c => c.OrderIndex)
+                        .Select(c => new ContentChoiceDto(c.Id, c.Text))
+                        .ToList()
+                })
+                .ToListAsync(cancellationToken);
+
+            return declared
+                .Select(r => new ActiveRow(
+                    r.Id, r.Role, r.LangId, r.RowNumber, r.Version, r.Text, r.CorrectChoiceId,
+                    r.ItemVersionId, r.ItemId, r.Choices))
+                .ToList();
+        }
+
         var rows = await db.ItemLocalizations
             .AsNoTracking()
             .Where(q => q.LessonId == lessonId && q.IsActive)
@@ -92,6 +132,19 @@ public sealed class LessonContentReader : ILessonContentReader
                 r.Id, r.Role, r.LangId, r.RowNumber, r.Version, r.Text, r.CorrectChoiceId,
                 r.ItemVersionId, r.ItemId, r.Choices))
             .ToList();
+    }
+
+    /// <summary>Whether the node belongs to the curriculum the game serves, whose questions live in <c>Questions</c>.</summary>
+    internal static async Task<bool> IsServedAsync(ApplicationDbContext db, Guid nodeId, CancellationToken cancellationToken)
+    {
+        var version = await db.CurriculumNodes.AsNoTracking()
+            .Where(n => n.Id == nodeId)
+            .Select(n => (Guid?)n.CurriculumVersionId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        // A node that is not there at all is treated as the game's: the old paths expect their
+        // errors from the game's tables, and nothing new is ever written for a missing node.
+        return version is not { } id || CurriculumShapes.IsServed(id);
     }
 
     /// <summary>

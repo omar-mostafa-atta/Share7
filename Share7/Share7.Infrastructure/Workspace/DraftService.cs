@@ -11,7 +11,9 @@ using Share7.Application.Workspace.Models;
 using Share7.Domain.Audit;
 using Share7.Domain.Staff;
 using Share7.Domain.Workspace;
+using Share7.Domain.Constants;
 using Share7.Infrastructure.Persistence;
+using Share7.Infrastructure.Structure;
 using Share7.Infrastructure.Staff;
 
 namespace Share7.Infrastructure.Workspace;
@@ -164,7 +166,7 @@ public sealed class DraftService : IDraftService
     {
         if (request.Kind == DraftKind.NewNode)
         {
-            if (request.NodeKind is not { } kind || !NodeKinds.IsEditable(kind))
+            if (request.NodeKind is not { } kind || string.IsNullOrWhiteSpace(kind))
                 return Invalid<(Guid, Guid?, string, string)>("nodeKind");
 
             if (request.ParentNodeId is not { } parentId)
@@ -195,13 +197,22 @@ public sealed class DraftService : IDraftService
                 (parentKind, parentPath) = (proposed.NodeKind!, $"{proposed.ScopePath}/{parentId:D}");
             }
 
-            if (parentKind != NodeKinds.ParentOf(kind))
+            // The parent's curriculum decides what may go under it — found from the top of its path,
+            // which is real even when the parent itself is only proposed in another draft.
+            var shape = await new CurriculumShapes(_db).ForPathAsync(parentPath, cancellationToken);
+            if (shape is null || !shape.CanEdit(kind))
+                return Invalid<(Guid, Guid?, string, string)>("nodeKind");
+
+            if (parentKind != shape.ParentOf(kind))
                 return Invalid<(Guid, Guid?, string, string)>("parentKind");
 
             if (!member.CoversPath(parentPath))
                 return OutOfScope<(Guid, Guid?, string, string)>("node");
 
-            return ServiceResult<(Guid, Guid?, string, string)>.Success((Guid.NewGuid(), parentId, parentPath, $"New {kind}"));
+            // "New Topic" rather than "New level2": a declared level is called what the curriculum
+            // calls it. The Egyptian five have no stored names and keep their keys, as before.
+            var levelName = shape.Level(kind)?.Names.FirstOrDefault(n => n.LangId == LanguageIds.English)?.Title ?? kind;
+            return ServiceResult<(Guid, Guid?, string, string)>.Success((Guid.NewGuid(), parentId, parentPath, $"New {levelName}"));
         }
 
         if (request.NodeId is not { } nodeId)
@@ -215,6 +226,8 @@ public sealed class DraftService : IDraftService
                 n.Path,
                 n.RetiredAtUtc,
                 n.ParentNodeId,
+                n.IsPlayable,
+                n.CurriculumVersionId,
                 Title = n.Translations.OrderBy(t => t.Language!.SortOrder).Select(t => t.Title).FirstOrDefault()
             })
             .FirstOrDefaultAsync(cancellationToken);
@@ -222,11 +235,16 @@ public sealed class DraftService : IDraftService
         if (node is null)
             return NodeMissing<(Guid, Guid?, string, string)>();
 
+        var nodeShape = await new CurriculumShapes(_db).ForVersionAsync(node.CurriculumVersionId, cancellationToken);
+        if (nodeShape is null)
+            return NodeMissing<(Guid, Guid?, string, string)>();
+
         var fits = request.Kind switch
         {
-            DraftKind.LessonContent => node.KindKey == NodeKinds.Lesson && node.RetiredAtUtc is null,
-            DraftKind.Restore => NodeKinds.IsEditable(node.KindKey) && node.RetiredAtUtc is not null,
-            DraftKind.Reorder => node.RetiredAtUtc is null && node.KindKey != NodeKinds.Lesson,
+            // Questions are written at whatever level the node's curriculum plays.
+            DraftKind.LessonContent => node.IsPlayable && node.RetiredAtUtc is null,
+            DraftKind.Restore => nodeShape.CanEdit(node.KindKey) && node.RetiredAtUtc is not null,
+            DraftKind.Reorder => node.RetiredAtUtc is null && !node.IsPlayable && nodeShape.CanReorderUnder(node.KindKey),
 
             // Any live node, grades included. `IsEditable` is about *structural* editing — the
             // fourteen grades are fixed because their ids are on student profiles — and writing a
@@ -236,7 +254,7 @@ public sealed class DraftService : IDraftService
             // showed the grade, said what it was inheriting, and its propose button answered 400.
             DraftKind.RecoveryRule => node.RetiredAtUtc is null,
 
-            _ => NodeKinds.IsEditable(node.KindKey) && node.RetiredAtUtc is null
+            _ => nodeShape.CanEdit(node.KindKey) && node.RetiredAtUtc is null
         };
 
         if (!fits)
@@ -613,7 +631,7 @@ public sealed class DraftService : IDraftService
         return (tracked ? query : query.AsNoTracking()).FirstOrDefaultAsync(cancellationToken);
     }
 
-    private async Task<bool> InActiveReleaseAsync(Guid draftId, CancellationToken cancellationToken) =>
+    internal async Task<bool> InActiveReleaseAsync(Guid draftId, CancellationToken cancellationToken) =>
         await (from e in _db.ReleaseEntries
                join r in _db.Releases on e.ReleaseId equals r.Id
                where e.DraftId == draftId && (r.Status == ReleaseStatus.Building || r.Status == ReleaseStatus.Scheduled
@@ -689,14 +707,16 @@ public sealed class DraftService : IDraftService
         var isContributor = contributors.Contains(member.UserId);
         var canEdit = CanEdit(member, draft);
 
-        var canReview = draft.Status == DraftStatus.InReview
-                        && member.IsAtLeast(StudioRole.Reviewer)
-                        && !isContributor
-                        && (draft.IsPractice || member.CoversPath(draft.ScopePath))
-                        && member.LanguagesOutside(touched).Count == 0;
+        var canReview = draft.Status == DraftStatus.InReview && ReviewService.WhyNot(member, draft, isContributor) is null;
 
         var canRelease = draft.Status == DraftStatus.Approved && !draft.IsPractice
                          && member.IsAtLeast(StudioRole.Lead) && member.CoversPath(draft.ScopePath);
+
+        var canReleaseNow = draft.IsOpen && !draft.IsPractice
+                            && draft.Status is DraftStatus.Editing or DraftStatus.ChangesRequested or DraftStatus.InReview or DraftStatus.Approved
+                            && member.IsAtLeast(StudioRole.Lead) && member.CoversPath(draft.ScopePath)
+                            && member.LanguagesOutside(touched).Count == 0
+                            && !await InActiveReleaseAsync(draft.Id, cancellationToken);
 
         return new DraftDto
         {
@@ -715,7 +735,8 @@ public sealed class DraftService : IDraftService
                 Submit: canEdit && draft.Status is DraftStatus.Editing or DraftStatus.ChangesRequested,
                 Review: canReview,
                 Discard: draft.IsOpen && (canEdit || draft.CreatedByUserId == member.UserId),
-                Release: canRelease)
+                Release: canRelease,
+                ReleaseNow: canReleaseNow)
         };
     }
 

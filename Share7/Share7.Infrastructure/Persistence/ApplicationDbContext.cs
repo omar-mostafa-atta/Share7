@@ -168,6 +168,12 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, Applicati
     public DbSet<CurriculumNodeKind> CurriculumNodeKinds => Set<CurriculumNodeKind>();
     public DbSet<CurriculumNode> CurriculumNodes => Set<CurriculumNode>();
     public DbSet<CurriculumNodeTranslation> CurriculumNodeTranslations => Set<CurriculumNodeTranslation>();
+    public DbSet<CurriculumNodeKindTranslation> CurriculumNodeKindTranslations => Set<CurriculumNodeKindTranslation>();
+
+    // The renderings of a curriculum the game does not serve yet: the twin of Questions, keyed to the
+    // node rather than to a legacy lesson, so nothing the game reads can reach them.
+    public DbSet<NodeItemRendering> NodeItemRenderings => Set<NodeItemRendering>();
+    public DbSet<NodeItemRenderingChoice> NodeItemRenderingChoices => Set<NodeItemRenderingChoice>();
     public DbSet<NodeItemMapping> NodeItemMappings => Set<NodeItemMapping>();
     public DbSet<Enrollment> Enrollments => Set<Enrollment>();
 

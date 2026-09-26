@@ -422,27 +422,37 @@ public class UserAdminService : IUserAdminService
     // only be made by hand-inserting a row into AspNetUserRoles.
     // -----------------------------------------------------------------------
 
-    /// <summary>Roles any admin may give a new account.</summary>
+    /// <summary>
+    /// Roles any admin may give a new account (decided 2026-09-26: every role but SuperAdmin).
+    /// </summary>
     /// <remarks>
+    /// <para>
     /// <c>Teacher</c> is left out on purpose: nothing in the API checks for it, so an account
     /// holding it would sign in to a role that grants nothing (Roles.md §4). It belongs here once
     /// it means something.
-    /// </remarks>
-    /// <para>
-    /// <c>ContentTeam</c> is left out too, since Team &amp; Access (Content Studio Phase 1): a
-    /// content-team account is created only by a SuperAdmin there, which gives it a Studio profile,
-    /// a role and scope, and a setup link instead of a password somebody else chose.
     /// </para>
-    private static readonly string[] OpenRoles = [Roles.Student];
+    /// <para>
+    /// <c>ContentTeam</c> is offered, but not created here: a content-team account needs a Studio
+    /// profile, a role and scope, and a setup link instead of a password somebody else chose, so the
+    /// console sends it to <c>POST /api/admin/team</c> and <see cref="CreateUserAsync"/> refuses it.
+    /// </para>
+    /// </remarks>
+    private static readonly string[] OpenRoles = [Roles.Student, Roles.ContentTeam, Roles.Admin];
 
     /// <summary>
-    /// Roles only a SuperAdmin may give — the same line <see cref="DeleteUserAsync"/> draws. An
-    /// Admin who cannot remove a privileged account should not be able to mint one either.
+    /// The role only a SuperAdmin may give. Were an Admin able to mint one, they could sign in as
+    /// it and the line between the two would mean nothing.
+    /// </summary>
+    private static readonly string[] SuperAdminOnlyRoles = [Roles.SuperAdmin];
+
+    /// <summary>
+    /// Accounts only a SuperAdmin may delete. An Admin may create another Admin, but not remove one:
+    /// deletion is irreversible and takes every row the account owns with it.
     /// </summary>
     private static readonly string[] PrivilegedRoles = [Roles.Admin, Roles.SuperAdmin];
 
     public IReadOnlyList<string> GetAssignableRoles(bool actorIsSuperAdmin) =>
-        actorIsSuperAdmin ? [.. OpenRoles, .. PrivilegedRoles] : OpenRoles;
+        actorIsSuperAdmin ? [.. OpenRoles, .. SuperAdminOnlyRoles] : OpenRoles;
 
     public async Task<ServiceResult<AdminUserListItemDto>> CreateUserAsync(
         CreateAdminUserRequest request,
@@ -461,11 +471,11 @@ public class UserAdminService : IUserAdminService
 
         if (role == Roles.ContentTeam)
             return ServiceResult<AdminUserListItemDto>.Forbidden(
-                "Content-team accounts are created by a Super Admin in Team & Access, which gives them a Studio profile and a one-time setup link.");
+                "Content-team accounts are created through Team & Access, which gives them a Studio profile and a one-time setup link instead of a password.");
 
-        if (PrivilegedRoles.Contains(role) && !actorIsSuperAdmin)
+        if (SuperAdminOnlyRoles.Contains(role) && !actorIsSuperAdmin)
             return ServiceResult<AdminUserListItemDto>.Forbidden(
-                "Only a Super Admin can create an Admin or Super Admin account.");
+                "Only a Super Admin can create a Super Admin account.");
 
         if (!GetAssignableRoles(actorIsSuperAdmin).Contains(role))
             return ServiceResult<AdminUserListItemDto>.Invalid($"The {role} role cannot be given to a new account.");
@@ -543,7 +553,7 @@ public class UserAdminService : IUserAdminService
             return ServiceResult.NotFound("User not found.");
 
         var roles = await _userManager.GetRolesAsync(user);
-        var targetIsPrivileged = roles.Contains(Roles.Admin) || roles.Contains(Roles.SuperAdmin);
+        var targetIsPrivileged = roles.Any(PrivilegedRoles.Contains);
 
         if (targetIsPrivileged && !actorIsSuperAdmin)
             return ServiceResult.Forbidden("Only a Super Admin can delete an Admin or Super Admin account.");

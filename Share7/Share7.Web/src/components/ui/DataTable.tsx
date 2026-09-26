@@ -60,6 +60,7 @@ export function DataTable<T>({
   initialSort,
   paginate = true,
   pageResetKey,
+  expanded,
 }: {
   rows: T[]
   columns: Column<T>[]
@@ -80,6 +81,12 @@ export function DataTable<T>({
 
   /** Returns the table to page 1 whenever it changes. Pass what the page filters on — see usePaging. */
   pageResetKey?: string
+
+  /**
+   * The selected row opened where it is: rendered in a full-width row directly beneath it, so a
+   * ledger can show one record in full without leaving the list (Team & Access).
+   */
+  expanded?: (row: T) => ReactNode
 }) {
   const [sortKey, setSortKey] = useState<string | null>(initialSort?.key ?? null)
   const [direction, setDirection] = useState<Direction>(initialSort?.direction ?? 'asc')
@@ -209,9 +216,10 @@ export function DataTable<T>({
               Removals within a page still animate. */}
           <tbody key={paging.page}>
             <AnimatePresence initial={false}>
-              {visible.map((row) => {
+              {visible.flatMap((row) => {
                 const id = getId(row)
-                return (
+                const isOpen = !!expanded && selectedId === id
+                return [
                   <motion.tr
                     key={id}
                     layout="position"
@@ -220,6 +228,7 @@ export function DataTable<T>({
                     animate="visible"
                     exit="exit"
                     className={selectedId === id ? 'is-selected' : undefined}
+                    aria-expanded={expanded ? isOpen : undefined}
                     onClick={onRowClick ? () => onRowClick(row) : undefined}
                   >
                     {columns.map((column) => (
@@ -227,8 +236,15 @@ export function DataTable<T>({
                         {column.render(row)}
                       </td>
                     ))}
-                  </motion.tr>
-                )
+                  </motion.tr>,
+                  // A sibling rather than a child of the row, so a click inside the record does not
+                  // reach the row's own click and close it.
+                  isOpen ? (
+                    <tr key={`${id}:open`} className="s7-dt-expanded">
+                      <td colSpan={columns.length}>{expanded!(row)}</td>
+                    </tr>
+                  ) : null,
+                ]
               })}
             </AnimatePresence>
           </tbody>

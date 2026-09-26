@@ -9,6 +9,7 @@ using Share7.Domain.Constants;
 using Share7.Domain.Content;
 using Share7.Domain.Workspace;
 using Share7.Infrastructure.Persistence;
+using Share7.Infrastructure.Structure;
 
 namespace Share7.Infrastructure.Workspace;
 
@@ -37,8 +38,13 @@ public sealed class StudioCurriculumService : IStudioCurriculumService
     public async Task<IReadOnlyList<StudioNodeDto>> ChildrenAsync(
         StudioMember member, Guid? parentId, bool includeRetired, CancellationToken cancellationToken = default)
     {
-        var nodes = _db.CurriculumNodes.AsNoTracking()
-            .Where(n => n.CurriculumVersionId == EducationIds.EgyptianNationalAsMigrated && n.ParentNodeId == parentId);
+        // No parent means the top of the tree the game serves: the fourteen grades. Every other
+        // curriculum is reached through its own root node, and a parent belongs to one curriculum
+        // only, so naming it is enough.
+        var nodes = parentId is null
+            ? _db.CurriculumNodes.AsNoTracking()
+                .Where(n => n.CurriculumVersionId == EducationIds.EgyptianNationalAsMigrated && n.ParentNodeId == null)
+            : _db.CurriculumNodes.AsNoTracking().Where(n => n.ParentNodeId == parentId);
 
         if (!includeRetired)
             nodes = nodes.Where(n => n.RetiredAtUtc == null);
@@ -96,6 +102,9 @@ public sealed class StudioCurriculumService : IStudioCurriculumService
                 n.Revision,
                 n.Path,
                 n.RetiredAtUtc,
+                n.IsPlayable,
+                n.CurriculumVersionId,
+                n.CurriculumVersion!.CurriculumId,
                 Titles = n.Translations.Select(t => new NodeTitle(t.LangId, t.Title)).ToList(),
                 Children = _db.CurriculumNodes.Count(c => c.ParentNodeId == n.Id && c.RetiredAtUtc == null)
             })
@@ -112,15 +121,27 @@ public sealed class StudioCurriculumService : IStudioCurriculumService
             .Select(d => d.ParentNodeId)
             .ToListAsync(cancellationToken);
 
-        var lessonIds = nodes.Values.Where(n => n.KindKey == NodeKinds.Lesson).Select(n => n.Id).ToList();
+        // Where questions are counted depends on whose they are: the game's own table for the
+        // curriculum it serves, the node-keyed one for any other.
+        var servedIds = nodes.Values.Where(n => n.IsPlayable && CurriculumShapes.IsServed(n.CurriculumVersionId)).Select(n => n.Id).ToList();
+        var declaredIds = nodes.Values.Where(n => n.IsPlayable && !CurriculumShapes.IsServed(n.CurriculumVersionId)).Select(n => n.Id).ToList();
 
-        var counts = lessonIds.Count == 0
+        var counts = servedIds.Count == 0
             ? []
             : await _db.Questions.AsNoTracking()
-                .Where(q => lessonIds.Contains(q.LessonId) && q.IsActive)
+                .Where(q => servedIds.Contains(q.LessonId) && q.IsActive)
                 .GroupBy(q => new { q.LessonId, q.LangId })
                 .Select(g => new { g.Key.LessonId, g.Key.LangId, Count = g.Count() })
                 .ToListAsync(cancellationToken);
+
+        if (declaredIds.Count > 0)
+        {
+            counts.AddRange(await _db.NodeItemRenderings.AsNoTracking()
+                .Where(r => declaredIds.Contains(r.NodeId) && r.IsActive && r.Role == NodeItemRole.Core)
+                .GroupBy(r => new { r.NodeId, r.LangId })
+                .Select(g => new { LessonId = g.Key.NodeId, g.Key.LangId, Count = g.Count() })
+                .ToListAsync(cancellationToken));
+        }
 
         var required = (await _languages.GetAsync(cancellationToken))
             .Where(l => l.IsContentLanguage && l.RequiredToPublish)
@@ -130,7 +151,7 @@ public sealed class StudioCurriculumService : IStudioCurriculumService
         return ids.Where(nodes.ContainsKey).Select(id =>
         {
             var n = nodes[id];
-            var isLesson = n.KindKey == NodeKinds.Lesson;
+            var isLesson = n.IsPlayable;
             var perLanguage = counts.Where(c => c.LessonId == id).ToDictionary(c => c.LangId, c => c.Count);
 
             return new StudioNodeDto
@@ -148,7 +169,9 @@ public sealed class StudioCurriculumService : IStudioCurriculumService
                     .ToList(),
                 MissingLanguages = isLesson ? required.Where(l => !perLanguage.ContainsKey(l)).ToList() : null,
                 QuestionCounts = isLesson ? perLanguage : null,
-                InScope = member.CoversPath(n.Path)
+                InScope = member.CoversPath(n.Path),
+                CurriculumId = n.CurriculumId,
+                IsPlayable = n.IsPlayable
             };
         }).ToList();
     }

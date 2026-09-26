@@ -66,9 +66,10 @@ public class AuditTrailTests
         await using var context = _fixture.CreateContext();
         var actor = new TestAuditActor(Guid.NewGuid(), [Roles.Admin]);
 
-        // An Admin may not mint an Admin — refused before anything is written.
+        // An Admin may not mint a SuperAdmin — refused before anything is written. (Since 2026-09-26
+        // an Admin may create another Admin, so that is no longer the refusal to test with.)
         var refused = await (await UserAdminAsync(context, actor)).CreateUserAsync(
-            new CreateAdminUserRequest { Username = $"adm_{Guid.NewGuid():N}"[..20], Password = "Content#2026", Role = Roles.Admin },
+            new CreateAdminUserRequest { Username = $"sup_{Guid.NewGuid():N}"[..20], Password = "Content#2026", Role = Roles.SuperAdmin },
             actorIsSuperAdmin: false);
 
         Assert.False(refused.Succeeded);

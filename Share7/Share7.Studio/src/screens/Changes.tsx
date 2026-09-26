@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useContentLanguages, useLanguages, useLedge } from '../App'
 import { Beside, Mark, Nothing, Sheet, Trail, Wiping, Write, useSaying, useTelling } from '../board/pieces'
 import { useI18n } from '../i18n/i18n'
@@ -20,8 +20,10 @@ import {
   type RecoveryRuleProposal,
   type RenameProposal,
   type ReorderProposal,
+  type StudioCurriculum,
   type StudioNode,
 } from '../lib/studio'
+import { curriculumOfTrail, levelAbove, levelIsPlayable, useCurricula, useCurriculumName, useLevelName } from '../lib/curricula'
 import { useDoing, useLoad, useSettled, useTitle, useTrail } from '../lib/use'
 import { Comments } from './Comments'
 import { DraftState } from './bits'
@@ -39,20 +41,20 @@ import { Written } from './Written'
 
 const SAVE_AFTER = 900
 
-/** What a node of this kind can live under. A grade lives at the top and cannot be moved. */
-const livesUnder: Record<NodeKind, NodeKind | null> = {
-  grade: null,
-  term: 'grade',
-  subject: 'term',
-  chapter: 'subject',
-  lesson: 'chapter',
+/**
+ * The level a draft is about. A new node's draft names it; every other draft is about a node that
+ * exists, and its trail ends at that node. (Reading only the first used to send every move to the
+ * lesson picker, whatever was being moved.)
+ */
+function levelOf(draft: Draft): NodeKind {
+  return draft.summary.nodeKind ?? draft.summary.trail.at(-1)?.kind ?? 'lesson'
 }
-
-const depthOf: Record<NodeKind, number> = { grade: 1, term: 2, subject: 3, chapter: 4, lesson: 5 }
 
 export function Changes() {
   const { draftId = '' } = useParams()
   const { t } = useI18n()
+  const { list: curricula, reload: reloadCurricula } = useCurricula()
+  const curriculumName = useCurriculumName()
   const navigate = useNavigate()
   const languages = useLanguages()
   const content = useContentLanguages()
@@ -133,6 +135,34 @@ export function Changes() {
       }
     })
 
+  // What goes live is what is on the board, so a change still on its way to the server holds it.
+  const pending = saving || dirty.current
+  const lead = open?.can.releaseNow ?? false
+
+  // A Lead's change goes live in one step. A new part of the curriculum is then shown where it now
+  // sits, among the others at its level, so the next one can be added straight after it.
+  const releaseNow = (current: Draft) =>
+    run(async () => {
+      try {
+        await studio.releaseNow(current.summary.id, revision)
+        if (current.summary.kind === 'NewNode') {
+          reloadCurricula()
+          say(t('curriculum.addedNow', { title: current.summary.title }))
+          const parent = current.summary.trail.at(-1)
+          const curriculum = curriculumOfTrail(curricula, current.summary.trail)
+          navigate(
+            !parent || parent.kind === 'curriculum' ? `/curriculum/of/${curriculum?.id ?? ''}` : `/curriculum/${parent.id}`,
+          )
+        } else {
+          draft.reload()
+          say(t('lesson.releasedNow'))
+        }
+      } catch (error) {
+        saying(error)
+        draft.reload()
+      }
+    })
+
   useLedge(
     <>
       <span className="engraved">{open ? t(`kind.${open.summary.kind}`) : ''}</span>
@@ -155,7 +185,7 @@ export function Changes() {
                 </button>
                 <button
                   type="button"
-                  className="act first"
+                  className={lead ? 'act' : 'act first'}
                   disabled={busy}
                   onClick={() => void act(() => studio.approve(open.summary.id, open.summary.revision), t('review.approve'))}
                 >
@@ -171,35 +201,67 @@ export function Changes() {
               >
                 {t('lesson.withdraw')}
               </button>
-            ) : (
+            ) : lead && open.summary.status === 'Approved' ? null : (
               <button
                 type="button"
-                className="act first"
+                className={lead ? 'act' : 'act first'}
                 disabled={busy || !open.can.submit || problems.length > 0}
                 onClick={() => void act(() => studio.submit(open.summary.id, revision), t('lesson.submit'))}
               >
                 {t('lesson.submit')}
               </button>
             )}
+
+            {lead ? (
+              <button
+                type="button"
+                className="act first"
+                disabled={busy || pending || (open.summary.status !== 'Approved' && problems.length > 0)}
+                onClick={() => void releaseNow(open)}
+              >
+                {t('lesson.releaseNow')}
+              </button>
+            ) : null}
           </>
         ) : null}
       </div>
     </>,
-    [open?.summary.id, open?.summary.status, open?.can.review, saving, problems.length, busy, revision, t],
+    [open?.summary.id, open?.summary.status, open?.can.review, lead, pending, saving, problems.length, busy, revision, t],
   )
 
   if (draft.loading) return <Wiping rows={5} />
-  if (!open) return <Nothing title={t('errors.draft.notFound')} />
+  if (!open)
+    return (
+      <Nothing
+        title={t('errors.draft.notFound')}
+        action={
+          <Link to="/" className="act">
+            {t('place.home')}
+          </Link>
+        }
+      />
+    )
+
+  const draftCurriculum = curriculumOfTrail(curricula, open.summary.trail)
 
   return (
     <div className="stack loose">
       <div className="stack tight">
         <Trail
           steps={[
-            { id: 'root', label: t('curriculum.title') },
-            ...trailOf(open.summary.trail, languages).slice(0, -1),
+            { id: 'root', label: t('curricula.title') },
+            { id: 'curriculum', label: curriculumName(draftCurriculum) },
+            ...trailOf(
+              open.summary.trail.filter((step) => step.kind !== 'curriculum'),
+              languages,
+            ).slice(0, open.summary.kind === 'NewNode' ? undefined : -1),
           ]}
-          onGo={(id) => navigate(id === 'root' ? '/curriculum' : `/curriculum/${id}`)}
+          linkAll
+          onGo={(id) =>
+            navigate(
+              id === 'root' ? '/curriculum' : id === 'curriculum' ? `/curriculum/of/${draftCurriculum?.id ?? ''}` : `/curriculum/${id}`,
+            )
+          }
         />
 
         <div className="heading">
@@ -339,6 +401,8 @@ function Editor({
   onComment: (anchor: CommentAnchor) => void
 }) {
   const { t } = useI18n()
+  const { list } = useCurricula()
+  const curriculum = curriculumOfTrail(list, draft.summary.trail)
 
   switch (draft.summary.kind) {
     case 'LessonContent': {
@@ -359,7 +423,7 @@ function Editor({
 
     case 'NewNode': {
       const made = (proposal as NewNodeProposal | null) ?? { titles: [], position: null, items: null }
-      const kind = draft.summary.nodeKind ?? 'lesson'
+      const kind = levelOf(draft)
       return (
         <div className="stack loose">
           <Titles
@@ -368,7 +432,7 @@ function Editor({
             onChange={(titles) => onChange({ ...made, titles })}
           />
 
-          {kind === 'lesson' ? (
+          {levelIsPlayable(curriculum, kind) ? (
             <div className="stack">
               <h2 style={{ fontSize: 'var(--t-lg)' }}>{t('lesson.main')}</h2>
               <p className="said">{t('lesson.mainSaid')}</p>
@@ -396,7 +460,8 @@ function Editor({
       const moved = (proposal as MoveProposal | null) ?? { newParentId: '', position: null }
       return (
         <MoveTo
-          kind={draft.summary.nodeKind ?? 'lesson'}
+          kind={levelOf(draft)}
+          curriculum={curriculum}
           value={moved.newParentId}
           readOnly={readOnly}
           onChange={(newParentId) => onChange({ ...moved, newParentId })}
@@ -556,22 +621,29 @@ function Titles({
 /** Where it goes: the curriculum walked down one level at a time. */
 function MoveTo({
   kind,
+  curriculum,
   value,
   readOnly,
   onChange,
 }: {
   kind: NodeKind
+  curriculum: StudioCurriculum | undefined
   value: string
   readOnly: boolean
   onChange: (parentId: string) => void
 }) {
   const { t } = useI18n()
-  const parentKind = livesUnder[kind]
+  const above = levelAbove(curriculum, kind)
   const [path, setPath] = useState<string[]>([])
 
-  if (!parentKind) return <p className="said">{t('errors.scope.outOfScope')}</p>
+  // Nothing to move to: the served grades are fixed, and a declared curriculum's top level has only
+  // its one root above it — a new place there is a new order, not a move.
+  if (!above.kind || above.depth === 0) return <p className="said">{t('curriculum.cannotMove')}</p>
 
-  const wanted = depthOf[parentKind]
+  const wanted = above.depth
+
+  // The walk starts at the curriculum's own top: the grades, or what hangs from a declared root.
+  const top = curriculum && !curriculum.isServed ? curriculum.rootNodeId : null
 
   return (
     <div className="stack">
@@ -579,7 +651,8 @@ function MoveTo({
       {Array.from({ length: wanted }, (_, level) => (
         <Level
           key={level}
-          parentId={level === 0 ? null : (path[level - 1] ?? null)}
+          curriculum={curriculum}
+          parentId={level === 0 ? top : (path[level - 1] ?? null)}
           disabled={readOnly || (level > 0 && !path[level - 1])}
           value={path[level] ?? ''}
           onChange={(id) => {
@@ -595,11 +668,13 @@ function MoveTo({
 }
 
 function Level({
+  curriculum,
   parentId,
   value,
   disabled,
   onChange,
 }: {
+  curriculum: StudioCurriculum | undefined
   parentId: string | null
   value: string
   disabled: boolean
@@ -608,9 +683,10 @@ function Level({
   const { t } = useI18n()
   const languages = useLanguages()
   const title = useTitle()
+  const levelName = useLevelName()
   const list = useLoad(() => (disabled ? Promise.resolve([]) : studio.children(parentId, false)), [parentId, disabled])
   const options = list.data ?? []
-  const label = options[0] ? t(`curriculum.kind.${options[0].kind}`) : t('curriculum.title')
+  const label = options[0] ? levelName(options[0].kind, curriculum) : t('curriculum.title')
 
   return (
     <div className="field">

@@ -124,7 +124,7 @@ export function Activity() {
       {feed.loading ? (
         <Wiping rows={6} />
       ) : all.length === 0 ? (
-        <Nothing title={t("activity.empty")}>{t("activity.said")}</Nothing>
+        <Nothing title={t("activity.empty")}>{t("activity.emptySaid")}</Nothing>
       ) : (
         <>
           {[...days.entries()].map(([day, items]) => (

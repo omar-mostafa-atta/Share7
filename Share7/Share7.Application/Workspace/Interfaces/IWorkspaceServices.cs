@@ -86,6 +86,12 @@ public interface IReleaseService
 
     Task<ServiceResult<ReleaseDto>> PublishAsync(StudioMember member, Guid releaseId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// A Lead puts one draft live in one step, without a second person: approved by them if it is not
+    /// already, then carried by a release of its own and published at once.
+    /// </summary>
+    Task<ServiceResult<DraftDto>> ReleaseNowAsync(StudioMember member, Guid draftId, DraftActionRequest request, CancellationToken cancellationToken = default);
+
     Task<ServiceResult<ReleaseDto>> ScheduleAsync(StudioMember member, Guid releaseId, ScheduleReleaseRequest request, CancellationToken cancellationToken = default);
 
     Task<ServiceResult<ReleaseDto>> CancelAsync(StudioMember member, Guid releaseId, CancellationToken cancellationToken = default);
@@ -94,6 +100,22 @@ public interface IReleaseService
 
     /// <summary>The scheduler: publishes every scheduled release that is due. Returns how many went out.</summary>
     Task<int> PublishDueAsync(CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// The curricula themselves: the one the game serves, and those declared in the Studio. A Lead whose
+/// scope is the whole curriculum declares one immediately — it is empty and unplayable, so nothing a
+/// student sees changes — and everything built inside it goes through draft, review and release.
+/// </summary>
+public interface IStudioCurriculaService
+{
+    Task<IReadOnlyList<StudioCurriculumDto>> ListAsync(StudioMember member, CancellationToken cancellationToken = default);
+
+    Task<ServiceResult<StudioCurriculumDto>> GetAsync(StudioMember member, Guid curriculumId, CancellationToken cancellationToken = default);
+
+    Task<ServiceResult<StudioCurriculumDto>> CreateAsync(StudioMember member, CreateCurriculumRequest request, CancellationToken cancellationToken = default);
+
+    Task<ServiceResult<StudioCurriculumDto>> UpdateAsync(StudioMember member, Guid curriculumId, UpdateCurriculumRequest request, CancellationToken cancellationToken = default);
 }
 
 /// <summary>The curriculum as the Studio browses it: statuses, open drafts, what is missing.</summary>

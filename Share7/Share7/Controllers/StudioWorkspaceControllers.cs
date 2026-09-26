@@ -116,12 +116,14 @@ public class StudioDraftsController : StudioWorkspaceControllerBase
 {
     private readonly IDraftService _drafts;
     private readonly IReviewService _reviews;
+    private readonly IReleaseService _releases;
     private readonly IStudioImportService _imports;
 
-    public StudioDraftsController(IDraftService drafts, IReviewService reviews, IStudioImportService imports)
+    public StudioDraftsController(IDraftService drafts, IReviewService reviews, IReleaseService releases, IStudioImportService imports)
     {
         _drafts = drafts;
         _reviews = reviews;
+        _releases = releases;
         _imports = imports;
     }
 
@@ -180,6 +182,11 @@ public class StudioDraftsController : StudioWorkspaceControllerBase
     [HttpPost("{draftId:guid}/presence")]
     public Task<IActionResult> Presence(Guid draftId, CancellationToken cancellationToken) =>
         AsMember(async member => Reply(await _drafts.PresenceAsync(member, draftId, cancellationToken)), cancellationToken);
+
+    /// <summary>A Lead's change, live in one step: approved by them and released on its own. Send the revision you loaded.</summary>
+    [HttpPost("{draftId:guid}/release-now")]
+    public Task<IActionResult> ReleaseNow(Guid draftId, DraftActionRequest request, CancellationToken cancellationToken) =>
+        AsMember(async member => Reply(await _releases.ReleaseNowAsync(member, draftId, request, cancellationToken)), cancellationToken);
 
     [HttpPost("{draftId:guid}/approve")]
     public Task<IActionResult> Approve(Guid draftId, DraftActionRequest request, CancellationToken cancellationToken) =>
@@ -374,3 +381,33 @@ public class StudioInboxController : StudioWorkspaceControllerBase
 public sealed record StudioMarkReadRequest(IReadOnlyList<Guid>? Ids);
 
 public sealed record StudioCloseAssignmentRequest(WorkAssignmentStatus Status);
+
+/// <summary>
+/// The curricula themselves: <c>/api/studio/curricula</c>. Reading is for everyone in the Studio;
+/// declaring one, renaming it and changing its levels is for a Lead whose scope is the whole
+/// curriculum, straight away and audited — an empty curriculum the game does not play changes
+/// nothing a student sees, and everything built inside it is reviewed like any other change.
+/// </summary>
+[Route("api/studio/curricula")]
+public class StudioCurriculaController : StudioWorkspaceControllerBase
+{
+    private readonly IStudioCurriculaService _curricula;
+
+    public StudioCurriculaController(IStudioCurriculaService curricula) => _curricula = curricula;
+
+    [HttpGet]
+    public Task<IActionResult> List(CancellationToken cancellationToken) =>
+        AsMember(async member => Ok(await _curricula.ListAsync(member, cancellationToken)), cancellationToken);
+
+    [HttpGet("{curriculumId:guid}")]
+    public Task<IActionResult> Get(Guid curriculumId, CancellationToken cancellationToken) =>
+        AsMember(async member => Reply(await _curricula.GetAsync(member, curriculumId, cancellationToken)), cancellationToken);
+
+    [HttpPost]
+    public Task<IActionResult> Create(CreateCurriculumRequest request, CancellationToken cancellationToken) =>
+        AsMember(async member => Reply(await _curricula.CreateAsync(member, request, cancellationToken)), cancellationToken);
+
+    [HttpPut("{curriculumId:guid}")]
+    public Task<IActionResult> Update(Guid curriculumId, UpdateCurriculumRequest request, CancellationToken cancellationToken) =>
+        AsMember(async member => Reply(await _curricula.UpdateAsync(member, curriculumId, request, cancellationToken)), cancellationToken);
+}

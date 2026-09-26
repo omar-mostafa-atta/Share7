@@ -9,6 +9,7 @@ using Share7.Domain.Recovery;
 using Share7.Domain.Workspace;
 using Share7.Infrastructure.Engine;
 using Share7.Infrastructure.Persistence;
+using Share7.Infrastructure.Structure;
 
 namespace Share7.Infrastructure.Workspace;
 
@@ -295,7 +296,7 @@ public sealed class DraftKinds
                 if (draft.ParentNodeId is { } parentId)
                     problems.AddRange(await NameClashesAsync(parentId, null, proposal.Titles, cancellationToken));
 
-                if (draft.NodeKind == NodeKinds.Lesson && proposal.Items is { Count: > 0 } items)
+                if (await IsPlayableLevelAsync(draft, cancellationToken) && proposal.Items is { Count: > 0 } items)
                     problems.AddRange(await _publisher.CheckAsync(draft.NodeId!.Value, items, covers, ContentRuleSet.Studio, cancellationToken));
 
                 return problems;
@@ -322,8 +323,15 @@ public sealed class DraftKinds
 
                 if (node is null || target is null)
                     return [new("parentMissing", "Choose where it moves to.", Field: "parent")];
-                if (target.Kind != NodeKinds.ParentOf(node.Kind))
-                    return [new("wrongParent", $"A {node.Kind} goes under a {NodeKinds.ParentOf(node.Kind)}.", Field: "parent")];
+
+                var shapes = new CurriculumShapes(_db);
+                var shape = await shapes.ForNodeAsync(node.Id, cancellationToken);
+                var targetShape = await shapes.ForNodeAsync(target.Id, cancellationToken);
+
+                if (shape is null || targetShape is null || shape.VersionId != targetShape.VersionId)
+                    return [new("otherCurriculum", "It can only move somewhere in its own curriculum.", Field: "parent")];
+                if (target.Kind != shape.ParentOf(node.Kind))
+                    return [new("wrongParent", $"A {node.Kind} goes under a {shape.ParentOf(node.Kind)}.", Field: "parent")];
                 if (target.RetiredAtUtc is not null)
                     return [new("parentRetired", "That place is retired.", Field: "parent")];
                 if (target.Id == node.ParentId && proposal!.Position is null)
@@ -416,6 +424,15 @@ public sealed class DraftKinds
 
         return [];
     }
+
+    /// <summary>
+    /// Whether a new-node draft proposes a node at its curriculum's played level — the only level
+    /// questions can be written at. Found from the draft's path, whose top is always a real node.
+    /// </summary>
+    public async Task<bool> IsPlayableLevelAsync(Draft draft, CancellationToken cancellationToken) =>
+        draft.NodeKind is { } kind
+        && await new CurriculumShapes(_db).ForPathAsync(draft.ScopePath, cancellationToken) is { } shape
+        && shape.IsPlayable(kind);
 
     private async Task<IReadOnlyList<ContentProblem>> TitleProblemsAsync(
         string kind, IReadOnlyList<NodeTitle> titles, CancellationToken cancellationToken)

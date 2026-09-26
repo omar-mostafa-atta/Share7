@@ -60,6 +60,17 @@ contract:
   staff security settings.
 - **`/api/admin/engine/*`** (Admin) — which tables answer the game's curriculum reads
   (`read-model`, with every day's shadow comparison) and the unlock repair queue.
+- **`/api/studio/curricula`** (25 Sep 2026) — curricula declared in the Studio: any shape, authored
+  now and played later. Nothing under one is copied where the game reads; its questions live in
+  `NodeItemRenderings`, never in `Questions`. See `ContentStudioCurricula.md`.
+- **`POST /api/studio/drafts/{id}/release-now`** (26 Sep 2026) — a Lead puts a draft live in one
+  step, without a second person: approved by them, released on its own, published at once. Body
+  `{ revision }`; answers the draft. A Lead may also approve their own draft through `/approve`;
+  either is audited as `workspace.draft.self_approved`. See `ContentStudioCurricula.md`.
+- **Swagger** (26 Sep 2026) names a request or response shape by its class, prefixed with its
+  feature only when two classes share a name (`WorkspaceCreateAssignmentRequest`,
+  `OrganizationsCreateAssignmentRequest`). The clash between those two had made
+  `/swagger/v1/swagger.json` answer 500.
 
 Two behaviours on the existing admin routes changed with the engine rebuild
 (`ContentStudioPhase2.md`), while their shapes did not:

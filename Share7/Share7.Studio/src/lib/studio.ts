@@ -23,7 +23,15 @@ export type ReleaseStatus = 'Building' | 'Scheduled' | 'Publishing' | 'Published
 export type ReviewVerdict = 'Approved' | 'ChangesRequested'
 export type AssignmentStatus = 'Open' | 'Done' | 'Cancelled'
 export type ItemRole = 'Core' | 'Practice' | 'Recovery' | 'Diagnostic' | 'Placement'
-export type NodeKind = 'grade' | 'term' | 'subject' | 'chapter' | 'lesson'
+/**
+ * A level's key. The Egyptian five are named here because the Studio's own dictionaries name
+ * them; a curriculum declared in the Studio has its own root ('curriculum') and positional levels
+ * ('level1', 'level2', …), named by the curriculum itself.
+ */
+export type NodeKind = 'grade' | 'term' | 'subject' | 'chapter' | 'lesson' | 'curriculum' | `level${number}`
+
+/** The five levels of the curriculum the game serves, top first. */
+export const servedLevels = ['grade', 'term', 'subject', 'chapter', 'lesson'] as const
 
 export interface ContentLanguage {
   id: string
@@ -59,6 +67,44 @@ export interface StudioNode {
   missingLanguages: string[] | null
   questionCounts: Record<string, number> | null
   inScope: boolean
+  curriculumId: string
+  /** At its curriculum's played level: where questions are written. */
+  isPlayable: boolean
+}
+
+// --- curricula --------------------------------------------------------------
+
+export interface StudioLevel {
+  key: NodeKind
+  depth: number
+  isPlayable: boolean
+  names: NodeTitle[]
+}
+
+export interface StudioCurriculum {
+  id: string
+  versionId: string
+  /** The node its levels hang from; null for the Egyptian tree, whose grades are its top. */
+  rootNodeId: string | null
+  key: string
+  titles: NodeTitle[]
+  /** Whether the game plays it. Every other curriculum is "not played yet". */
+  isServed: boolean
+  /** How many levels from the top are fixed in place, because something sits at the deepest of them. */
+  fixedLevels: number
+  /** No level can be added or taken out: something sits at the played one. */
+  levelsLocked: boolean
+  levels: StudioLevel[]
+  topCount: number
+  playableCount: number
+  inScope: boolean
+  canManage: boolean
+  createdAtUtc: string
+}
+
+export interface CurriculumDeclaration {
+  titles: NodeTitle[]
+  levels: { names: NodeTitle[] }[]
 }
 
 export interface StudioNodeDetail {
@@ -183,6 +229,8 @@ export interface DraftPermissions {
   review: boolean
   discard: boolean
   release: boolean
+  /** A Lead may put it live in one step, approved by them and released on its own. */
+  releaseNow: boolean
 }
 
 export interface ReviewDecision {
@@ -687,6 +735,17 @@ export const studio = {
   search: (q: string, under?: string | null, langId?: string | null, take = 50) =>
     request<QuestionHit[]>('GET', `/api/studio/curriculum/search${query({ q, under, langId, take })}`),
 
+  // --- curricula -----------------------------------------------------------
+  curricula: () => request<StudioCurriculum[]>('GET', '/api/studio/curricula'),
+
+  curriculum: (curriculumId: string) => request<StudioCurriculum>('GET', `/api/studio/curricula/${curriculumId}`),
+
+  declareCurriculum: (body: CurriculumDeclaration) => request<StudioCurriculum>('POST', '/api/studio/curricula', body),
+
+  /** Levels are optional: null keeps them as they are. */
+  updateCurriculum: (curriculumId: string, body: { titles: NodeTitle[]; levels: { names: NodeTitle[] }[] | null }) =>
+    request<StudioCurriculum>('PUT', `/api/studio/curricula/${curriculumId}`, body),
+
   // --- drafts --------------------------------------------------------------
   drafts: (params: {
     mine?: boolean
@@ -731,6 +790,9 @@ export const studio = {
     request<Draft>('POST', `/api/studio/drafts/${draftId}/rebase`, { revision, proposal: proposal ?? null }),
 
   presence: (draftId: string) => request<PersonName[]>('POST', `/api/studio/drafts/${draftId}/presence`),
+
+  releaseNow: (draftId: string, revision: number) =>
+    request<Draft>('POST', `/api/studio/drafts/${draftId}/release-now`, { revision }),
 
   approve: (draftId: string, revision: number, note?: string) =>
     request<Draft>('POST', `/api/studio/drafts/${draftId}/approve`, { revision, note: note ?? null }),

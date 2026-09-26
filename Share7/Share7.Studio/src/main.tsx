@@ -15,7 +15,8 @@ void start()
 
 createRoot(document.getElementById('studio')!).render(
   <StrictMode>
-    <BrowserRouter>
+    {/* The Studio lives at /studio (vite.config.ts base); every route is under it. */}
+    <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '')}>
       <I18nProvider>
         <TellingProvider>
           <App />

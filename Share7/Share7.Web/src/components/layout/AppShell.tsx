@@ -1,13 +1,14 @@
 import { motion } from 'motion/react'
 import { Menu, Monitor, Moon, Rows3, Search, Sun } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { RouteErrorBoundary } from './ErrorBoundary'
 import { CommandPalette } from '../ui/CommandPalette'
 import { PageTitle } from '../ui/bits'
-import { entryForPath } from '../../lib/nav'
+import { entryForPath, navFor } from '../../lib/nav'
+import { useAuth } from '../../store/auth'
 import type { Portal } from '../../lib/portals'
 import { usePrefs } from '../../store/prefs'
 import type { ThemeChoice } from '../../store/prefs'
@@ -19,7 +20,12 @@ import { pageVariants } from '../ui/motion'
  * One shell for every portal, fed that portal's name and nav, rather than a copy per audience —
  * two copies of this would drift the way the two copies of the old console did.
  */
-export function AppShell({ portal }: { portal: Portal }) {
+export function AppShell({ portal: whole }: { portal: Portal }) {
+  // The portal as this person sees it: a page only some of its people may open is not offered to
+  // the rest, in the sidebar or the command palette.
+  const roles = useAuth((s) => s.roles)
+  const portal = useMemo(() => ({ ...whole, nav: navFor(whole.nav, roles) }), [whole, roles])
+
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const location = useLocation()

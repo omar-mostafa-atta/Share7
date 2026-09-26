@@ -124,8 +124,9 @@ public class AdminUsersController : ControllerBase
     }
 
     /// <summary>
-    /// The roles the caller may give a new account: <c>Student</c> and <c>ContentTeam</c>, plus
-    /// <c>Admin</c> and <c>SuperAdmin</c> when the caller is a SuperAdmin.
+    /// The roles the caller may give a new account: <c>Student</c>, <c>ContentTeam</c> and
+    /// <c>Admin</c>, plus <c>SuperAdmin</c> when the caller is a SuperAdmin. A content-team account is
+    /// created through <c>POST /api/admin/team</c>, which gives it a Studio profile and a setup link.
     /// </summary>
     [HttpGet("assignable-roles")]
     public IActionResult GetAssignableRoles() =>
@@ -136,8 +137,8 @@ public class AdminUsersController : ControllerBase
     /// the content team in particular — come to exist, since registration only grants Student.
     /// </summary>
     /// <remarks>
-    /// 409 when the username is taken; 403 when a non-SuperAdmin asks for a privileged role;
-    /// 400 for an unknown or unassignable role, or a password Identity rejects.
+    /// 409 when the username is taken; 403 when a non-SuperAdmin asks for SuperAdmin, or anyone asks
+    /// for ContentTeam here; 400 for an unknown or unassignable role, or a password Identity rejects.
     /// </remarks>
     [HttpPost]
     [EnableRateLimiting(RateLimitPolicies.Writes)]

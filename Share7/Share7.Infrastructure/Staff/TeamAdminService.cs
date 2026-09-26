@@ -114,11 +114,16 @@ public partial class TeamAdminService : ITeamAdminService
                 rows.Count(r => r.Status == StaffStatus.Suspended),
                 rows.Count(r => r.Status == StaffStatus.Deactivated)),
             settings.RequireTwoStep,
-            StudioAddressConfigured: !string.IsNullOrWhiteSpace(_studio.PublicUrl));
+            StudioAddressConfigured: !string.IsNullOrWhiteSpace(_studio.PublicUrl),
+            StudioAddress: string.IsNullOrWhiteSpace(_studio.PublicUrl) ? null : _studio.PublicUrl.Trim().TrimEnd('/'));
     }
 
     public async Task<TeamScopeOptionsDto> GetScopeOptionsAsync(CancellationToken cancellationToken = default) =>
-        new(await _scopes.TreeAsync(cancellationToken), await _scopes.LanguagesAsync(cancellationToken));
+        new(
+            await _scopes.TreeAsync(cancellationToken),
+            await _scopes.LanguagesAsync(cancellationToken),
+            StaffPasswordPolicy.Rules((await _sessions.SettingsAsync(cancellationToken)).MinimumPasswordLength),
+            string.IsNullOrWhiteSpace(_studio.PublicUrl) ? null : _studio.PublicUrl.Trim().TrimEnd('/'));
 
     public async Task<ServiceResult<TeamMemberDetailDto>> GetMemberAsync(Guid userId, CancellationToken cancellationToken = default) =>
         await DetailAsync(userId, cancellationToken) is { } detail
@@ -141,19 +146,24 @@ public partial class TeamAdminService : ITeamAdminService
 
         errors.AddRange(await ValidateScopeAsync(request.AllNodes, request.NodeIds, request.AllLanguages, request.LanguageIds, cancellationToken));
 
+        var settings = await _sessions.SettingsAsync(cancellationToken);
+        var withPassword = request.Password is not null;
+        if (withPassword)
+            errors.AddRange(PasswordErrors(request.Password!, username, settings.MinimumPasswordLength));
+
         if (errors.Count > 0)
             return ServiceResult<CreatedTeamMemberDto>.Invalid([.. errors]);
 
         var now = DateTime.UtcNow;
-        var settings = await _sessions.SettingsAsync(cancellationToken);
         var user = new ApplicationUser { UserName = username, CreatedAt = now, LockoutEnabled = true };
-        SetupLinkDto link;
+        SetupLinkDto? link = null;
 
         await using (var transaction = await _db.Database.BeginTransactionAsync(cancellationToken))
         {
-            // No password: the member chooses one through the setup link. Until then nothing —
-            // not the Studio, not the old sign-in — can be signed in to with this account.
-            var created = await _users.CreateAsync(user);
+            // With a password the admin chose, the member signs in at the Studio straight away
+            // (decided 2026-09-26). Without one they choose it through a setup link, and until then
+            // nothing — not the Studio, not the old sign-in — can be signed in to with this account.
+            var created = withPassword ? await _users.CreateAsync(user, request.Password!) : await _users.CreateAsync(user);
             if (!created.Succeeded)
             {
                 await transaction.RollbackAsync(cancellationToken);
@@ -170,7 +180,8 @@ public partial class TeamAdminService : ITeamAdminService
                 WorkEmail = Blank(request.WorkEmail),
                 StudioRole = request.StudioRole,
                 InterfaceLanguage = request.InterfaceLanguage ?? StaffInterfaceLanguages.English,
-                Status = StaffStatus.Invited,
+                Status = withPassword ? StaffStatus.Active : StaffStatus.Invited,
+                ActivatedAtUtc = withPassword ? now : null,
                 CreatedAtUtc = now,
                 CreatedByUserId = _actor.UserId,
                 UpdatedAtUtc = now
@@ -179,11 +190,14 @@ public partial class TeamAdminService : ITeamAdminService
             _db.StaffProfiles.Add(profile);
             ApplyScope(profile, request.AllNodes, request.NodeIds, request.AllLanguages, request.LanguageIds);
 
-            link = IssueLink(user.Id, StaffSetupPurpose.Activation, settings, now);
+            if (!withPassword)
+                link = IssueLink(user.Id, StaffSetupPurpose.Activation, settings, now);
 
             _audit.Record(new AuditEntry(
                 AuditActions.TeamMemberCreated, AuditAreas.Team,
-                $"Created a content-team member as {profile.StudioRole} and issued their setup link.",
+                withPassword
+                    ? $"Created a content-team member as {profile.StudioRole}, with a password set by the admin."
+                    : $"Created a content-team member as {profile.StudioRole} and issued their setup link.",
                 "staff", user.Id.ToString(),
                 new
                 {
@@ -192,7 +206,8 @@ public partial class TeamAdminService : ITeamAdminService
                     nodeIds = request.AllNodes ? null : request.NodeIds,
                     allLanguages = profile.AllLanguages,
                     languageIds = request.AllLanguages ? null : request.LanguageIds,
-                    setupLinkExpiresAtUtc = link.ExpiresAtUtc
+                    passwordSetByAdmin = withPassword,
+                    setupLinkExpiresAtUtc = link?.ExpiresAtUtc
                 }));
 
             await _db.SaveChangesAsync(cancellationToken);
@@ -544,6 +559,103 @@ public partial class TeamAdminService : ITeamAdminService
         _sessions.ForgetCached(user.Id);
         return ServiceResult<TeamMemberDetailDto>.Success((await DetailAsync(user.Id, cancellationToken))!);
     }
+
+    public async Task<ServiceResult<TeamMemberDetailDto>> SetPasswordAsync(
+        Guid userId,
+        SetTeamMemberPasswordRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var (user, profile) = await LoadAsync(userId, cancellationToken);
+        if (user is null || profile is null)
+            return ServiceResult<TeamMemberDetailDto>.NotFound("There is no content-team member with that id.");
+
+        if (profile.Status == StaffStatus.Deactivated)
+            return ServiceResult<TeamMemberDetailDto>.Conflict("A closed account cannot be given a new password.");
+
+        var settings = await _sessions.SettingsAsync(cancellationToken);
+        var errors = PasswordErrors(request.Password ?? string.Empty, user.UserName!, settings.MinimumPasswordLength);
+        if (errors.Count > 0)
+            return ServiceResult<TeamMemberDetailDto>.Invalid([.. errors]);
+
+        var now = DateTime.UtcNow;
+        var activated = profile.Status == StaffStatus.Invited;
+
+        await using (var transaction = await _db.Database.BeginTransactionAsync(cancellationToken))
+        {
+            // Any link still waiting is withdrawn: the password is now the way in.
+            var withdrawn = await RevokeLinksAsync(userId, now, cancellationToken);
+
+            if (await _users.HasPasswordAsync(user))
+                await _users.RemovePasswordAsync(user);
+
+            var added = await _users.AddPasswordAsync(user, request.Password!);
+            if (!added.Succeeded)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                return ServiceResult<TeamMemberDetailDto>.Invalid([.. added.Errors.Select(e => e.Description)]);
+            }
+
+            if (request.ClearTwoStep && user.TwoFactorEnabled)
+            {
+                await _users.SetTwoFactorEnabledAsync(user, false);
+                await _users.RemoveAuthenticationTokenAsync(user, "[AspNetUserStore]", "AuthenticatorKey");
+                await _users.RemoveAuthenticationTokenAsync(user, "[AspNetUserStore]", "RecoveryCodes");
+            }
+
+            await _users.SetLockoutEnabledAsync(user, true);
+            await _users.SetLockoutEndDateAsync(user, null);
+            await _users.ResetAccessFailedCountAsync(user);
+            await _users.UpdateSecurityStampAsync(user);
+
+            // Whoever held the old password is out, on every device.
+            var sessions = await _sessions.EndAllAsync(userId, StaffSessionEndReasons.PasswordChanged, _actor.UserId, cancellationToken);
+            var legacy = await _sessions.EndLegacySignInsAsync(userId, "Password set in Team & Access", cancellationToken);
+
+            if (activated)
+            {
+                profile.Status = StaffStatus.Active;
+                profile.ActivatedAtUtc = now;
+                profile.StatusChangedAtUtc = now;
+                profile.StatusChangedByUserId = _actor.UserId;
+            }
+
+            profile.UpdatedAtUtc = now;
+
+            _audit.Record(new AuditEntry(
+                AuditActions.TeamMemberPasswordSet, AuditAreas.Team,
+                request.ClearTwoStep
+                    ? "Set a member's password, turned off their 2-step sign-in and signed them out everywhere."
+                    : "Set a member's password and signed them out everywhere.",
+                "staff", userId.ToString(),
+                new
+                {
+                    clearTwoStep = request.ClearTwoStep,
+                    activated,
+                    studioSessionsEnded = sessions,
+                    oldSignInsRevoked = legacy,
+                    setupLinksWithdrawn = withdrawn
+                }));
+
+            await _db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+
+        _sessions.ForgetCached(userId);
+        return ServiceResult<TeamMemberDetailDto>.Success((await DetailAsync(userId, cancellationToken))!);
+    }
+
+    /// <summary>The staff password rules a password breaks, as sentences for the Admin Console.</summary>
+    private static List<string> PasswordErrors(string password, string username, int minimumLength) =>
+        StaffPasswordPolicy.Problems(password, username, minimumLength).Select(code => code switch
+        {
+            "tooShort" => $"The password needs at least {minimumLength} characters.",
+            "needsUppercase" => "The password needs an upper-case letter.",
+            "needsLowercase" => "The password needs a lower-case letter.",
+            "needsDigit" => "The password needs a digit.",
+            "containsUsername" => "The password must not contain the username.",
+            "common" => "That password is too easy to guess. Use Generate for a strong one.",
+            _ => "The password does not meet the rules."
+        }).ToList();
 
     public async Task<ServiceResult<SetupLinkDto>> ResetAccessAsync(
         Guid userId,
@@ -997,7 +1109,8 @@ public partial class TeamAdminService : ITeamAdminService
         var baseUrl = _studio.PublicUrl?.Trim().TrimEnd('/');
 
         return string.IsNullOrEmpty(baseUrl)
-            ? new SetupLinkDto(path, IsAbsolute: false, expires, purpose)
+            // The Studio is at /studio on the API's own site when no address is configured (StudioHosting).
+            ? new SetupLinkDto("/studio" + path, IsAbsolute: false, expires, purpose)
             : new SetupLinkDto(baseUrl + path, IsAbsolute: true, expires, purpose);
     }
 

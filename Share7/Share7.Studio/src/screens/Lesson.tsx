@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useContentLanguages, useLanguages, useLedge } from '../App'
 import { Mark, Nothing, Sheet, Trail, Wiping, useSaying, useTelling } from '../board/pieces'
 import { useI18n } from '../i18n/i18n'
+import { curriculumOfTrail, useCurricula, useCurriculumName } from '../lib/curricula'
 import { StudioError } from '../lib/api'
 import {
   studio,
@@ -42,6 +43,8 @@ export function Lesson() {
   const content = useContentLanguages()
   const title = useTitle()
   const trailOf = useTrail()
+  const { list } = useCurricula()
+  const curriculumName = useCurriculumName()
   const saying = useSaying()
   const { say } = useTelling()
   const [busy, run] = useDoing()
@@ -163,6 +166,10 @@ export function Lesson() {
       }
     })
 
+  // What goes live is what is on the board, so a change still on its way to the server holds it.
+  const pending = saving || dirty.current
+  const lead = open?.can.releaseNow ?? false
+
   const startWriting = () =>
     run(async () => {
       try {
@@ -213,7 +220,7 @@ export function Lesson() {
                 </button>
                 <button
                   type="button"
-                  className="act first"
+                  className={lead ? 'act' : 'act first'}
                   disabled={busy}
                   onClick={() => void act(() => studio.approve(open.summary.id, open.summary.revision), t('review.approve'))}
                 >
@@ -229,36 +236,70 @@ export function Lesson() {
               >
                 {t('lesson.withdraw')}
               </button>
-            ) : (
+            ) : lead && open.summary.status === 'Approved' ? null : (
               <button
                 type="button"
-                className="act first"
+                className={lead ? 'act' : 'act first'}
                 disabled={busy || !open.can.submit || problems.length > 0}
                 onClick={() => void act(() => studio.submit(open.summary.id, revision), t('lesson.submit'))}
               >
                 {t('lesson.submit')}
               </button>
             )}
+
+            {/* A Lead needs nobody else: their one action is to put it live. */}
+            {lead ? (
+              <button
+                type="button"
+                className="act first"
+                disabled={busy || pending || (open.summary.status !== 'Approved' && problems.length > 0)}
+                onClick={() => void act(() => studio.releaseNow(open.summary.id, revision), t('lesson.releasedNow'))}
+              >
+                {t('lesson.releaseNow')}
+              </button>
+            ) : null}
           </>
         )}
       </div>
     </>,
-    [open?.summary.id, open?.summary.status, open?.can.review, saving, savedAt, problems.length, alsoHere.join(), busy, revision, t],
+    [open?.summary.id, open?.summary.status, open?.can.review, lead, pending, saving, savedAt, problems.length, alsoHere.join(), busy, revision, t],
   )
 
   if (workspace.loading) return <Wiping rows={6} tall />
-  if (!workspace.data) return <Nothing title={t('errors.node.notFound')} />
+  if (!workspace.data)
+    return (
+      <Nothing
+        title={t('errors.node.notFound')}
+        action={
+          <Link to="/curriculum" className="act">
+            {t('place.curriculum')}
+          </Link>
+        }
+      />
+    )
 
   const lesson = workspace.data.lesson
-  // The last step is the lesson itself, and the heading right below already says it.
-  const wholeTrail = trailOf(workspace.data.trail, languages).slice(0, -1)
+  const curriculum = list.find((one) => one.id === lesson.curriculumId) ?? curriculumOfTrail(list, workspace.data.trail)
+
+  // The list, the curriculum by name, then the way down — without a declared curriculum's root,
+  // which the second step already names, and without the lesson, which the heading below says.
+  const wholeTrail = trailOf(workspace.data.trail.filter((step) => step.kind !== 'curriculum'), languages).slice(0, -1)
 
   return (
     <div className="stack loose">
       <div className="stack tight">
         <Trail
-          steps={[{ id: 'root', label: t('curriculum.title') }, ...wholeTrail]}
-          onGo={(id) => navigate(id === 'root' ? '/curriculum' : `/curriculum/${id}`)}
+          steps={[
+            { id: 'root', label: t('curricula.title') },
+            { id: 'curriculum', label: curriculumName(curriculum) },
+            ...wholeTrail,
+          ]}
+          linkAll
+          onGo={(id) =>
+            navigate(
+              id === 'root' ? '/curriculum' : id === 'curriculum' ? `/curriculum/of/${curriculum?.id ?? ''}` : `/curriculum/${id}`,
+            )
+          }
         />
 
         <div className="heading">

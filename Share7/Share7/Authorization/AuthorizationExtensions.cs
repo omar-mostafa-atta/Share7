@@ -36,6 +36,8 @@ public static class AuthorizationExtensions
                 policy.RequireRole(Roles.Admin, Roles.SuperAdmin))
             .AddPolicy(Policies.ManageStaff, policy =>
                 policy.RequireRole(Roles.SuperAdmin))
+            .AddPolicy(Policies.AddTeamMembers, policy =>
+                policy.RequireRole(Roles.Admin, Roles.SuperAdmin))
             .AddPolicy(Policies.StudioSession, policy => Studio(policy)
                 .RequireClaim(StaffSecrets.StudioAccessClaim, StaffSecrets.FullAccess, StaffSecrets.SetupOnlyAccess))
             .AddPolicy(Policies.StudioMember, policy => Studio(policy)

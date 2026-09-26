@@ -17,6 +17,7 @@ export function Modal({
   title,
   children,
   footer,
+  wide,
 }: {
   open: boolean
   onClose: () => void
@@ -24,6 +25,9 @@ export function Modal({
   title: ReactNode
   children: ReactNode
   footer?: ReactNode
+
+  /** For a dialog that holds a form in parts — a new content-team member — rather than a few fields. */
+  wide?: boolean
 }) {
   // Callers pass an inline arrow for onClose, so its identity changes on every render of the
   // parent. Depending on it directly would tear down and re-run the effect below each time —
@@ -68,7 +72,7 @@ export function Modal({
           onClick={onClose}
         >
           <motion.div
-            className="s7-modal"
+            className={wide ? "s7-modal s7-modal-wide" : "s7-modal"}
             variants={modalVariants}
             role="dialog"
             aria-modal="true"

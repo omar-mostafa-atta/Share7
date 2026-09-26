@@ -129,7 +129,7 @@ public class StudioApiSmokeTests
 
             Assert.True(created.Succeeded, string.Join("; ", created.Errors));
             username = created.Value!.Member.Username;
-            secret = created.Value.SetupLink.Url[(created.Value.SetupLink.Url.IndexOf('#') + 1)..];
+            secret = created.Value.SetupLink!.Url[(created.Value.SetupLink.Url.IndexOf('#') + 1)..];
         }
 
         await using (var scope = services.Request())

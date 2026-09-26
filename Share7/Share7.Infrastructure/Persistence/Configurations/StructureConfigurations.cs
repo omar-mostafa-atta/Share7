@@ -277,3 +277,24 @@ public class EnrollmentConfiguration : IEntityTypeConfiguration<Enrollment>
         // UserOwnedData.ManuallyPurged carries this type.
     }
 }
+
+public class CurriculumNodeKindTranslationConfiguration : IEntityTypeConfiguration<CurriculumNodeKindTranslation>
+{
+    public void Configure(EntityTypeBuilder<CurriculumNodeKindTranslation> builder)
+    {
+        builder.ToTable("CurriculumNodeKindTranslations");
+        builder.HasKey(t => new { t.NodeKindId, t.LangId });
+
+        builder.Property(t => t.Name).HasMaxLength(64).IsRequired();
+
+        builder.HasOne(t => t.NodeKind)
+            .WithMany(k => k.Translations)
+            .HasForeignKey(t => t.NodeKindId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(t => t.Language)
+            .WithMany()
+            .HasForeignKey(t => t.LangId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}

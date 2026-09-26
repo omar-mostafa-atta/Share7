@@ -306,14 +306,26 @@ export function Sheet({
 // Small shared readings
 // ---------------------------------------------------------------------------
 
-/** "Grade 5 · Term 1 · Science" — the way down to a node, in the interface language. */
-export function Trail({ steps, onGo }: { steps: { id: string; label: string }[]; onGo?: (id: string) => void }) {
+/**
+ * "Grade 5 · Term 1 · Science" — the way down to a node, in the interface language. The last step
+ * is where you are and is not a link — unless `linkAll`, for a trail that stops above the board
+ * it sits on, whose own name is the heading beneath it.
+ */
+export function Trail({
+  steps,
+  onGo,
+  linkAll = false,
+}: {
+  steps: { id: string; label: string }[]
+  onGo?: (id: string) => void
+  linkAll?: boolean
+}) {
   return (
     <nav className="trail" aria-label="trail">
       {steps.map((step, index) => (
         <span key={step.id} style={{ display: 'contents' }}>
           {index > 0 ? <span className="sep" aria-hidden>·</span> : null}
-          {onGo && index < steps.length - 1 ? (
+          {onGo && (linkAll || index < steps.length - 1) ? (
             <a href={`#/curriculum/${step.id}`} onClick={(event) => { event.preventDefault(); onGo(step.id) }}>
               {step.label}
             </a>

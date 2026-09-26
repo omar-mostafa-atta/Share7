@@ -64,7 +64,7 @@ export function Comments({
   return (
     <div className="stack">
       {top.length === 0 ? (
-        <Nothing title={t('review.noComments')} />
+        <Nothing title={t('review.noComments')}>{t('review.noCommentsSaid')}</Nothing>
       ) : (
         <div className="stack">
           {top.map((comment) => (

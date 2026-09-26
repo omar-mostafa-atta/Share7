@@ -878,6 +878,7 @@ select.write option {
   padding-inline-start: var(--s4);
   font-size: var(--t-sm);
   color: var(--ink-3);
+  max-inline-size: 72ch;
 }
 
 .beside::before {

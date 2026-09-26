@@ -16,6 +16,7 @@ import {
   LayoutDashboard,
   Radio,
   Rocket,
+  ShieldCheck,
   ShoppingBag,
   Sparkles,
   Tag,
@@ -23,6 +24,7 @@ import {
   Users,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import { can, type Permission } from './access'
 
 // ===========================================================================
 // Navigation registry
@@ -46,6 +48,9 @@ export interface NavEntry {
   label: string
   icon: LucideIcon
   blurb: string
+
+  /** Shown only to people who hold it, over and above the portal's own. Nobody is offered a page the API refuses. */
+  permission?: Permission
 }
 
 export interface NavGroup {
@@ -223,7 +228,15 @@ export const NAV: NavGroup[] = [
         to: '/users',
         label: 'Users',
         icon: Users,
-        blurb: 'Look up an account, inspect its profile, grant entitlements, delete',
+        blurb: 'Look up an account, add one of any role, inspect its profile, grant entitlements, delete',
+      },
+      {
+        to: '/team',
+        label: 'Team & Access',
+        icon: ShieldCheck,
+        blurb:
+          'The content team: who is in it, their Studio role and scope, suspend, reset access, close; the audit log; staff sign-in security',
+        permission: 'team.manage',
       },
       {
         to: '/catalogue',
@@ -236,6 +249,13 @@ export const NAV: NavGroup[] = [
 ]
 
 export type FlatNavEntry = NavEntry & { section: string }
+
+/** A nav list without the entries `roles` may not open, and without sections left empty by that. */
+export function navFor(nav: NavGroup[], roles: readonly string[]): NavGroup[] {
+  return nav
+    .map((group) => ({ ...group, items: group.items.filter((item) => !item.permission || can(roles, item.permission)) }))
+    .filter((group) => group.items.length > 0)
+}
 
 /** A nav list flattened, for the command palette and for resolving a path to its label. */
 export function flattenNav(nav: NavGroup[]): FlatNavEntry[] {

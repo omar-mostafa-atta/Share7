@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useContentLanguages, useLedge } from '../App'
 import { Beside, Choose, Counted, Mark, Nothing, Sheet, Wiping, Write, useSaying } from '../board/pieces'
 import { useI18n } from '../i18n/i18n'
@@ -219,7 +219,22 @@ export function Question() {
   )
 
   if (found.loading) return <Wiping rows={6} tall />
-  if (!quality || !one) return <Nothing title={t('quality.nothing')}>{t('quality.nothingSaid')}</Nothing>
+  // Not 'nothing is flagged' — that is a board with no problems on it, which
+  // is good news. This is an address that leads nowhere, and it says so and
+  // gives the way back.
+  if (!quality || !one)
+    return (
+      <Nothing
+        title={t('quality.gone')}
+        action={
+          <Link to="/quality" className="act">
+            {t('place.quality')}
+          </Link>
+        }
+      >
+        {t('quality.goneSaid')}
+      </Nothing>
+    )
 
   const floor = summary.data?.reportingFloor ?? 0
 

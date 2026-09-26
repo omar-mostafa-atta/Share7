@@ -7,6 +7,7 @@ using Share7.Application.Engine.Models;
 using Share7.Application.Workspace;
 using Share7.Application.Workspace.Interfaces;
 using Share7.Application.Workspace.Models;
+using Share7.Domain.Audit;
 using Share7.Domain.Constants;
 using Share7.Domain.Content;
 using Share7.Domain.Staff;
@@ -270,19 +271,70 @@ public sealed class WorkspaceCycleTests : IDisposable
     }
 
     [Fact]
-    public async Task Nobody_approves_a_draft_they_wrote_any_of()
+    public async Task A_reviewer_needs_somebody_else_but_a_lead_may_approve_their_own_work()
+    {
+        var reviewer = await MemberAsync(StudioRole.Reviewer);
+        var lead = await MemberAsync(StudioRole.Lead);
+
+        // A reviewer can review — but not a draft they wrote any of.
+        var theirs = await SubmittedAsync(reviewer, (await PathAsync()).LessonId);
+        var refused = await Reviews(reviewer).ApproveAsync(reviewer.Member, theirs.Summary.Id, new DraftActionRequest(theirs.Summary.Revision));
+        Assert.Equal(WorkspaceErrors.OwnWork, refused.Error);
+        Assert.False(theirs.Can.Review);
+        Assert.False(theirs.Can.ReleaseNow);
+
+        // A Lead does not need a second person (decided 25 Sep 2026) — and each time they approve
+        // their own work it is recorded as its own action, apart from ordinary approvals.
+        var own = await SubmittedAsync(lead, (await PathAsync()).LessonId);
+        Assert.True(own.Can.Review);
+        Assert.True(own.Can.ReleaseNow);
+
+        var approved = Ok(await Reviews(lead).ApproveAsync(lead.Member, own.Summary.Id, new DraftActionRequest(own.Summary.Revision)));
+        Assert.Equal(DraftStatus.Approved, approved.Summary.Status);
+
+        await using var scope = Scope();
+        var actions = await scope.Get<ApplicationDbContext>().AuditEvents
+            .Where(a => a.TargetId == own.Summary.Id.ToString())
+            .Select(a => a.Action)
+            .ToListAsync();
+
+        Assert.Contains(AuditActions.DraftSelfApproved, actions);
+        Assert.DoesNotContain(AuditActions.DraftApproved, actions);
+    }
+
+    [Fact]
+    public async Task A_lead_puts_a_lesson_live_in_one_step_and_it_can_still_be_rolled_back()
     {
         var path = await PathAsync();
         var lead = await MemberAsync(StudioRole.Lead);
 
         var draft = Ok(await Drafts(lead).CreateAsync(lead.Member, new CreateDraftRequest { Kind = DraftKind.LessonContent, NodeId = path.LessonId }));
         draft = Ok(await Drafts(lead).SaveAsync(lead.Member, draft.Summary.Id, new SaveDraftRequest(draft.Summary.Revision, Element(ValidContent()))));
-        draft = Ok(await Drafts(lead).SubmitAsync(lead.Member, draft.Summary.Id, new DraftActionRequest(draft.Summary.Revision)));
 
-        // A Lead can review — but not this one, which they wrote.
-        var own = await Reviews(lead).ApproveAsync(lead.Member, draft.Summary.Id, new DraftActionRequest(draft.Summary.Revision));
-        Assert.Equal(WorkspaceErrors.OwnWork, own.Error);
-        Assert.False(draft.Can.Review);
+        // Straight from editing: no submit, no second person, no release to build.
+        var releases = _services.Request(lead.Member.UserId).Get<IReleaseService>();
+        var released = Ok(await releases.ReleaseNowAsync(lead.Member, draft.Summary.Id, new DraftActionRequest(draft.Summary.Revision)));
+
+        Assert.Equal(DraftStatus.Released, released.Summary.Status);
+        var release = Ok(await releases.GetAsync(lead.Member, released.Summary.ReleaseId!.Value));
+        Assert.Equal(ReleaseStatus.Published, release.Summary.Status);
+
+        await using (var check = Scope())
+        {
+            var live = await new NodeCurriculumReads(check.Get<ApplicationDbContext>()).QuestionsAsync(path.LessonId, NodeItemRole.Core, En, default);
+            Assert.NotNull(live);
+        }
+
+        // It is an ordinary release: everything a release gives back, a rollback still takes.
+        var rolledBack = await releases.RollbackAsync(lead.Member, release.Summary.Id, new RollbackReleaseRequest("Checking the one-step path"));
+        Assert.True(rolledBack.Succeeded, rolledBack.Error?.Code);
+    }
+
+    private async Task<DraftDto> SubmittedAsync(TestMember member, Guid lessonId)
+    {
+        var draft = Ok(await Drafts(member).CreateAsync(member.Member, new CreateDraftRequest { Kind = DraftKind.LessonContent, NodeId = lessonId }));
+        draft = Ok(await Drafts(member).SaveAsync(member.Member, draft.Summary.Id, new SaveDraftRequest(draft.Summary.Revision, Element(ValidContent()))));
+        return Ok(await Drafts(member).SubmitAsync(member.Member, draft.Summary.Id, new DraftActionRequest(draft.Summary.Revision)));
     }
 
     [Fact]

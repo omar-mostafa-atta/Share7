@@ -134,7 +134,11 @@ public sealed record DraftDto
     public required DraftPermissionsDto Can { get; init; }
 }
 
-public sealed record DraftPermissionsDto(bool Edit, bool Submit, bool Review, bool Discard, bool Release);
+/// <param name="ReleaseNow">
+/// A Lead may put an open draft live in one step — approved by them and released on its own — without
+/// a second person. Never a practice draft, never one already waiting in a release.
+/// </param>
+public sealed record DraftPermissionsDto(bool Edit, bool Submit, bool Review, bool Discard, bool Release, bool ReleaseNow);
 
 public sealed record ReviewDecisionDto(
     Guid Id, PersonRefDto Reviewer, ReviewVerdict Verdict, string? Note, int DraftRevision, bool IsCurrent, DateTime CreatedAtUtc);
@@ -315,6 +319,12 @@ public sealed record StudioNodeDto
 
     /// <summary>Whether the caller may change it (their scope covers it).</summary>
     public required bool InScope { get; init; }
+
+    /// <summary>The curriculum it belongs to.</summary>
+    public Guid CurriculumId { get; init; }
+
+    /// <summary>Whether it is at its curriculum's played level: where questions are written.</summary>
+    public bool IsPlayable { get; init; }
 }
 
 public sealed record StudioNodeDetailDto(StudioNodeDto Node, IReadOnlyList<TrailStepDto> Trail, IReadOnlyList<StudioNodeDto> Children);
@@ -392,3 +402,71 @@ public sealed record ActivityItemDto(
     string? TargetId);
 
 public sealed record TeammateDto(Guid UserId, string Name, StudioRole Role);
+
+// ===========================================================================
+// Curricula
+// ===========================================================================
+
+/// <summary>One level of a curriculum as the Studio shows it — "Topic", played or not.</summary>
+public sealed record StudioLevelDto(string Key, int Depth, bool IsPlayable, IReadOnlyList<NodeTitle> Names);
+
+/// <summary>
+/// A curriculum on the Studio's board: the Egyptian one the game serves, or one declared in the
+/// Studio and not played yet.
+/// </summary>
+public sealed record StudioCurriculumDto
+{
+    public required Guid Id { get; init; }
+    public required Guid VersionId { get; init; }
+
+    /// <summary>The node every level hangs from. Null for the Egyptian tree, whose grades are its top.</summary>
+    public Guid? RootNodeId { get; init; }
+
+    public required string Key { get; init; }
+
+    /// <summary>Its name per language. A declared curriculum's root carries them; the Egyptian one is named by the Studio.</summary>
+    public required IReadOnlyList<NodeTitle> Titles { get; init; }
+
+    /// <summary>Whether the game serves it. Everything else is "not playable yet".</summary>
+    public required bool IsServed { get; init; }
+
+    /// <summary>
+    /// How many of its top levels are fixed in place, because something has been released or proposed
+    /// at the deepest of them: 0 when nothing has, so every level can change. Levels below the fixed
+    /// ones can still be added, taken out and reordered, as long as one stays below them — the level
+    /// that holds something is never made the played one. Every level's name can always be corrected.
+    /// </summary>
+    public required int FixedLevels { get; init; }
+
+    /// <summary>Whether no level can be added or taken out at all: something sits at the played level.</summary>
+    public required bool LevelsLocked { get; init; }
+
+    /// <summary>Its levels below its own root, top first; the last one is the one that is played.</summary>
+    public required IReadOnlyList<StudioLevelDto> Levels { get; init; }
+
+    /// <summary>Live nodes at its top level.</summary>
+    public required int TopCount { get; init; }
+
+    /// <summary>Live nodes at its played level.</summary>
+    public required int PlayableCount { get; init; }
+
+    /// <summary>Whether the caller's scope reaches into it at all.</summary>
+    public required bool InScope { get; init; }
+
+    /// <summary>Whether the caller may rename it or change its levels: a Lead whose scope is the whole curriculum.</summary>
+    public required bool CanManage { get; init; }
+
+    public required DateTime CreatedAtUtc { get; init; }
+}
+
+/// <summary>A level as declared: its name in each language. Where it sits is its place in the list.</summary>
+public sealed record CurriculumLevelRequest(IReadOnlyList<NodeTitle> Names);
+
+/// <summary>A new curriculum: its name, and its levels from the top down to the one that is played.</summary>
+public sealed record CreateCurriculumRequest(IReadOnlyList<NodeTitle> Titles, IReadOnlyList<CurriculumLevelRequest> Levels);
+
+/// <summary>
+/// A curriculum's name, and optionally its levels. Levels can be renamed at any time; adding or
+/// removing one is refused once they are locked.
+/// </summary>
+public sealed record UpdateCurriculumRequest(IReadOnlyList<NodeTitle> Titles, IReadOnlyList<CurriculumLevelRequest>? Levels);

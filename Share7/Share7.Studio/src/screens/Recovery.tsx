@@ -2,6 +2,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLedge } from '../App'
 import { Beside, Counted, Mark, Nothing, Wiping } from '../board/pieces'
 import { useI18n } from '../i18n/i18n'
+import { useLevelName } from '../lib/curricula'
 import { studio } from '../lib/studio'
 import { useDoing, useLoad } from '../lib/use'
 import { Tally, TrailLine } from './bits'
@@ -21,6 +22,7 @@ import { Tally, TrailLine } from './bits'
 
 export function Recovery() {
   const { t } = useI18n()
+  const levelName = useLevelName()
   const written = useLoad(() => studio.recoveryWritten(), [])
 
   useLedge(
@@ -60,7 +62,7 @@ export function Recovery() {
                   <span className="row-main">
                     <span className="row-title">{rule.title}</span>
                     <span className="quiet" style={{ fontSize: 'var(--t-sm)' }}>
-                      {t(`curriculum.kind.${rule.nodeKind}`)}
+                      {levelName(rule.nodeKind)}
                     </span>
                   </span>
                   <span className="row-side">

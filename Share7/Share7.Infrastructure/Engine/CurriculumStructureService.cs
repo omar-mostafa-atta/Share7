@@ -9,11 +9,19 @@ using Share7.Domain.Curriculum;
 using Share7.Domain.Progress;
 using Share7.Domain.Structure;
 using Share7.Infrastructure.Persistence;
-using Share7.Infrastructure.Persistence.Configurations;
+using Share7.Infrastructure.Structure;
 
 namespace Share7.Infrastructure.Engine;
 
 /// <inheritdoc cref="ICurriculumStructureService"/>
+/// <remarks>
+/// Every rule about which level goes under which is read from the node's own curriculum
+/// (<see cref="CurriculumShape"/>), not assumed. Two things are true of the Egyptian curriculum only,
+/// because it is the one the game serves: its grades are fixed, and every change is copied into the
+/// legacy typed tables and repairs students' unlocks. A curriculum declared in the Studio gets
+/// neither — **nothing written under it is ever copied where the game reads**, and nobody has
+/// progress in it to repair.
+/// </remarks>
 public sealed class CurriculumStructureService : ICurriculumStructureService
 {
     public const int TermTitleMaxLength = 100;
@@ -23,6 +31,7 @@ public sealed class CurriculumStructureService : ICurriculumStructureService
     private readonly IContentLanguages _languages;
     private readonly IAuditLog _audit;
     private readonly UnlockRepairSignal _repairs;
+    private readonly CurriculumShapes _shapes;
 
     public CurriculumStructureService(
         ApplicationDbContext db, IContentLanguages languages, IAuditLog audit, UnlockRepairSignal repairs)
@@ -31,6 +40,7 @@ public sealed class CurriculumStructureService : ICurriculumStructureService
         _languages = languages;
         _audit = audit;
         _repairs = repairs;
+        _shapes = new CurriculumShapes(db);
     }
 
     public async Task<NodeStateDto?> GetAsync(Guid nodeId, CancellationToken cancellationToken = default)
@@ -50,16 +60,17 @@ public sealed class CurriculumStructureService : ICurriculumStructureService
     public async Task<ServiceResult<StructureChangeDto>> CreateAsync(
         CreateNodeCommand command, EngineActor actor, CancellationToken cancellationToken = default)
     {
-        if (!NodeKinds.IsEditable(command.Kind))
-            return Fail(EngineErrors.NodeNotEditable, ServiceErrorKind.Validation, $"A {command.Kind} cannot be added.");
-
         var parent = await _db.CurriculumNodes.FirstOrDefaultAsync(n => n.Id == command.ParentId, cancellationToken);
         if (parent is null)
             return Fail(EngineErrors.NodeNotFound, ServiceErrorKind.NotFound, "Parent not found.");
 
-        if (parent.KindKey != NodeKinds.ParentOf(command.Kind))
+        var shape = await _shapes.ForVersionAsync(parent.CurriculumVersionId, cancellationToken);
+        if (shape is null || !shape.CanEdit(command.Kind))
+            return Fail(EngineErrors.NodeNotEditable, ServiceErrorKind.Validation, $"A {command.Kind} cannot be added.");
+
+        if (parent.KindKey != shape.ParentOf(command.Kind))
             return Fail(EngineErrors.NodeWrongParent, ServiceErrorKind.Validation,
-                $"A {command.Kind} goes under a {NodeKinds.ParentOf(command.Kind)}, not a {parent.KindKey}.");
+                $"A {command.Kind} goes under a {shape.ParentOf(command.Kind)}, not a {parent.KindKey}.");
 
         if (parent.RetiredAtUtc is not null)
             return Fail(EngineErrors.NodeParentRetired, ServiceErrorKind.Conflict, "The parent is retired. Restore it first.");
@@ -99,7 +110,8 @@ public sealed class CurriculumStructureService : ICurriculumStructureService
                 shifted.Add(sibling.Id);
             }
 
-            await SetTypedOrdersAsync(command.Kind, moving.ToDictionary(s => s.Id, s => s.Order), cancellationToken);
+            if (shape.IsServed)
+                await SetTypedOrdersAsync(command.Kind, moving.ToDictionary(s => s.Id, s => s.Order), cancellationToken);
         }
 
         var id = command.NodeId ?? Guid.NewGuid();
@@ -110,13 +122,13 @@ public sealed class CurriculumStructureService : ICurriculumStructureService
             Id = id,
             CurriculumVersionId = parent.CurriculumVersionId,
             ParentNodeId = parent.Id,
-            NodeKindId = CurriculumNodeKindConfiguration.SeededKindIds[command.Kind],
+            NodeKindId = shape.Level(command.Kind)!.KindId,
             KindKey = command.Kind,
             Order = order,
             Depth = parent.Depth + 1,
             Path = $"{parent.Path}/{id:D}",
-            IsPlayable = command.Kind == NodeKinds.Lesson,
-            LegacySource = LegacyTable(command.Kind),
+            IsPlayable = shape.IsPlayable(command.Kind),
+            LegacySource = shape.IsServed ? LegacyTable(command.Kind) : null,
             CreatedAtUtc = now,
             Revision = 1,
             UpdatedAtUtc = now,
@@ -125,12 +137,18 @@ public sealed class CurriculumStructureService : ICurriculumStructureService
         };
 
         _db.CurriculumNodes.Add(node);
-        AddTyped(command.Kind, id, parent.Id, order, titles.Value!);
+
+        // The legacy copy, for the served curriculum only. A node of any other curriculum written
+        // into Grades/Terms/… would be served by the game on its next read.
+        if (shape.IsServed)
+            AddTyped(command.Kind, id, parent.Id, order, titles.Value!);
+
         Touch(parent, actor);
 
         // A node placed before others: anyone already past its position would find it locked
-        // behind them. Appended at the end, nobody is.
-        var queued = order <= last;
+        // behind them. Appended at the end, nobody is — and nobody is anywhere in a curriculum
+        // the game does not serve.
+        var queued = shape.IsServed && order <= last;
         if (queued)
             QueueRepair(UnlockRepairKind.FillGaps, parent.Id, null, null, now);
 
@@ -160,7 +178,8 @@ public sealed class CurriculumStructureService : ICurriculumStructureService
             .Include(n => n.Translations)
             .FirstOrDefaultAsync(n => n.Id == nodeId, cancellationToken);
 
-        if (Guard(node, expectedRevision, mustBeLive: true) is { } refused)
+        var shape = await ShapeOfAsync(node, cancellationToken);
+        if (Guard(node, shape, expectedRevision, mustBeLive: true) is { } refused)
             return refused;
 
         var validated = await ValidateTitlesAsync(node!.KindKey, titles, cancellationToken);
@@ -191,7 +210,9 @@ public sealed class CurriculumStructureService : ICurriculumStructureService
         foreach (var dropped in node.Translations.Where(t => validated.Value!.All(v => v.LangId != t.LangId)).ToList())
             node.Translations.Remove(dropped);
 
-        await SetTypedTitlesAsync(node.KindKey, node.Id, validated.Value!, cancellationToken);
+        if (shape!.IsServed)
+            await SetTypedTitlesAsync(node.KindKey, node.Id, validated.Value!, cancellationToken);
+
         Touch(node, actor);
 
         _audit.Record(new AuditEntry(
@@ -220,7 +241,8 @@ public sealed class CurriculumStructureService : ICurriculumStructureService
             .Include(n => n.Translations)
             .FirstOrDefaultAsync(n => n.Id == nodeId, cancellationToken);
 
-        if (Guard(node, expectedRevision, mustBeLive: true) is { } refused)
+        var shape = await ShapeOfAsync(node, cancellationToken);
+        if (Guard(node, shape, expectedRevision, mustBeLive: true) is { } refused)
             return refused;
 
         if (node!.ParentNodeId == newParentId)
@@ -230,9 +252,15 @@ public sealed class CurriculumStructureService : ICurriculumStructureService
         if (target is null)
             return Fail(EngineErrors.NodeNotFound, ServiceErrorKind.NotFound, "The new parent was not found.");
 
-        if (target.KindKey != NodeKinds.ParentOf(node.KindKey))
+        // Levels are per curriculum, and so is everything hung from them: a topic of one syllabus
+        // is not a place in another's, even when both call the level the same thing.
+        if (target.CurriculumVersionId != node.CurriculumVersionId)
             return Fail(EngineErrors.NodeWrongParent, ServiceErrorKind.Validation,
-                $"A {node.KindKey} goes under a {NodeKinds.ParentOf(node.KindKey)}, not a {target.KindKey}.");
+                $"A {node.KindKey} can only move within its own curriculum.");
+
+        if (target.KindKey != shape!.ParentOf(node.KindKey))
+            return Fail(EngineErrors.NodeWrongParent, ServiceErrorKind.Validation,
+                $"A {node.KindKey} goes under a {shape.ParentOf(node.KindKey)}, not a {target.KindKey}.");
 
         if (target.RetiredAtUtc is not null)
             return Fail(EngineErrors.NodeParentRetired, ServiceErrorKind.Conflict, "The new parent is retired. Restore it first.");
@@ -264,7 +292,8 @@ public sealed class CurriculumStructureService : ICurriculumStructureService
                 changed.Add(sibling.Id);
             }
 
-            await SetTypedOrdersAsync(node.KindKey, moving.ToDictionary(s => s.Id, s => s.Order), cancellationToken);
+            if (shape.IsServed)
+                await SetTypedOrdersAsync(node.KindKey, moving.ToDictionary(s => s.Id, s => s.Order), cancellationToken);
         }
 
         var oldParent = await _db.CurriculumNodes.FirstAsync(n => n.Id == node.ParentNodeId, cancellationToken);
@@ -285,15 +314,18 @@ public sealed class CurriculumStructureService : ICurriculumStructureService
         Touch(oldParent, actor);
         Touch(target, actor);
 
-        await SetTypedParentAsync(node.KindKey, node.Id, target.Id, order, cancellationToken);
-
         var now = DateTime.UtcNow;
 
-        // Students who had it in the old place get what finishing it would have given them there;
-        // students already past its new place get it opened behind them.
-        QueueRepair(UnlockRepairKind.PassForward, node.Id, oldParent.Id, formerOrder, now);
-        if (order <= last)
-            QueueRepair(UnlockRepairKind.FillGaps, target.Id, null, null, now);
+        if (shape.IsServed)
+        {
+            await SetTypedParentAsync(node.KindKey, node.Id, target.Id, order, cancellationToken);
+
+            // Students who had it in the old place get what finishing it would have given them there;
+            // students already past its new place get it opened behind them.
+            QueueRepair(UnlockRepairKind.PassForward, node.Id, oldParent.Id, formerOrder, now);
+            if (order <= last)
+                QueueRepair(UnlockRepairKind.FillGaps, target.Id, null, null, now);
+        }
 
         _audit.Record(new AuditEntry(
             AuditActions.CurriculumNodeMoved,
@@ -304,9 +336,9 @@ public sealed class CurriculumStructureService : ICurriculumStructureService
             new { fromParentId = oldParent.Id, fromOrder = formerOrder, toParentId = target.Id, toOrder = order, releaseId = actor.ReleaseId }));
 
         await _db.SaveChangesAsync(cancellationToken);
-        await CommitAsync(own, true, cancellationToken);
+        await CommitAsync(own, shape.IsServed, cancellationToken);
 
-        return Done(node, changed, true);
+        return Done(node, changed, shape.IsServed);
     }
 
     /// <summary>A move to a new position under the same parent: a reorder of that parent's children.</summary>
@@ -337,7 +369,8 @@ public sealed class CurriculumStructureService : ICurriculumStructureService
             .Include(n => n.Translations)
             .FirstOrDefaultAsync(n => n.Id == parentId, cancellationToken);
 
-        if (Guard(parent, expectedRevision, mustBeLive: true, asParent: true) is { } refused)
+        var shape = await ShapeOfAsync(parent, cancellationToken);
+        if (Guard(parent, shape, expectedRevision, mustBeLive: true, asParent: true) is { } refused)
             return refused;
 
         await using var own = await BeginAsync(cancellationToken);
@@ -373,11 +406,13 @@ public sealed class CurriculumStructureService : ICurriculumStructureService
             return Done(parent!, [], false);
 
         var kind = children[0].KindKey;
-        await SetTypedOrdersAsync(kind, orders, cancellationToken);
+        if (shape!.IsServed)
+            await SetTypedOrdersAsync(kind, orders, cancellationToken);
+
         Touch(parent!, actor);
 
         // Subjects are a parallel split of a term, not a sequence, so their order gates nothing.
-        var queued = kind != NodeKinds.Subject;
+        var queued = shape.IsServed && kind != NodeKinds.Subject;
         if (queued)
             QueueRepair(UnlockRepairKind.FillGaps, parentId, null, null, DateTime.UtcNow);
 
@@ -406,7 +441,8 @@ public sealed class CurriculumStructureService : ICurriculumStructureService
             .Include(n => n.Translations)
             .FirstOrDefaultAsync(n => n.Id == nodeId, cancellationToken);
 
-        if (Guard(node, expectedRevision, mustBeLive: false) is { } refused)
+        var shape = await ShapeOfAsync(node, cancellationToken);
+        if (Guard(node, shape, expectedRevision, mustBeLive: false) is { } refused)
             return refused;
 
         if (node!.RetiredAtUtc is not null)
@@ -440,11 +476,14 @@ public sealed class CurriculumStructureService : ICurriculumStructureService
         if (node.ParentNodeId is { } parentNodeId)
             Touch(await _db.CurriculumNodes.FirstAsync(n => n.Id == parentNodeId, cancellationToken), actor, now);
 
-        var byKind = subtree.Append(new { node.Id, node.KindKey }).GroupBy(n => n.KindKey);
-        foreach (var group in byKind)
-            await SetTypedRetiredAsync(group.Key, group.Select(n => n.Id).ToList(), now, cancellationToken);
+        if (shape!.IsServed)
+        {
+            var byKind = subtree.Append(new { node.Id, node.KindKey }).GroupBy(n => n.KindKey);
+            foreach (var group in byKind)
+                await SetTypedRetiredAsync(group.Key, group.Select(n => n.Id).ToList(), now, cancellationToken);
 
-        QueueRepair(UnlockRepairKind.PassForward, node.Id, node.ParentNodeId, node.Order, now);
+            QueueRepair(UnlockRepairKind.PassForward, node.Id, node.ParentNodeId, node.Order, now);
+        }
 
         _audit.Record(new AuditEntry(
             AuditActions.CurriculumNodeRetired,
@@ -457,9 +496,9 @@ public sealed class CurriculumStructureService : ICurriculumStructureService
             new { parentId = node.ParentNodeId, order = node.Order, descendants = subtree.Count, releaseId = actor.ReleaseId }));
 
         await _db.SaveChangesAsync(cancellationToken);
-        await CommitAsync(own, true, cancellationToken);
+        await CommitAsync(own, shape.IsServed, cancellationToken);
 
-        return Done(node, subtree.Select(s => s.Id).ToList(), true);
+        return Done(node, subtree.Select(s => s.Id).ToList(), shape.IsServed);
     }
 
     public async Task<ServiceResult<StructureChangeDto>> RestoreAsync(
@@ -475,7 +514,8 @@ public sealed class CurriculumStructureService : ICurriculumStructureService
         if (node.RetiredAtUtc is not { } retiredAt)
             return Fail(EngineErrors.NodeStateInvalid, ServiceErrorKind.Conflict, $"This {node.KindKey} is not retired.");
 
-        if (!NodeKinds.IsEditable(node.KindKey))
+        var shape = await _shapes.ForVersionAsync(node.CurriculumVersionId, cancellationToken);
+        if (shape is null || !shape.CanEdit(node.KindKey))
             return Fail(EngineErrors.NodeNotEditable, ServiceErrorKind.Validation, $"A {node.KindKey} cannot be restored.");
 
         var parent = await _db.CurriculumNodes.FirstAsync(n => n.Id == node.ParentNodeId, cancellationToken);
@@ -517,15 +557,18 @@ public sealed class CurriculumStructureService : ICurriculumStructureService
         Touch(node, actor, now);
         Touch(parent, actor, now);
 
-        // Position first, while the typed row is still retired and outside the live-order index;
-        // clearing the retirement then cannot collide with the sibling that took its old slot.
-        await SetTypedOrdersAsync(node.KindKey, new Dictionary<Guid, int> { [node.Id] = node.Order }, cancellationToken);
+        if (shape.IsServed)
+        {
+            // Position first, while the typed row is still retired and outside the live-order index;
+            // clearing the retirement then cannot collide with the sibling that took its old slot.
+            await SetTypedOrdersAsync(node.KindKey, new Dictionary<Guid, int> { [node.Id] = node.Order }, cancellationToken);
 
-        foreach (var group in subtree.Append(new { node.Id, node.KindKey }).GroupBy(n => n.KindKey))
-            await SetTypedRetiredAsync(group.Key, group.Select(n => n.Id).ToList(), null, cancellationToken);
+            foreach (var group in subtree.Append(new { node.Id, node.KindKey }).GroupBy(n => n.KindKey))
+                await SetTypedRetiredAsync(group.Key, group.Select(n => n.Id).ToList(), null, cancellationToken);
+        }
 
         // Back in the chain: anyone already past it would find it locked behind them.
-        var queued = node.KindKey != NodeKinds.Subject;
+        var queued = shape.IsServed && node.KindKey != NodeKinds.Subject;
         if (queued)
             QueueRepair(UnlockRepairKind.FillGaps, parent.Id, null, null, now);
 
@@ -853,16 +896,21 @@ public sealed class CurriculumStructureService : ICurriculumStructureService
         return ServiceResult<List<NodeTitle>>.Success(clean);
     }
 
+    private async Task<CurriculumShape?> ShapeOfAsync(CurriculumNode? node, CancellationToken cancellationToken) =>
+        node is null ? null : await _shapes.ForVersionAsync(node.CurriculumVersionId, cancellationToken);
+
     /// <param name="asParent">
-    /// The node is the parent whose children are being reordered — the one change a grade allows.
+    /// The node is the parent whose children are being reordered — the one change a grade, or a
+    /// declared curriculum's root, allows.
     /// </param>
     private static ServiceResult<StructureChangeDto>? Guard(
-        CurriculumNode? node, int? expectedRevision, bool mustBeLive, bool asParent = false)
+        CurriculumNode? node, CurriculumShape? shape, int? expectedRevision, bool mustBeLive, bool asParent = false)
     {
         if (node is null)
             return Fail(EngineErrors.NodeNotFound, ServiceErrorKind.NotFound, "Not found.");
 
-        if (!NodeKinds.IsEditable(node.KindKey) && !(asParent && node.KindKey == NodeKinds.Grade))
+        var allowed = shape is not null && (asParent ? shape.CanReorderUnder(node.KindKey) : shape.CanEdit(node.KindKey));
+        if (!allowed)
             return Fail(EngineErrors.NodeNotEditable, ServiceErrorKind.Validation, $"A {node.KindKey} cannot be changed here.");
 
         if (mustBeLive && node.RetiredAtUtc is not null)

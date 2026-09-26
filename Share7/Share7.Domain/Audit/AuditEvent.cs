@@ -87,6 +87,8 @@ public static class AuditAreas
 /// </summary>
 public static class AuditActions
 {
+    public const string CurriculumCreated = "curriculum.created";
+    public const string CurriculumUpdated = "curriculum.updated";
     public const string CurriculumNodeCreated = "curriculum.node.created";
 
     /// <summary>Written by hard deletes before the engine rebuild. Nothing writes it now: deleting retires.</summary>
@@ -114,6 +116,7 @@ public static class AuditActions
     public const string TeamMemberReactivated = "team.member.reactivated";
     public const string TeamMemberDeactivated = "team.member.deactivated";
     public const string TeamMemberAccessReset = "team.member.access_reset";
+    public const string TeamMemberPasswordSet = "team.member.password_set";
     public const string TeamSetupLinkIssued = "team.setup_link.issued";
     public const string TeamSetupLinkRevoked = "team.setup_link.revoked";
     public const string TeamMemberSignedOutEverywhere = "team.member.signed_out_everywhere";
@@ -138,6 +141,10 @@ public static class AuditActions
     public const string DraftDiscarded = "workspace.draft.discarded";
     public const string DraftRebased = "workspace.draft.brought_up_to_date";
     public const string DraftApproved = "workspace.draft.approved";
+
+    // A Lead approving a draft they wrote part of. Allowed since 25 Sep 2026 — a Lead does not need a
+    // second person — and kept apart from ordinary approvals so every one of them can be found.
+    public const string DraftSelfApproved = "workspace.draft.self_approved";
     public const string DraftChangesRequested = "workspace.draft.changes_requested";
     public const string DraftImported = "workspace.draft.imported";
     public const string ReleaseCreated = "workspace.release.created";

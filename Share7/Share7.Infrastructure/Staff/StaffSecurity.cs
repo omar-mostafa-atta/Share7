@@ -12,17 +12,11 @@ public class StudioOptions
     public const string SectionName = "Studio";
 
     /// <summary>
-    /// Where the Studio is served, e.g. <c>https://studio.example.com</c> — its own origin, so a bug
-    /// in one app cannot read the other's sign-in. Setup links are built from it. When empty, Team
-    /// &amp; Access hands out relative links and says so.
+    /// The Studio's address, e.g. <c>https://shareh.runasp.net/studio</c> — the one fixed address the
+    /// content team signs in at, shown to whoever creates a member. When empty the Admin Console
+    /// shows <c>/studio</c> on its own address, where the API serves the Studio (StudioHosting).
     /// </summary>
     public string? PublicUrl { get; set; }
-
-    /// <summary>
-    /// The host name the API serves the Studio's files on, when the Studio is hosted by this process
-    /// rather than elsewhere. Empty: not served from here (for example, the Vite dev server).
-    /// </summary>
-    public string? Host { get; set; }
 
     /// <summary>The token audience. Game and admin tokens carry a different one and are refused on /api/studio.</summary>
     public string Audience { get; set; } = "Share7.Studio";

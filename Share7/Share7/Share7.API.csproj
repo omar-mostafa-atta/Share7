@@ -24,11 +24,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- The Content Studio's build (Share7.Studio), served on its own host name by StudioHosting. -->
-    <Content Include="wwwroot-studio**" CopyToPublishDirectory="PreserveNewest" />
-  </ItemGroup>
-
-  <ItemGroup>
     <!-- Dev-only settings (contains a placeholder JWT secret) must never leave this machine. -->
     <Content Update="appsettings.Development.json">
       <CopyToPublishDirectory>Never</CopyToPublishDirectory>
@@ -56,6 +51,36 @@
          publish cannot quietly pick up a different dependency version than the one tested. -->
     <Exec Command="npm ci" WorkingDirectory="$(SpaRoot)" Condition="!Exists('$(SpaRoot)/node_modules')" />
     <Exec Command="npm run build" WorkingDirectory="$(SpaRoot)" />
+  </Target>
+
+  <!--
+    Build the Content Studio (Share7.Studio) as part of publish too, and publish it. StudioHosting
+    serves it at /studio from wwwroot-studio.
+
+    Two traps this avoids, both of which shipped a site where /studio answered with the Admin
+    Console's sign-in (26 Sep 2026). The Studio was never built on publish, so it depended on
+    somebody remembering `npm run build`. And it was never published at all: the old item,
+    `wwwroot-studio**`, is not a recursive glob, and a static item is read before any target runs,
+    so files a build makes during publish (Vite names them by hash) could never be in it anyway.
+    The files are added here, after the build, the way the ASP.NET SPA templates do it.
+  -->
+  <PropertyGroup>
+    <StudioRoot>$(MSBuildProjectDirectory)/../Share7.Studio</StudioRoot>
+  </PropertyGroup>
+
+  <Target Name="BuildStudio" AfterTargets="ComputeFilesToPublish" Condition="Exists('$(StudioRoot)/package.json')">
+    <Message Importance="high" Text="Building the Content Studio from $(StudioRoot)…" />
+    <Exec Command="npm ci" WorkingDirectory="$(StudioRoot)" Condition="!Exists('$(StudioRoot)/node_modules')" />
+    <Exec Command="npm run build" WorkingDirectory="$(StudioRoot)" />
+
+    <ItemGroup>
+      <StudioDist Include="wwwroot-studio\**" />
+      <ResolvedFileToPublish Include="@(StudioDist->'%(FullPath)')" Exclude="@(ResolvedFileToPublish)">
+        <RelativePath>wwwroot-studio\%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+      </ResolvedFileToPublish>
+    </ItemGroup>
   </Target>
 
 </Project>

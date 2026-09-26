@@ -31,6 +31,7 @@ import { Rewards } from './routes/Rewards'
 import { Runs } from './routes/Runs'
 import { Shop } from './routes/Shop'
 import { Signals } from './routes/Signals'
+import { Team } from './routes/Team'
 import { UserTrace } from './routes/UserTrace'
 import { Users } from './routes/Users'
 
@@ -117,6 +118,9 @@ export function App() {
           <Route path="/runs" element={<Runs />} />
           <Route path="/multiplayer" element={<Multiplayer />} />
           <Route path="/users" element={<Users />} />
+
+          {/* SuperAdmins only: the page sends anybody else home, and the server refuses them. */}
+          <Route path="/team" element={<Team />} />
         </Route>
 
         {/* Anything unrecognised goes to the dashboard rather than a blank screen — or, for

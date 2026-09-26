@@ -114,6 +114,25 @@ public class CurriculumNodeKind
     public bool IsPlayable { get; set; }
 
     public int Order { get; set; }
+
+    /// <summary>
+    /// What the level is called, per language — "Topic", "الموضوع". The Egyptian five are named by
+    /// the Studio's own dictionaries and have none; a curriculum declared in the Studio names every
+    /// level it declares, in every language its content must be published in.
+    /// </summary>
+    public ICollection<CurriculumNodeKindTranslation> Translations { get; set; } = new List<CurriculumNodeKindTranslation>();
+}
+
+/// <summary>A level's name in one language.</summary>
+public class CurriculumNodeKindTranslation
+{
+    public Guid NodeKindId { get; set; }
+    public CurriculumNodeKind? NodeKind { get; set; }
+
+    public Guid LangId { get; set; }
+    public Language? Language { get; set; }
+
+    public string Name { get; set; } = string.Empty;
 }
 
 /// <summary>

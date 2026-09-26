@@ -8,7 +8,9 @@ import { Activate } from './screens/Activate'
 import { Account } from './screens/Account'
 import { Activity } from './screens/Activity'
 import { Bank } from './screens/Bank'
-import { Curriculum } from './screens/Curriculum'
+import { Curricula, Curriculum, CurriculumTop } from './screens/Curriculum'
+import { Declare } from './screens/Declare'
+import { CurriculaProvider } from './lib/curricula'
 import { Handbook } from './screens/Handbook'
 import { Home } from './screens/Home'
 import { Lesson } from './screens/Lesson'
@@ -132,6 +134,7 @@ function Studio() {
 
   return (
     <LanguagesContext.Provider value={languages}>
+      <CurriculaProvider>
       <LedgeContext.Provider value={set}>
         <div className="board">
           <a className="act small sr-only" href="#work">
@@ -141,7 +144,12 @@ function Studio() {
           <main className="sheet" id="work">
             <Routes>
               <Route path="/" element={<Home />} />
-              <Route path="/curriculum" element={<Curriculum />} />
+              {/* Everything about curricula lives under /curriculum, so the place along the top
+                  stays underlined whichever of them you are in. Static segments outrank :nodeId. */}
+              <Route path="/curriculum" element={<Curricula />} />
+              <Route path="/curriculum/new" element={<Declare />} />
+              <Route path="/curriculum/of/:curriculumId" element={<CurriculumTop />} />
+              <Route path="/curriculum/of/:curriculumId/edit" element={<Declare />} />
               <Route path="/curriculum/:nodeId" element={<Curriculum />} />
               <Route path="/lessons/:lessonId" element={<Lesson />} />
               <Route path="/drafts/:draftId" element={<Changes />} />
@@ -167,6 +175,7 @@ function Studio() {
           <footer className="ledge">{ledge}</footer>
         </div>
       </LedgeContext.Provider>
+      </CurriculaProvider>
     </LanguagesContext.Provider>
   )
 }

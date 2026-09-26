@@ -22,7 +22,10 @@ export default defineConfig({
   },
 
   server: {
+    // Fixed, and never moved. Without strictPort a busy 5173 sent the console to 5174 — the
+    // Studio's port — and the Studio's address opened the Admin Console's sign-in instead.
     port: 5173,
+    strictPort: true,
     proxy: {
       '/api': {
         target: 'https://localhost:7147',

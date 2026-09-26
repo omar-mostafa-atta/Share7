@@ -43,10 +43,19 @@ public static class Policies
     public const string ContentCascadeDelete = "ContentCascadeDelete";
 
     /// <summary>
-    /// Team &amp; Access and the audit log: creating and managing content-team accounts, and reading
-    /// what everybody did. SuperAdmins only — a regular Admin cannot create or change a staff account.
+    /// Team &amp; Access and the audit log: managing content-team accounts once they exist — their
+    /// profile, role and scope, suspending, resetting and closing them, their sessions — the staff
+    /// security settings, and reading what everybody did. SuperAdmins only.
     /// </summary>
     public const string ManageStaff = "ManageStaff";
+
+    /// <summary>
+    /// Adding a content-team member, and reading the curriculum and languages their scope is chosen
+    /// from. Admins and SuperAdmins: since 2026-09-26 an Admin may create an account of every role
+    /// but SuperAdmin — and creating is all an Admin does to the content team. Everything after the
+    /// account exists is <see cref="ManageStaff"/>.
+    /// </summary>
+    public const string AddTeamMembers = "AddTeamMembers";
 
     /// <summary>
     /// Any live Studio session, including one that must set up 2-step before anything else: the

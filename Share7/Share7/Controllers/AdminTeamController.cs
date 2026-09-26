@@ -12,7 +12,9 @@ namespace Share7.API.Controllers;
 
 /// <summary>
 /// Team &amp; Access: <c>/api/admin/team</c>. SuperAdmins only — the only way a content-team
-/// account is created, changed, suspended or closed. Every write lands in the audit trail.
+/// account is changed, suspended or closed. Every write lands in the audit trail. Adding a member is
+/// the one thing an Admin may do too, and lives apart in <see cref="AdminTeamAddController"/> so
+/// that nothing here can be opened to Admins by accident.
 /// </summary>
 [ApiController]
 [Route("api/admin/team")]
@@ -29,27 +31,11 @@ public class AdminTeamController : ControllerBase
     public async Task<IActionResult> Overview(CancellationToken cancellationToken) =>
         Ok(await _team.GetOverviewAsync(cancellationToken));
 
-    /// <summary>The curriculum (down to chapters) and the languages a scope is built from.</summary>
-    [HttpGet("scope-options")]
-    public async Task<IActionResult> ScopeOptions(CancellationToken cancellationToken) =>
-        Ok(await _team.GetScopeOptionsAsync(cancellationToken));
-
     [HttpGet("{userId:guid}")]
     public async Task<IActionResult> Get(Guid userId, CancellationToken cancellationToken)
     {
         var result = await _team.GetMemberAsync(userId, cancellationToken);
         return result.Succeeded ? Ok(result.Value) : result.ToErrorResult();
-    }
-
-    /// <summary>Creates a member and returns their one-time setup link. The link is never shown again.</summary>
-    [HttpPost]
-    [EnableRateLimiting(RateLimitPolicies.Writes)]
-    public async Task<IActionResult> Create(CreateTeamMemberRequest request, CancellationToken cancellationToken)
-    {
-        var result = await _team.CreateMemberAsync(request, cancellationToken);
-        return result.Succeeded
-            ? CreatedAtAction(nameof(Get), new { userId = result.Value!.Member.UserId }, result.Value)
-            : result.ToErrorResult();
     }
 
     /// <summary>Gives a content-team account made before Team &amp; Access its Studio profile.</summary>
@@ -111,6 +97,15 @@ public class AdminTeamController : ControllerBase
         return result.Succeeded ? Ok(result.Value) : result.ToErrorResult();
     }
 
+    /// <summary>Sets the member's password, signs them out everywhere, and activates a member who never had one.</summary>
+    [HttpPost("{userId:guid}/password")]
+    [EnableRateLimiting(RateLimitPolicies.Writes)]
+    public async Task<IActionResult> SetPassword(Guid userId, SetTeamMemberPasswordRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _team.SetPasswordAsync(userId, request, cancellationToken);
+        return result.Succeeded ? Ok(result.Value) : result.ToErrorResult();
+    }
+
     /// <summary>Clears the password (and optionally 2-step), signs out everywhere, and returns a new setup link.</summary>
     [HttpPost("{userId:guid}/reset-access")]
     [EnableRateLimiting(RateLimitPolicies.Writes)]
@@ -154,6 +149,38 @@ public class AdminTeamController : ControllerBase
     {
         var result = await _team.UpdateSecurityAsync(request, cancellationToken);
         return result.Succeeded ? Ok(result.Value) : result.ToErrorResult();
+    }
+}
+
+/// <summary>
+/// Adding a content-team member: <c>POST /api/admin/team</c> and the scope options it is chosen from.
+/// Admins and SuperAdmins (decided 2026-09-26). Only these two actions — everything else about a
+/// member is <see cref="AdminTeamController"/>, SuperAdmins only.
+/// </summary>
+[ApiController]
+[Route("api/admin/team")]
+[Authorize(Policy = Policies.AddTeamMembers)]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+public class AdminTeamAddController : ControllerBase
+{
+    private readonly ITeamAdminService _team;
+
+    public AdminTeamAddController(ITeamAdminService team) => _team = team;
+
+    /// <summary>The curriculum (down to chapters) and the languages a scope is built from.</summary>
+    [HttpGet("scope-options")]
+    public async Task<IActionResult> ScopeOptions(CancellationToken cancellationToken) =>
+        Ok(await _team.GetScopeOptionsAsync(cancellationToken));
+
+    /// <summary>Creates a member and returns their one-time setup link. The link is never shown again.</summary>
+    [HttpPost]
+    [EnableRateLimiting(RateLimitPolicies.Writes)]
+    public async Task<IActionResult> Create(CreateTeamMemberRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _team.CreateMemberAsync(request, cancellationToken);
+        return result.Succeeded
+            ? Created($"/api/admin/team/{result.Value!.Member.UserId}", result.Value)
+            : result.ToErrorResult();
     }
 }
 

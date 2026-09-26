@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { useLanguages } from '../App'
 import { Mark, type Stroke } from '../board/pieces'
 import { useI18n } from '../i18n/i18n'
+import { useLevelName } from '../lib/curricula'
 import { useTitle } from '../lib/use'
 import type {
   DraftStatus,
@@ -9,6 +10,7 @@ import type {
   NodeKind,
   ReleaseStatus,
   SkillReviewState,
+  StudioCurriculum,
   StudioNode,
   TrailStep,
 } from '../lib/studio'
@@ -64,9 +66,10 @@ export function TrailLine({ trail, drop = 0 }: { trail: TrailStep[]; drop?: numb
   )
 }
 
-export function KindName({ kind }: { kind: NodeKind }) {
-  const { t } = useI18n()
-  return <>{t(`curriculum.kind.${kind}`)}</>
+/** A level, called what its own curriculum calls it. */
+export function KindName({ kind, curriculum }: { kind: NodeKind; curriculum?: StudioCurriculum }) {
+  const levelName = useLevelName()
+  return <>{levelName(kind, curriculum)}</>
 }
 
 /** Where a draft belongs, and where the Studio sends you when you open it. */
@@ -116,7 +119,8 @@ export function LessonCounts({ node }: { node: StudioNode }) {
   const { t } = useI18n()
   const languages = useLanguages()
 
-  if (node.kind !== 'lesson') return null
+  // Counts belong to the level students play, whatever the curriculum calls it.
+  if (!node.isPlayable) return null
 
   const counts = node.questionCounts ?? {}
   const missing = node.missingLanguages ?? []
