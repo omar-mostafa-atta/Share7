@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Share7.API.Extensions;
+using Share7.Application.Multiplayer.Interfaces;
 using Share7.Application.Play.Interfaces;
 using Share7.Application.Play.Models;
 using Share7.Domain.Constants;
@@ -22,8 +23,13 @@ namespace Share7.API.Controllers;
 public class AdminGameModesController : ControllerBase
 {
     private readonly IGameModeAdminService _modes;
+    private readonly IMatchResultService _matchResults;
 
-    public AdminGameModesController(IGameModeAdminService modes) => _modes = modes;
+    public AdminGameModesController(IGameModeAdminService modes, IMatchResultService matchResults)
+    {
+        _modes = modes;
+        _matchResults = matchResults;
+    }
 
     /// <summary>
     /// Every mode in the authoring shape — all translations, inactive included. Filterable to one game.
@@ -35,6 +41,19 @@ public class AdminGameModesController : ControllerBase
 
         return Ok(modes);
     }
+
+    /// <summary>
+    /// What a mode's win rule may rank on, for the rule editor: the fixed metrics, and a
+    /// <c>signal:&lt;kind&gt;</c> for every count the game or the platform prices. Each carries its
+    /// trust level — <c>verified</c>, <c>bounded</c>, <c>reported</c> — so the editor can say plainly
+    /// which rules a modified client could win.
+    /// <code>
+    /// [ { "metric": "correct_answers", "trust": "verified", "source": "answers", "suggestedOrder": "higher" }, … ]
+    /// </code>
+    /// </summary>
+    [HttpGet("win-metrics")]
+    public async Task<IActionResult> WinMetrics([FromQuery] Guid? gameId, CancellationToken cancellationToken) =>
+        Ok(await _matchResults.MetricOptionsAsync(gameId, cancellationToken));
 
     /// <summary>One mode with its names in every language — the read an edit form fills from.</summary>
     [HttpGet("{modeId:guid}")]

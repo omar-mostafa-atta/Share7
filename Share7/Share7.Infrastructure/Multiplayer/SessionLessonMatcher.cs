@@ -97,6 +97,21 @@ public class SessionLessonMatcher : ISessionLessonMatcher
         return ServiceResult.Success();
     }
 
+    public async Task EnsureLessonAsync(Guid sessionId, Guid userId, CancellationToken cancellationToken = default)
+    {
+        var session = await _dbContext.MultiplayerSessions
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == sessionId, cancellationToken);
+
+        if (session is not { SubjectId: { } subjectId, LangId: { } langId, LessonId: null })
+            return;
+
+        var ordering = (await EligibleLessonsAsync(userId, session.GameId, subjectId, langId, cancellationToken))
+            .ToDictionary(l => l.LessonId);
+
+        await StampAsync(session.Id, ordering, cancellationToken);
+    }
+
     /// <summary>
     /// Chooses the match's lesson once enough players are seated, and writes it exactly once.
     /// <para>
@@ -113,30 +128,7 @@ public class SessionLessonMatcher : ISessionLessonMatcher
         if (session.LessonId is not null) return;
         if (session.CurrentPlayerCount < Math.Max(2, session.MinPlayers)) return;
 
-        var remaining = await _dbContext.Set<MultiplayerSessionEligibleLesson>()
-            .AsNoTracking()
-            .Where(l => l.SessionId == session.Id)
-            .ToListAsync(cancellationToken);
-
-        if (remaining.Count == 0) return;
-
-        // Least-practised first, then the earliest lesson in the curriculum — so a tie resolves to
-        // the one the group would reach first anyway rather than to whatever the database returned.
-        var pick = remaining
-            .OrderBy(l => l.SummedBestPercent)
-            .ThenBy(l => joinerLessons.TryGetValue(l.LessonId, out var lesson) ? lesson.ChapterOrder : int.MaxValue)
-            .ThenBy(l => joinerLessons.TryGetValue(l.LessonId, out var lesson) ? lesson.LessonOrder : int.MaxValue)
-            .ThenBy(l => l.LessonId)
-            .First();
-
-        await _dbContext.Database.ExecuteSqlRawAsync(
-            """
-            UPDATE [MultiplayerSessions]
-            SET [LessonId] = {1}
-            WHERE [Id] = {0} AND [LessonId] IS NULL
-            """,
-            [session.Id, pick.LessonId],
-            cancellationToken);
+        await StampAsync(session.Id, joinerLessons, cancellationToken);
 
         // Kept in step with the row that was just written, so the DTO this seat returns names the
         // lesson rather than a null the client would have to poll for.
@@ -148,6 +140,42 @@ public class SessionLessonMatcher : ISessionLessonMatcher
         // exact moment it formed. Reloading takes the new LessonId and RowVersion together and
         // leaves the entity unchanged.
         await _dbContext.Entry(session).ReloadAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// The pick and the write-once stamp, shared by a filling roster and a solo start so the two can
+    /// never choose by different rules. <paramref name="ordering"/> supplies curriculum position for
+    /// the tie-break; a lesson it does not know sorts last rather than failing the pick.
+    /// </summary>
+    private async Task StampAsync(
+        Guid sessionId,
+        IReadOnlyDictionary<Guid, EligibleLesson> ordering,
+        CancellationToken cancellationToken)
+    {
+        var remaining = await _dbContext.Set<MultiplayerSessionEligibleLesson>()
+            .AsNoTracking()
+            .Where(l => l.SessionId == sessionId)
+            .ToListAsync(cancellationToken);
+
+        if (remaining.Count == 0) return;
+
+        // Least-practised first, then the earliest lesson in the curriculum — so a tie resolves to
+        // the one the group would reach first anyway rather than to whatever the database returned.
+        var pick = remaining
+            .OrderBy(l => l.SummedBestPercent)
+            .ThenBy(l => ordering.TryGetValue(l.LessonId, out var lesson) ? lesson.ChapterOrder : int.MaxValue)
+            .ThenBy(l => ordering.TryGetValue(l.LessonId, out var lesson) ? lesson.LessonOrder : int.MaxValue)
+            .ThenBy(l => l.LessonId)
+            .First();
+
+        await _dbContext.Database.ExecuteSqlRawAsync(
+            """
+            UPDATE [MultiplayerSessions]
+            SET [LessonId] = {1}
+            WHERE [Id] = {0} AND [LessonId] IS NULL
+            """,
+            [sessionId, pick.LessonId],
+            cancellationToken);
     }
 
     private static ServiceResult NoSharedLesson() =>

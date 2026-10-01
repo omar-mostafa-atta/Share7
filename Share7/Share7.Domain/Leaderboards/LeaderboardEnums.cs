@@ -104,5 +104,8 @@ public enum GameResultSource
     Session = 1,
 
     /// <summary>An operator correction or backfill.</summary>
-    Admin = 2
+    Admin = 2,
+
+    /// <summary>A tournament's final placings. <c>SourceId</c> is the tournament.</summary>
+    Tournament = 3
 }

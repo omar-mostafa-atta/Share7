@@ -140,6 +140,13 @@ public class MultiplayerSession
 
     public bool IsRanked { get; set; }
 
+    /// <summary>
+    /// Rated: formed by the server from ranked tickets, so its result moves ratings. **Set only by the
+    /// server.** <see cref="IsRanked"/> is the client's own partition flag and decides nothing — rating
+    /// a room two friends opened themselves would let them trade wins.
+    /// </summary>
+    public bool IsRated { get; set; }
+
     public DateTime CreatedAtUtc { get; set; }
 
     /// <summary>Set when the session reaches <c>Running</c>.</summary>
@@ -147,6 +154,26 @@ public class MultiplayerSession
 
     /// <summary>Set on the first terminal transition, and never moved by a later one.</summary>
     public DateTime? EndedAtUtc { get; set; }
+
+    /// <summary>
+    /// The ended match this session is the rematch of, or null. Not a foreign key — sessions are
+    /// archived independently. **At most one live rematch per match**, by filtered unique index: two
+    /// players pressing "Rematch" at the same instant land in the same room, not two half-empty ones.
+    /// </summary>
+    public Guid? RematchOfSessionId { get; set; }
+
+    /// <summary>
+    /// The tournament pairing this room plays, or null. **At most one live room per pairing**, by
+    /// filtered unique index, for the same reason as a rematch: both players pressing play at once
+    /// land in one room. Not a foreign key — a tournament reads its rooms, never the other way round.
+    /// </summary>
+    public Guid? TournamentMatchId { get; set; }
+
+    /// <summary>
+    /// Only the accounts in <see cref="MultiplayerSessionReservation"/> may take a seat. Checked
+    /// inside the capacity <c>UPDATE</c>, exactly as removals are.
+    /// </summary>
+    public bool IsReserved { get; set; }
 
     /// <summary>
     /// Advanced by the host's heartbeat, **always from the server clock**. A client-supplied time is

@@ -18,6 +18,10 @@ public class GameModeConfiguration : IEntityTypeConfiguration<GameMode>
 
         builder.Property(m => m.ModeKey).IsRequired().HasMaxLength(128);
 
+        // The win rule, as authored JSON; read through GameMode.WinRule, which is not a column.
+        builder.Property(m => m.WinRuleJson).HasMaxLength(Share7.Domain.Multiplayer.MatchWinRule.MaxJsonLength);
+        builder.Ignore(m => m.WinRule);
+
         // Stored as the bitfield, not as text: matchmaking filters on it, and a flags set spelled
         // out as a comma-joined string cannot be answered by an index.
         builder.Property(m => m.Topologies).HasConversion<int>();

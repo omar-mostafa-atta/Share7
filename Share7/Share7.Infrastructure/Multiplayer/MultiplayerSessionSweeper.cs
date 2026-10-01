@@ -24,15 +24,22 @@ public class MultiplayerSessionSweeper : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly MultiplayerOptions _options;
+    private readonly SweeperWarmup _warmup;
     private readonly ILogger<MultiplayerSessionSweeper> _logger;
 
+    /// <summary>
+    /// Takes <see cref="SweeperWarmup"/> here, rather than leaving it to the first scoped pass, so the
+    /// singleton is created — and its clock started — as the host starts.
+    /// </summary>
     public MultiplayerSessionSweeper(
         IServiceScopeFactory scopeFactory,
         IOptions<MultiplayerOptions> options,
+        SweeperWarmup warmup,
         ILogger<MultiplayerSessionSweeper> logger)
     {
         _scopeFactory = scopeFactory;
         _options = options.Value;
+        _warmup = warmup;
         _logger = logger;
     }
 
@@ -40,7 +47,10 @@ public class MultiplayerSessionSweeper : BackgroundService
     {
         var interval = TimeSpan.FromSeconds(Math.Max(5, _options.SweepIntervalSeconds));
 
-        _logger.LogInformation("Multiplayer session sweeper started; interval {Interval}.", interval);
+        _logger.LogInformation(
+            "Multiplayer session sweeper started at {StartedAtUtc:O}; interval {Interval}. "
+            + "Silence rules wait one timeout window after start.",
+            _warmup.StartedAtUtc, interval);
 
         using var timer = new PeriodicTimer(interval);
 

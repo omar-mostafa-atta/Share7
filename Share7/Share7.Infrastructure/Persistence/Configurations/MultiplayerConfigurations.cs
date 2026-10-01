@@ -85,6 +85,22 @@ public class MultiplayerSessionConfiguration : IEntityTypeConfiguration<Multipla
             .HasFilter("[JoinCode] IS NOT NULL AND " + MultiplayerFilters.SessionIsLive)
             .HasDatabaseName("UQ_MultiplayerSession_JoinCode");
 
+        // One live rematch per ended match: the second player to ask is handed the first one's room.
+        // Live only, so a rematch whose host vanished before confirming it does not spend the match's
+        // one chance.
+        builder.HasIndex(s => s.RematchOfSessionId)
+            .IsUnique()
+            .HasFilter("[RematchOfSessionId] IS NOT NULL AND " + MultiplayerFilters.SessionIsLive)
+            .HasDatabaseName("UQ_MultiplayerSession_RematchOf");
+
+        // One live room per tournament pairing: the second of the pair to press play is handed the
+        // first one's room. Live only, so a room that never started gives the pairing back.
+        builder.HasIndex(s => s.TournamentMatchId)
+            .IsUnique()
+            .HasFilter("[TournamentMatchId] IS NOT NULL AND " + MultiplayerFilters.SessionIsLive)
+            .HasDatabaseName("UQ_MultiplayerSession_TournamentMatch");
+
+
         // The matchmaking candidate query, in key order. LessonId is last because it is the only
         // optional filter — omitting it still leaves a usable index prefix, which is what lets one
         // index serve both the filtered and the unfiltered search.
@@ -197,6 +213,21 @@ public class MultiplayerSessionPlayerConfiguration : IEntityTypeConfiguration<Mu
             .HasFilter(MultiplayerFilters.PlayerIsSeated)
             .HasDatabaseName("UQ_SessionPlayer_Slot");
 
+        // **One account, one live seat — across every session.** The two indexes above hold within a
+        // session; nothing held across them, so two joins (or a join and a create) for the same
+        // account landing in different sessions at the same moment both passed the service's read
+        // and seated one child twice — typically a retried matchmake, leaving a ghost in somebody
+        // else's lobby. The second insert now dies here and is answered ALREADY_IN_SESSION.
+        //
+        // This makes a standing invariant load-bearing: **a session that ends must release its
+        // seats.** Every path that ends one does so in the same transaction, and the sweeper's
+        // healing rule catches anything that did not — because a seat stranded in an ended session
+        // is now an account that can never be seated again.
+        builder.HasIndex(p => p.UserId)
+            .IsUnique()
+            .HasFilter(MultiplayerFilters.PlayerIsSeated)
+            .HasDatabaseName("UQ_SessionPlayer_OneLiveSeat");
+
         // "Which session am I in?" — the recovery lookup after a crash or reinstall, and the
         // one-active-membership check on every create and join.
         builder.HasIndex(p => new { p.UserId, p.Status })
@@ -216,6 +247,146 @@ public class MultiplayerSessionPlayerConfiguration : IEntityTypeConfiguration<Mu
             .WithMany()
             .HasForeignKey(p => p.UserId)
             .OnDelete(DeleteBehavior.NoAction);
+    }
+}
+
+/// <summary>
+/// A host's removal of one account from one session.
+/// <para>
+/// Cascades from the session — a ban is about one room and ends with it. The account FK is
+/// **NoAction** for the same reason the seat's is: sessions already cascade from the host's account,
+/// and SQL Server refuses a second cascade path into this table. The banned account's rows are purged
+/// explicitly instead (<c>UserOwnedData.ManuallyPurged</c>).
+/// </para>
+/// </summary>
+public class MultiplayerSessionBanConfiguration : IEntityTypeConfiguration<MultiplayerSessionBan>
+{
+    public void Configure(EntityTypeBuilder<MultiplayerSessionBan> builder)
+    {
+        builder.ToTable("MultiplayerSessionBans");
+
+        // One row per (session, account): banning twice is the same ban, which is what makes a
+        // retried removal idempotent at the index rather than by a lookup.
+        builder.HasKey(b => new { b.SessionId, b.UserId });
+
+        builder.HasOne(b => b.Session)
+            .WithMany()
+            .HasForeignKey(b => b.SessionId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne<ApplicationUser>()
+            .WithMany()
+            .HasForeignKey(b => b.UserId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        // The account-deletion purge's query, and matchmaking's "not into a room I was removed from".
+        builder.HasIndex(b => b.UserId)
+            .HasDatabaseName("IX_SessionBan_User");
+    }
+}
+
+public class MultiplayerSessionReservationConfiguration : IEntityTypeConfiguration<MultiplayerSessionReservation>
+{
+    public void Configure(EntityTypeBuilder<MultiplayerSessionReservation> builder)
+    {
+        builder.ToTable("MultiplayerSessionReservations");
+
+        // The key is also the seat step's lookup: (session, account) inside the capacity UPDATE.
+        builder.HasKey(r => new { r.SessionId, r.UserId });
+
+        builder.HasOne(r => r.Session)
+            .WithMany()
+            .HasForeignKey(r => r.SessionId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // NoAction and purged by list, for the bans' reason: a second cascade path from the account.
+        builder.HasOne<ApplicationUser>()
+            .WithMany()
+            .HasForeignKey(r => r.UserId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        builder.HasIndex(r => r.UserId)
+            .HasDatabaseName("IX_SessionReservation_User");
+    }
+}
+
+/// <summary>
+/// The verdict on one match. Keyed by the session, and **not a foreign key to it** — a result is the
+/// durable record of a match and outlives the session row once old sessions are archived.
+/// </summary>
+public class MatchResultConfiguration : IEntityTypeConfiguration<MatchResult>
+{
+    public void Configure(EntityTypeBuilder<MatchResult> builder)
+    {
+        builder.ToTable("MatchResults");
+
+        // The primary key is the whole idempotency story: two requests deciding the same match at
+        // once both try to insert this row, and exactly one can.
+        builder.HasKey(r => r.SessionId);
+
+        builder.Property(r => r.State)
+            .HasConversion(EnumWire.Converter<MatchResultState>())
+            .HasMaxLength(16)
+            .IsRequired();
+
+        builder.Property(r => r.WinRuleJson).HasMaxLength(MatchWinRule.MaxJsonLength);
+        builder.Property(r => r.DecidedBy).IsRequired().HasMaxLength(32);
+
+        // "Matches decided recently" — operations and, later, analytics.
+        builder.HasIndex(r => r.DecidedAtUtc).HasDatabaseName("IX_MatchResult_DecidedAt");
+    }
+}
+
+/// <summary>
+/// One participant's place. Cascades from the result, and from the account: a child's competitive
+/// history is deleted with them, never anonymised — the same ruling the leaderboards made.
+/// </summary>
+public class MatchPlacementConfiguration : IEntityTypeConfiguration<MatchPlacement>
+{
+    public void Configure(EntityTypeBuilder<MatchPlacement> builder)
+    {
+        builder.ToTable("MatchPlacements");
+        builder.HasKey(p => new { p.SessionId, p.UserId });
+
+        builder.Property(p => p.FlagReason).HasMaxLength(128);
+        builder.Property(p => p.ValuesJson).IsRequired().HasMaxLength(1024);
+
+        builder.HasOne(p => p.Result)
+            .WithMany(r => r.Placements)
+            .HasForeignKey(p => p.SessionId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // One cascade path only — results have no account foreign key — so this can cascade.
+        builder.HasOne<ApplicationUser>()
+            .WithMany()
+            .HasForeignKey(p => p.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // "My recent matches".
+        builder.HasIndex(p => p.UserId).HasDatabaseName("IX_MatchPlacement_User");
+    }
+}
+
+/// <summary>
+/// A graded attempt attributed to a match. Pointer to the session, not a foreign key: the session
+/// already cascades from its host's account, and a second path into this table is one SQL Server
+/// refuses.
+/// </summary>
+public class MatchAttemptScoreConfiguration : IEntityTypeConfiguration<MatchAttemptScore>
+{
+    public void Configure(EntityTypeBuilder<MatchAttemptScore> builder)
+    {
+        builder.ToTable("MatchAttemptScores");
+        builder.HasKey(s => s.Id);
+
+        builder.HasOne<ApplicationUser>()
+            .WithMany()
+            .HasForeignKey(s => s.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // The verdict's read: one match's scores per player, earliest first.
+        builder.HasIndex(s => new { s.SessionId, s.UserId, s.SubmittedAtUtc })
+            .HasDatabaseName("IX_MatchAttemptScore_Session");
     }
 }
 

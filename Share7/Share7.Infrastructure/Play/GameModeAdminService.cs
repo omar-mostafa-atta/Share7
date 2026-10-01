@@ -3,7 +3,9 @@ using Share7.Application.Common.Models;
 using Share7.Application.Curriculum.Interfaces;
 using Share7.Application.Play.Interfaces;
 using Share7.Application.Play.Models;
+using Share7.Domain.Multiplayer;
 using Share7.Domain.Play;
+using Share7.Infrastructure.Multiplayer;
 using Share7.Infrastructure.Persistence;
 
 namespace Share7.Infrastructure.Play;
@@ -99,6 +101,9 @@ public class GameModeAdminService : IGameModeAdminService
         if (!validated.Succeeded)
             return Propagate<GameModeAdminDto>(validated);
 
+        if (RankedRefusal(request.Ranked ?? false, validated.Value!.Topologies, validated.Value.WinRule?.Rule) is { } refusedNew)
+            return refusedNew;
+
         var mode = new GameMode { Id = Guid.NewGuid(), CreatedAtUtc = DateTime.UtcNow };
 
         Apply(mode, request, validated.Value!);
@@ -157,12 +162,30 @@ public class GameModeAdminService : IGameModeAdminService
                 "This is the game's default mode. Make another mode the default instead of clearing " +
                 "the flag — a game with no default refuses every session that names no mode.");
 
+        // Judged as the mode would be saved, before anything is changed: a save that removes the win rule
+        // from a ranked mode is refused rather than quietly leaving it ranked with nothing to rank on.
+        var savedRule = validated.Value!.WinRule is { } change ? change.Rule : mode.WinRule;
+
+        if (RankedRefusal(request.Ranked ?? mode.Ranked, validated.Value.Topologies, savedRule) is { } refused)
+            return refused;
+
+        // A tournament still taking entries or playing decides every pairing by this mode's rule, two
+        // players at a time: the save must leave it able to.
+        if (await _dbContext.Tournaments.AnyAsync(
+                t => t.ModeId == modeId && (t.State == TournamentState.Registration || t.State == TournamentState.Running), cancellationToken)
+            && TournamentService.TournamentModeRefusal(validated.Value.Topologies, savedRule, request.MinPlayers, request.MaxPlayers) is { } unsuitable)
+            return ServiceResult<GameModeAdminDto>.Failure(
+                ApiErrors.PlayModeInvalid,
+                ServiceErrorKind.Conflict,
+                $"A tournament is being played in this mode, so it must stay as it is. {unsuitable}");
+
         // Full replace: a language dropped from the payload must not linger as a stale name.
         _dbContext.GameModeTranslations.RemoveRange(mode.Translations);
         mode.Translations.Clear();
 
         Apply(mode, request, validated.Value!);
         mode.UpdatedAtUtc = DateTime.UtcNow;
+
 
         if (mode.IsDefault)
             await ClearOtherDefaultsAsync(mode.GameId, mode.Id, cancellationToken);
@@ -205,6 +228,14 @@ public class GameModeAdminService : IGameModeAdminService
                 $"{impact.Events} event(s) are bound to this mode. Deactivate it instead.",
                 impact);
 
+        // The same for a tournament: its bracket is history that names this mode.
+        if (await _dbContext.Tournaments.AnyAsync(t => t.ModeId == modeId, cancellationToken))
+            return ServiceResult<GameModeDeletionImpact>.Failure(
+                ApiErrors.PlayModeInvalid,
+                ServiceErrorKind.Conflict,
+                "A tournament was played in this mode. Deactivate it instead.",
+                impact);
+
         if (!force && impact.HasHistory)
             return ServiceResult<GameModeDeletionImpact>.Failure(
                 ApiErrors.PlayModeInvalid,
@@ -242,6 +273,15 @@ public class GameModeAdminService : IGameModeAdminService
         }
     }
 
+    /// <summary>A ranked mode must be one whose matches place their players: versus, with a win rule.</summary>
+    private static ServiceResult<GameModeAdminDto>? RankedRefusal(bool ranked, PlayTopologies topologies, MatchWinRule? rule) =>
+        ranked && (!topologies.HasFlag(PlayTopologies.Versus) || rule is null)
+            ? ServiceResult<GameModeAdminDto>.Failure(
+                ApiErrors.PlayModeInvalid,
+                ServiceErrorKind.Validation,
+                "A ranked mode must be played versus and have a win rule: a rating needs players to place.")
+            : null;
+
     private static void Apply(GameMode mode, SaveGameModeRequest request, Validated validated)
     {
         mode.GameId = request.GameId;
@@ -262,6 +302,13 @@ public class GameModeAdminService : IGameModeAdminService
         mode.EconomyProfileId = request.EconomyProfileId;
         mode.SortOrder = request.SortOrder;
 
+        // The one field a save leaves alone when it is absent — see SaveGameModeRequest.WinRule.
+        if (validated.WinRule is { } winRule)
+            mode.WinRuleJson = winRule.Rule?.ToJson();
+
+        if (request.Ranked is { } ranked)
+            mode.Ranked = ranked;
+
         foreach (var name in validated.Names)
         {
             mode.Translations.Add(new GameModeTranslation
@@ -274,7 +321,14 @@ public class GameModeAdminService : IGameModeAdminService
         }
     }
 
-    private sealed record Validated(string ModeKey, PlayTopologies Topologies, List<ModeName> Names);
+    /// <summary>
+    /// What a save does to the win rule: null leaves it, a <see cref="WinRuleChange"/> sets it — to a
+    /// rule, or to none.
+    /// </summary>
+    private sealed record Validated(
+        string ModeKey, PlayTopologies Topologies, List<ModeName> Names, WinRuleChange? WinRule);
+
+    private sealed record WinRuleChange(MatchWinRule? Rule);
 
     private sealed record ModeName(Guid LangId, string Name, string Description);
 
@@ -377,13 +431,28 @@ public class GameModeAdminService : IGameModeAdminService
         if (missing.Count > 0)
             errors.Add($"A name is required for every language. Missing: {string.Join(", ", missing)}.");
 
+        WinRuleChange? winRule = null;
+
+        if (request.WinRule is { } criteria)
+        {
+            var (rule, problems) = MatchWinRule.Build(criteria.Select(c => ((string?)c.Metric, (string?)c.Order)));
+            errors.AddRange(problems);
+
+            // A rule decides between players. A mode nobody ever plays against anybody has no match
+            // to decide, and a rule on it would be configuration that silently does nothing.
+            if (rule is { Criteria.Count: > 0 } && set != PlayTopologies.None && !set.HasFlag(PlayTopologies.Versus))
+                errors.Add("Only a mode played versus can have a win rule: a match needs players to place.");
+
+            winRule = new WinRuleChange(rule is { Criteria.Count: > 0 } ? rule : null);
+        }
+
         return errors.Count > 0
             ? ServiceResult<Validated>.Failure(
                 ApiErrors.PlayModeInvalid,
                 ServiceErrorKind.Validation,
                 string.Join(" ", errors),
                 new Dictionary<string, object?> { ["problems"] = errors })
-            : ServiceResult<Validated>.Success(new Validated(key, topologies!.Value, names));
+            : ServiceResult<Validated>.Success(new Validated(key, topologies!.Value, names, winRule));
     }
 
     private static GameModeAdminDto Map(GameMode mode, Guid langId, string defaultProfileKey, int runCount)
@@ -425,7 +494,10 @@ public class GameModeAdminService : IGameModeAdminService
                     Description = t.Description
                 })
                 .ToList(),
-            RunCount = runCount
+            RunCount = runCount,
+            WinRule = MatchRuleMapping.ToDto(mode.WinRule),
+            WinRuleTrust = mode.WinRule is { } rule ? MatchRuleMapping.TrustToken(rule.Trust) : null,
+            Ranked = mode.Ranked
         };
     }
 

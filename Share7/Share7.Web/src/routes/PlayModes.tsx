@@ -5,9 +5,11 @@ import {
   Gamepad2,
   Layers,
   Lock,
+  Medal,
   Mountain,
   Plus,
   RefreshCw,
+  Smartphone,
   Star,
   Trash2,
 } from 'lucide-react'
@@ -33,6 +35,8 @@ import {
 } from '../features/play/data'
 import { KEY_PATTERN, textFor } from '../lib/format'
 import { listVariants } from '../components/ui/motion'
+import { winningPhrase } from '../features/play/winRule'
+import { WinRuleEditor, winRuleError } from '../features/play/WinRuleEditor'
 import type {
   EconomyProfileDto,
   GameModeAdminDto,
@@ -184,6 +188,37 @@ function ModesPanel({ gameId, gameKey }: { gameId: string; gameKey: string }) {
             ))}
           </span>
         ),
+      },
+      {
+        key: 'winRule',
+        header: 'Won by',
+        render: (m) => {
+          if (!m.topologies.includes('versus')) return <span className="s7-muted">—</span>
+          if (!m.winRule?.length) return <Badge tone="muted">Nobody is placed</Badge>
+
+          const [first, ...rest] = m.winRule
+          const lead = winningPhrase(first)
+
+          return (
+            <span className="s7-inline">
+              <span>
+                {lead.charAt(0).toUpperCase()}
+                {lead.slice(1)}
+                {rest.length ? <span className="s7-muted"> +{rest.length}</span> : null}
+              </span>
+              {m.winRuleTrust === 'reported' ? (
+                <Badge tone="warning">
+                  <Smartphone size={11} /> Self-reported
+                </Badge>
+              ) : null}
+              {m.ranked ? (
+                <Badge tone="brand">
+                  <Medal size={11} /> Ranked
+                </Badge>
+              ) : null}
+            </span>
+          )
+        },
       },
       {
         key: 'accounting',
@@ -420,12 +455,22 @@ function ModeEditor({
             : null
     : null
 
+  const versus = form.topologies.includes('versus')
+  const criteria = form.winRule ?? []
+  const ruleError = versus ? winRuleError(criteria) : null
+
+  // Ranked needs players to place: Versus and a win rule. Without them the switch reads off, and off is
+  // what is saved — the server refuses a ranked mode it could not rate.
+  const canRank = versus && criteria.length > 0
+  const ranked = canRank && !!form.ranked
+
   const blocked =
     !!keyError ||
     !!topologyError ||
     !!playersError ||
     !!entitlementError ||
     !!defaultError ||
+    !!ruleError ||
     !form.modeKey.trim()
 
   const translationRows: TranslationRow[] = form.translations.map((t) => ({
@@ -452,7 +497,9 @@ function ModeEditor({
             onClick={async () => {
               setSaving(true)
               try {
-                await onSave(form)
+                // A mode nobody plays against anybody has no match to decide, and the server refuses
+                // a rule on one. Saving without Versus clears the rule, as the editor says it will.
+                await onSave(versus ? { ...form, ranked } : { ...form, winRule: [], ranked: false })
               } finally {
                 setSaving(false)
               }
@@ -523,6 +570,31 @@ function ModeEditor({
             />
           </Field>
         </div>
+
+        <WinRuleEditor
+          gameId={gameId}
+          versus={versus}
+          savedRule={mode?.winRule ?? []}
+          criteria={criteria}
+          error={ruleError}
+          onChange={(next) => patch({ winRule: next })}
+        />
+
+        <Field
+          label="Ranked"
+          hint={
+            canRank
+              ? 'Players queue alone, meet others of similar skill, and earn a rank that resets each month and never drops within it.'
+              : 'Needs Versus and a way to win: a rank needs players to place.'
+          }
+        >
+          <Switch
+            checked={ranked}
+            disabled={!canRank}
+            onChange={(v) => patch({ ranked: v })}
+            label="Offer this mode as ranked"
+          />
+        </Field>
 
         <Field
           label="Counts toward"

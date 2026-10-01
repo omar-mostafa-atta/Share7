@@ -21,5 +21,8 @@ public enum SessionClosedReason
     CreationFailed,
 
     /// <summary>Forced closed from the admin surface.</summary>
-    AdminClosed
+    AdminClosed,
+
+    /// <summary>A tournament pairing's deadline passed before its match started; the pairing was settled without it.</summary>
+    DeadlinePassed
 }

@@ -229,6 +229,98 @@ public class MultiplayerSweeperTests
     }
 
     [Fact]
+    public async Task A_restart_is_not_read_as_every_host_going_quiet()
+    {
+        var session = await MultiplayerTest.OpenAsync(_fixture);
+
+        // Five minutes without a heartbeat — because the API was being redeployed, not because the
+        // host died. The Photon match carried on the whole time.
+        await using var context = _fixture.CreateContext();
+        await MultiplayerTest.AgeSessionAsync(context, session.SessionId, seconds: 300);
+
+        var justStarted = await MultiplayerTest.Sweeper(context, startedAtUtc: DateTime.UtcNow.AddSeconds(-10)).SweepAsync();
+
+        Assert.Equal(0, justStarted.Abandoned);
+        Assert.Equal(MultiplayerSessionState.Created, (await MultiplayerTest.ReadSessionAsync(context, session.SessionId)).State);
+
+        // The host's first heartbeat to the new process lands inside the window, and the match lives.
+        var beat = await MultiplayerTest.Sessions(context)
+            .HeartbeatAsync(session.HostId, session.SessionId, new() { ConnectedUserIds = [session.HostId] });
+
+        Assert.Equal(MultiplayerSessionState.Created, beat.Value!.State);
+    }
+
+    [Fact]
+    public async Task A_host_that_stays_silent_past_the_warm_up_is_still_abandoned()
+    {
+        var session = await MultiplayerTest.OpenAsync(_fixture);
+
+        await using var context = _fixture.CreateContext();
+        await MultiplayerTest.AgeSessionAsync(context, session.SessionId, seconds: 300);
+
+        // Up for longer than the silence window, and the host still has not checked in: it really is gone.
+        var warmedUp = await MultiplayerTest.Sweeper(context, startedAtUtc: DateTime.UtcNow.AddSeconds(-120)).SweepAsync();
+
+        Assert.True(warmedUp.Abandoned >= 1);
+        Assert.Equal(MultiplayerSessionState.Abandoned, (await MultiplayerTest.ReadSessionAsync(context, session.SessionId)).State);
+    }
+
+    [Fact]
+    public async Task A_seat_left_behind_in_an_ended_session_is_released()
+    {
+        await using var context = _fixture.CreateContext();
+
+        var curriculum = await TestData.CreateCurriculumPathAsync(context);
+        var hostId = await TestData.CreateUserAsync(context);
+        var playerId = await TestData.CreateUserAsync(context);
+
+        // The shape an interrupted close leaves: the session reached Closed, the seat release did not.
+        var session = new MultiplayerSession
+        {
+            Id = Guid.NewGuid(),
+            GameId = curriculum.GameId,
+            HostUserId = hostId,
+            TransportSessionName = $"heal_{Guid.NewGuid():N}"[..24],
+            State = MultiplayerSessionState.Closed,
+            ClosedReason = SessionClosedReason.HostClosed,
+            Visibility = SessionVisibility.Public,
+            MaxPlayers = 2,
+            MinPlayers = 1,
+            ProtocolVersion = 1,
+            CreatedAtUtc = DateTime.UtcNow.AddMinutes(-5),
+            EndedAtUtc = DateTime.UtcNow.AddMinutes(-1),
+            LastHeartbeatAtUtc = DateTime.UtcNow.AddMinutes(-1)
+        };
+
+        context.MultiplayerSessions.Add(session);
+        context.MultiplayerSessionPlayers.Add(new MultiplayerSessionPlayer
+        {
+            Id = Guid.NewGuid(),
+            SessionId = session.Id,
+            UserId = playerId,
+            Slot = 0,
+            Status = SessionPlayerStatus.Connected,
+            JoinedAtUtc = DateTime.UtcNow.AddMinutes(-5),
+            LastSeenAtUtc = DateTime.UtcNow.AddMinutes(-1)
+        });
+        await context.SaveChangesAsync();
+
+        var result = await MultiplayerTest.Sweeper(context).SweepAsync();
+
+        Assert.True(result.OrphanedSeatsReleased >= 1);
+
+        // Under one-live-seat-per-account this is not a cosmetic leak: until it is released, this
+        // player can never be seated anywhere again.
+        await using var check = _fixture.CreateContext();
+        var seat = Assert.Single(await MultiplayerTest.ReadPlayersAsync(check, session.Id));
+        Assert.Equal(SessionPlayerStatus.Left, seat.Status);
+
+        var fresh = await TestData.CreateCurriculumPathAsync(check);
+        var restart = await MultiplayerTest.Sessions(check).CreateAsync(playerId, MultiplayerTest.CreateRequest(fresh.GameId));
+        Assert.True(restart.Succeeded, restart.Error?.Code);
+    }
+
+    [Fact]
     public async Task A_healthy_session_is_left_alone()
     {
         var session = await MultiplayerTest.OpenAsync(_fixture);

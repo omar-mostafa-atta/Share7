@@ -22,6 +22,8 @@ using Share7.Domain.Organizations;
 using Share7.Domain.Progression;
 using Share7.Domain.Rewards;
 using Share7.Domain.Runs;
+using Share7.Domain.Feed;
+using Share7.Domain.Social;
 using Share7.Domain.Guidance;
 using Share7.Domain.Telemetry;
 using Share7.Infrastructure.Identity;
@@ -294,6 +296,46 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, Applicati
     // than by service-layer checks, so they hold under genuine concurrency.
     public DbSet<MultiplayerSession> MultiplayerSessions => Set<MultiplayerSession>();
     public DbSet<MultiplayerSessionPlayer> MultiplayerSessionPlayers => Set<MultiplayerSessionPlayer>();
+
+    /// <summary>Accounts a host removed from a session, kept out of it until it ends.</summary>
+    public DbSet<MultiplayerSessionBan> MultiplayerSessionBans => Set<MultiplayerSessionBan>();
+    public DbSet<MultiplayerSessionReservation> MultiplayerSessionReservations => Set<MultiplayerSessionReservation>();
+    public DbSet<SessionInvitation> SessionInvitations => Set<SessionInvitation>();
+    public DbSet<Challenge> Challenges => Set<Challenge>();
+    public DbSet<Party> Parties => Set<Party>();
+    public DbSet<PartyMember> PartyMembers => Set<PartyMember>();
+    public DbSet<PartyInvitation> PartyInvitations => Set<PartyInvitation>();
+
+    /// <summary>Hidden ranked ratings, their per-match changes, and the visible seasonal standings they project to.</summary>
+    public DbSet<PlayerRating> PlayerRatings => Set<PlayerRating>();
+    public DbSet<PlayerRatingChange> PlayerRatingChanges => Set<PlayerRatingChange>();
+    public DbSet<RankedSeasonStanding> RankedSeasonStandings => Set<RankedSeasonStanding>();
+
+    /// <summary>Ranked and party matchmaking tickets, formed into matches by the matchmaking worker.</summary>
+    public DbSet<MatchmakingTicket> MatchmakingTickets => Set<MatchmakingTicket>();
+    public DbSet<MatchmakingTicketMember> MatchmakingTicketMembers => Set<MatchmakingTicketMember>();
+    public DbSet<MatchmakingTicketLesson> MatchmakingTicketLessons => Set<MatchmakingTicketLesson>();
+
+    /// <summary>Brackets and Swiss tournaments over reserved sessions — open, event (with prizes) and classroom.</summary>
+    public DbSet<Tournament> Tournaments => Set<Tournament>();
+    public DbSet<TournamentEntry> TournamentEntries => Set<TournamentEntry>();
+    public DbSet<TournamentMatch> TournamentMatches => Set<TournamentMatch>();
+
+    /// <summary>Each player's feed of things that happened outside a room, written with the change it describes.</summary>
+    public DbSet<PlayerEvent> PlayerEvents => Set<PlayerEvent>();
+
+    public DbSet<PlayerBlock> PlayerBlocks => Set<PlayerBlock>();
+    public DbSet<PlayerPresence> PlayerPresence => Set<PlayerPresence>();
+    public DbSet<Friendship> Friendships => Set<Friendship>();
+    public DbSet<PlayerFriendCode> PlayerFriendCodes => Set<PlayerFriendCode>();
+    public DbSet<FriendRequest> FriendRequests => Set<FriendRequest>();
+
+    /// <summary>The server's verdict on each match, derived from the players' own settled results. Append-only.</summary>
+    public DbSet<MatchResult> MatchResults => Set<MatchResult>();
+    public DbSet<MatchPlacement> MatchPlacements => Set<MatchPlacement>();
+
+    /// <summary>Graded attempts a seat holder submitted as part of a match.</summary>
+    public DbSet<MatchAttemptScore> MatchAttemptScores => Set<MatchAttemptScore>();
 
     /// <summary>Idempotency keys for multiplayer operations. **Successes only** — see the entity.</summary>
     public DbSet<MultiplayerRequestLog> MultiplayerRequestLogs => Set<MultiplayerRequestLog>();

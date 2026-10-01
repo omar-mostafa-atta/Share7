@@ -1,13 +1,18 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Share7.Application.Leaderboards.Models;
 using Share7.Application.Multiplayer.Models;
+using Share7.Application.Runs.Models;
+using Share7.Infrastructure.Objectives;
 using Share7.Domain.Multiplayer;
 using Share7.Domain.Constants;
+using Share7.Infrastructure.Leaderboards;
 using Share7.Infrastructure.Play;
 using Share7.Infrastructure.Progress;
 using Share7.Infrastructure.Progression;
 using Share7.Infrastructure.Multiplayer;
+using Share7.Infrastructure.Feed;
 using Share7.Infrastructure.Persistence;
 
 namespace Share7.Tests.Infrastructure;
@@ -38,13 +43,26 @@ public static class MultiplayerTest
     /// here would make every seating test pass under rules nothing ships.
     /// </summary>
     public static MultiplayerSessionService Sessions(
-        ApplicationDbContext context, MultiplayerOptions? options = null, Guid? langId = null) =>
-        new(context,
+        ApplicationDbContext context, MultiplayerOptions? options = null, Guid? langId = null)
+    {
+        var resolved = MSOptions.Create(options ?? Options());
+
+        return new(context,
             new MultiplayerRequestLogStore(context),
             new SessionLessonMatcher(context, EngineTest.Unlocks(context), EngineTest.Reads(context)),
             new PlaySelectionResolver(context, new LevelService(context)),
             new StubLanguageService(langId ?? LanguageIds.English),
-            MSOptions.Create(options ?? Options()));
+            Names(context, resolved),
+            resolved,
+            NullLogger<MultiplayerSessionService>.Instance);
+    }
+
+    /// <summary>The roster namer production uses, over the leaderboards' real handle issuer.</summary>
+    public static RosterNameResolver Names(ApplicationDbContext context, IOptions<MultiplayerOptions> options) =>
+        new(context,
+            new DisplayNameService(context, MSOptions.Create(new LeaderboardOptions())),
+            options,
+            NullLogger<RosterNameResolver>.Instance);
 
     public static MatchmakingService Matchmaking(
         ApplicationDbContext context, MultiplayerOptions? options = null, Guid? langId = null)
@@ -61,8 +79,50 @@ public static class MultiplayerTest
             MSOptions.Create(resolved));
     }
 
-    public static MultiplayerSweepService Sweeper(ApplicationDbContext context, MultiplayerOptions? options = null) =>
-        new(context, MSOptions.Create(options ?? Options()), NullLogger<MultiplayerSweepService>.Instance);
+    /// <summary>
+    /// A sweeper whose process has been up for an hour — past every warm-up window, which is the
+    /// state every sweep test except the warm-up ones means. Pass <paramref name="startedAtUtc"/> to
+    /// test the warm-up itself.
+    /// </summary>
+    public static MultiplayerSweepService Sweeper(
+        ApplicationDbContext context, MultiplayerOptions? options = null, DateTime? startedAtUtc = null)
+    {
+        var resolved = options ?? Options();
+        var warmup = new SweeperWarmup(startedAtUtc ?? DateTime.UtcNow.AddHours(-1));
+
+        return new(context,
+            Results(context, resolved, warmup),
+            SocialTest.Challenges(context, resolved),
+            MSOptions.Create(resolved),
+            warmup,
+            NullLogger<MultiplayerSweepService>.Instance);
+    }
+
+    /// <summary>
+    /// The match-result service with its real collaborators — the real recorder and projector, so a
+    /// verdict's MATCHES_WON lands in the same transaction as the verdict, exactly as in production.
+    /// </summary>
+    public static MatchResultService Results(
+        ApplicationDbContext context,
+        MultiplayerOptions? options = null,
+        SweeperWarmup? warmup = null,
+        RunOptions? runOptions = null)
+    {
+        var resolved = MSOptions.Create(options ?? Options());
+
+        return new MatchResultService(
+            context,
+            Names(context, resolved),
+            new PlaySelectionResolver(context, new LevelService(context)),
+            new GameResultRecorder(context, new PlausibilityGuard(context), NullLogger<GameResultRecorder>.Instance),
+            new ObjectiveProjector(context, NullLogger<ObjectiveProjector>.Instance),
+            new PlayerEventPublisher(context, resolved),
+            new RatingService(context, new PlayerEventPublisher(context, resolved), resolved, NullLogger<RatingService>.Instance),
+            warmup ?? new SweeperWarmup(DateTime.UtcNow.AddHours(-1)),
+            resolved,
+            MSOptions.Create(runOptions ?? new RunOptions()),
+            NullLogger<MatchResultService>.Instance);
+    }
 
     public static CreateMultiplayerSessionRequest CreateRequest(
         Guid gameId,

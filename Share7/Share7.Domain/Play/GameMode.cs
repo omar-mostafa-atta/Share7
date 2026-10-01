@@ -113,6 +113,26 @@ public class GameMode
     /// <summary>Position in the client's picker. Lower first.</summary>
     public int SortOrder { get; set; }
 
+    /// <summary>
+    /// How a match of this mode is won, as JSON — see <see cref="Multiplayer.MatchWinRule"/>. Null
+    /// means no rule: matches are recorded, nobody is crowned.
+    /// <para>
+    /// <b>A mode setting, not game code</b>, so "most kills wins", "fastest finish wins" and "last one
+    /// standing" are choices an operator makes when authoring a mode rather than a backend change per
+    /// game.
+    /// </para>
+    /// </summary>
+    public string? WinRuleJson { get; set; }
+
+    /// <summary>
+    /// Offered as ranked: matched by skill through ranked tickets, rated, and given a seasonal rank.
+    /// Only for a mode played versus with a win rule — a rating needs players to place.
+    /// </summary>
+    public bool Ranked { get; set; }
+
+    /// <summary>The parsed rule, or null when there is none or it cannot be read.</summary>
+    public Multiplayer.MatchWinRule? WinRule => Multiplayer.MatchWinRule.Parse(WinRuleJson);
+
     public DateTime CreatedAtUtc { get; set; }
 
     public DateTime? UpdatedAtUtc { get; set; }

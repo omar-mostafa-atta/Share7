@@ -1814,6 +1814,42 @@ so nothing already shipping had to move.
 
 ---
 
+## 14. Multiplayer
+
+**Documented in its own file: [MultiplayerUnityContract.md](MultiplayerUnityContract.md)** — every
+route under `/api/multiplayer`, its request and response shapes, refusal codes and retry rules, the
+session and seat state machines the client mirrors, and the client-side flows. The design behind it,
+the audit that preceded it and the roadmap are in [MultiplayerPlatform.md](MultiplayerPlatform.md).
+
+The frozen client's calls are held to a reviewed baseline by `MultiplayerContractTests`
+(`Contracts/Snapshots/multiplayer.json`), exactly as the curriculum calls are.
+
+**Match results** (`GET /api/multiplayer/sessions/{id}/result`) are decided by the server from each
+player's settled run and graded answers, under the mode's **win rule** — an ordered list of up to
+five measures (`correct_answers`, `accuracy`, `duration_ms`, `outcome`, `signal:<kind>`), each
+`higher` or `lower` wins, authored per mode in the Admin Console (`winRule` on
+`POST/PUT /api/admin/modes`; `null` keeps the saved rule, `[]` clears it; versus modes only). The
+measures an authoring screen may offer, with how far each can be trusted, come from
+`GET /api/admin/modes/win-metrics?gameId=`. A decided match adds `MATCHES_PLAYED` and `MATCHES_WON`
+to the results stream (§ leaderboards). Details in MultiplayerUnityContract.md §6.2–§6.3.
+
+**Social** (MultiplayerUnityContract.md §11): the player feed (`GET /api/multiplayer/events`, a
+long-poll carrying invites, challenges, results and party changes), `/api/social/connections`
+(classmates and friends with presence — the only way to find anyone), session invites, challenges
+("beat my score by Friday", decided from graded attempts; live duels), friends by code (guardian
+`SocialPlay` consent under 18), parties, and blocks. Who may reach whom is one server-side rule —
+classmates or friends, never strangers, a block overriding everything and indistinguishable from "not
+connected".
+
+**Ranked** (MultiplayerUnityContract.md §12): operators mark a mode ranked (`ranked` on
+`/api/admin/modes`; versus with a win rule only). Players queue with `POST /api/multiplayer/tickets`
+(solo for ranked; a party leader can queue casual), the matchmaking worker forms rated rooms with
+everyone seated and announces them on the feed, and `GET /api/multiplayer/ranked/{modeId}/standing`
+reads the monthly visible rank. Only server-formed matches are rated; the client's `isRanked` flag
+never is.
+
+---
+
 ## Not built yet
 
 - **The shop** — currency can be earned (§9) and products can be owned (§10), but nothing sells
@@ -1822,9 +1858,8 @@ so nothing already shipping had to move.
 - **Data export** — `GET /api/users/me/export` does not exist yet.
 - **Content manifest, server time, profile read** — `GET /api/content/manifest`, `GET /api/time`
   and `GET /api/users/me/profile` are not built.
-- **Multiplayer** — the attempt endpoint models a single-player run, not a match. Matchmaking,
-  room assignment and match result recording are all outstanding. Photon Fusion owns the live
-  session; the backend's part is matchmaking in and results out.
+- **Player reports, tournaments, a public ranked ladder** — sessions, matchmaking, match results,
+  rematch, the social layer and ranked play are built (§14); what comes next is in `MultiplayerPlatform.md` §22.
 - **`recoveryQuestions` trigger logic** — the pool itself now exists (table, upload, endpoints —
   see §5), but *when* the game shows a recovery question is still undefined. Storage and delivery
   are ready; the rule that fires them is not.

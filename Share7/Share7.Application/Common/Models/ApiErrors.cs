@@ -257,6 +257,151 @@ public static class ApiErrors
     public static readonly ApiErrorCode ProtocolVersionMismatch =
         new("PROTOCOL_VERSION_MISMATCH", "multiplayer.protocol_version_mismatch");
 
+    /// <summary>
+    /// The host removed the caller from this session, and they may not take a seat in it again. Only
+    /// ever returned to the removed account itself, on an attempt to rejoin.
+    /// </summary>
+    public static readonly ApiErrorCode SessionRemoved =
+        new("SESSION_REMOVED", "multiplayer.session.removed");
+
+    /// <summary>
+    /// The session holds its places for named players — a rematch, for the players of the match
+    /// before — and the caller is not one of them.
+    /// </summary>
+    public static readonly ApiErrorCode SessionReserved =
+        new("SESSION_RESERVED", "multiplayer.session.reserved");
+
+    /// <summary>
+    /// The event-feed cursor is older than retention, so events after it may be gone. Re-read state
+    /// (sessions, invites) and continue from <c>details.latest</c>.
+    /// </summary>
+    public static readonly ApiErrorCode EventsCursorExpired =
+        new("EVENTS_CURSOR_EXPIRED", "multiplayer.events.cursor_expired");
+
+    /// <summary>
+    /// The caller may not do this with that player — they share no class and are not friends, or one
+    /// has blocked the other. **Deliberately one code for all of it**, so a block can never be told
+    /// apart from "not connected".
+    /// </summary>
+    public static readonly ApiErrorCode SocialNotAllowed =
+        new("SOCIAL_NOT_ALLOWED", "social.not_allowed");
+
+    /// <summary>No such invite addressed to (or sent by) the caller.</summary>
+    public static readonly ApiErrorCode InviteNotFound =
+        new("INVITE_NOT_FOUND", "multiplayer.invite.not_found");
+
+    /// <summary>The invite was already answered, withdrawn, or has expired. <c>details.state</c> says which.</summary>
+    public static readonly ApiErrorCode InviteNotPending =
+        new("INVITE_NOT_PENDING", "multiplayer.invite.not_pending");
+
+    /// <summary>
+    /// The caller may not have friends yet: under 18 (or of unknown age) without a guardian's
+    /// <c>SocialPlay</c> consent. Classmates still work — they need no consent.
+    /// </summary>
+    public static readonly ApiErrorCode SocialConsentRequired =
+        new("SOCIAL_CONSENT_REQUIRED", "social.consent_required");
+
+    /// <summary>
+    /// No friend code opens to a friend request. Unknown, rotated, a player who cannot have friends,
+    /// a block either way — all the same answer, so a code tells a guesser nothing.
+    /// </summary>
+    public static readonly ApiErrorCode FriendCodeNotFound =
+        new("FRIEND_CODE_NOT_FOUND", "social.friend_code.not_found");
+
+    public static readonly ApiErrorCode FriendRequestNotFound =
+        new("FRIEND_REQUEST_NOT_FOUND", "social.friend_request.not_found");
+
+    public static readonly ApiErrorCode FriendRequestNotPending =
+        new("FRIEND_REQUEST_NOT_PENDING", "social.friend_request.not_pending");
+
+    public static readonly ApiErrorCode PartyNotFound =
+        new("PARTY_NOT_FOUND", "multiplayer.party.not_found");
+
+    public static readonly ApiErrorCode PartyFull =
+        new("PARTY_FULL", "multiplayer.party.full");
+
+    public static readonly ApiErrorCode NotPartyLeader =
+        new("NOT_PARTY_LEADER", "multiplayer.party.not_leader");
+
+    /// <summary>A member is already in a room, so the party cannot start one. <c>details.userIds</c> says who.</summary>
+    public static readonly ApiErrorCode PartyMemberBusy =
+        new("PARTY_MEMBER_BUSY", "multiplayer.party.member_busy");
+
+    public static readonly ApiErrorCode TicketNotFound =
+        new("TICKET_NOT_FOUND", "multiplayer.ticket.not_found");
+
+    /// <summary>The ticket already matched (leave the session instead), or ended.</summary>
+    public static readonly ApiErrorCode TicketNotSearching =
+        new("TICKET_NOT_SEARCHING", "multiplayer.ticket.not_searching");
+
+    /// <summary>The mode is not offered as ranked.</summary>
+    public static readonly ApiErrorCode ModeNotRanked =
+        new("MODE_NOT_RANKED", "multiplayer.ranked.mode_not_ranked");
+
+    /// <summary>Ranked is queued alone: a party in a ranked match is the easiest way to boost a friend.</summary>
+    public static readonly ApiErrorCode RankedSoloOnly =
+        new("RANKED_SOLO_ONLY", "multiplayer.ranked.solo_only");
+
+    public static readonly ApiErrorCode ChallengeNotFound =
+        new("CHALLENGE_NOT_FOUND", "multiplayer.challenge.not_found");
+
+    /// <summary>The challenge was already answered, withdrawn, decided, or has run out. <c>details.state</c> says which.</summary>
+    public static readonly ApiErrorCode ChallengeNotOpen =
+        new("CHALLENGE_NOT_OPEN", "multiplayer.challenge.not_open");
+
+    /// <summary>The challenger has no graded score on that lesson in that game to set as the bar. Play it first.</summary>
+    public static readonly ApiErrorCode ChallengeNoScore =
+        new("CHALLENGE_NO_SCORE", "multiplayer.challenge.no_score");
+
+    /// <summary>The recipient cannot play that lesson yet, so the challenge could not be won.</summary>
+    public static readonly ApiErrorCode ChallengeLessonLocked =
+        new("CHALLENGE_LESSON_LOCKED", "multiplayer.challenge.lesson_locked");
+
+    /// <summary>No such tournament, or one the caller cannot see (another class's).</summary>
+    public static readonly ApiErrorCode TournamentNotFound =
+        new("TOURNAMENT_NOT_FOUND", "multiplayer.tournament.not_found");
+
+    /// <summary>Entries are closed: it has started, finished or been called off.</summary>
+    public static readonly ApiErrorCode TournamentRegistrationClosed =
+        new("TOURNAMENT_REGISTRATION_CLOSED", "multiplayer.tournament.registration_closed");
+
+    public static readonly ApiErrorCode TournamentFull =
+        new("TOURNAMENT_FULL", "multiplayer.tournament.full");
+
+    /// <summary>A classroom tournament, and the caller is not a learner in that class.</summary>
+    public static readonly ApiErrorCode TournamentNotEligible =
+        new("TOURNAMENT_NOT_ELIGIBLE", "multiplayer.tournament.not_eligible");
+
+    /// <summary>The fixed lesson every match plays is not unlocked for the caller yet.</summary>
+    public static readonly ApiErrorCode TournamentLessonLocked =
+        new("TOURNAMENT_LESSON_LOCKED", "multiplayer.tournament.lesson_locked");
+
+    public static readonly ApiErrorCode TournamentNotEntered =
+        new("TOURNAMENT_NOT_ENTERED", "multiplayer.tournament.not_entered");
+
+    /// <summary>Only its organiser — the class's teacher, or an operator — may do that.</summary>
+    public static readonly ApiErrorCode TournamentNotOrganiser =
+        new("TOURNAMENT_NOT_ORGANISER", "multiplayer.tournament.not_organiser");
+
+    /// <summary>The tournament is not in a state that allows this — starting one that is running, playing in one that has not started.</summary>
+    public static readonly ApiErrorCode TournamentInvalidState =
+        new("TOURNAMENT_INVALID_STATE", "multiplayer.tournament.invalid_state");
+
+    /// <summary>The mode cannot host a tournament: not played versus by two, or no win rule to decide a match.</summary>
+    public static readonly ApiErrorCode TournamentModeUnsuitable =
+        new("TOURNAMENT_MODE_UNSUITABLE", "multiplayer.tournament.mode_unsuitable");
+
+    /// <summary>The event cannot host a tournament: called off, closed, limited per entry, or too short for the bracket.</summary>
+    public static readonly ApiErrorCode TournamentEventUnsuitable =
+        new("TOURNAMENT_EVENT_UNSUITABLE", "multiplayer.tournament.event_unsuitable");
+
+    public static readonly ApiErrorCode TournamentMatchNotFound =
+        new("TOURNAMENT_MATCH_NOT_FOUND", "multiplayer.tournament.match_not_found");
+
+    /// <summary>The pairing is decided, or its deadline has passed.</summary>
+    public static readonly ApiErrorCode TournamentMatchClosed =
+        new("TOURNAMENT_MATCH_CLOSED", "multiplayer.tournament.match_closed");
+
     /// <summary>The game exists but is not flagged <c>SupportsMultiplayer</c> in the catalog.</summary>
     public static readonly ApiErrorCode GameNotMultiplayer =
         new("GAME_NOT_MULTIPLAYER", "multiplayer.game.not_multiplayer");

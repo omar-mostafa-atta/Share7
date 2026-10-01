@@ -69,6 +69,20 @@ public class MultiplayerAdminSessionsDto
     /// </summary>
     public int TotalMatching { get; set; }
 
+    /// <summary>
+    /// Sessions per state (keyed by state name) across everything the game filter selects — not
+    /// just the rows returned, and regardless of the state filter — so "live now" is a true total
+    /// even when the list is truncated.
+    /// </summary>
+    public Dictionary<string, int> StateCounts { get; set; } = [];
+
+    /// <summary>
+    /// Seats still held in sessions that have ended. The sweeper heals these on every pass, so a
+    /// number above zero between passes is a close path that forgot to release its players — a
+    /// defect to chase, and those accounts are locked out of every match until it is healed.
+    /// </summary>
+    public int OrphanedSeats { get; set; }
+
     public DateTime ServerTimeUtc { get; set; }
 }
 

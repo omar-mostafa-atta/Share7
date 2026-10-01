@@ -133,6 +133,63 @@ public class SubjectMatchmakingTests
     }
 
     [Fact]
+    public async Task The_players_are_told_which_lesson_the_server_chose()
+    {
+        await using var context = _fixture.CreateContext();
+        var host = await TestData.CreateUserAsync(context);
+        var joiner = await TestData.CreateUserAsync(context);
+        var (path, lessons) = await SubjectAsync(context, extraLessons: 2);
+
+        await UnlockAsync(context, host, path.GameId, lessons[0], lessons[1]);
+        await UnlockAsync(context, joiner, path.GameId, lessons[1], lessons[2]);
+
+        var created = await MultiplayerTest.Matchmaking(context).MatchmakeAsync(host, Request(path.GameId, path.SubjectId));
+        await MultiplayerTest.Sessions(context).StartAsync(host, created.Value!.Session!.Id, new StartMultiplayerSessionRequest());
+
+        await using var joinerContext = _fixture.CreateContext();
+        var joined = await MultiplayerTest.Matchmaking(joinerContext).MatchmakeAsync(joiner, Request(path.GameId, path.SubjectId));
+
+        // **The stamp is only useful if it reaches the client.** It used to live in its own column
+        // while every response echoed the path the client sent — a subject and no lesson — so a
+        // subject-matched client had no way to learn what it was playing.
+        var played = joined.Value!.Session!.CurriculumPath!;
+        Assert.Equal(lessons[1], played.LessonId);
+        Assert.Equal(path.SubjectId, played.SubjectId);
+
+        await using var hostView = _fixture.CreateContext();
+        var seen = await MultiplayerTest.Sessions(hostView).GetAsync(host, created.Value.Session.Id);
+        Assert.Equal(lessons[1], seen.Value!.CurriculumPath!.LessonId);
+    }
+
+    [Fact]
+    public async Task A_subject_match_its_host_starts_alone_still_plays_a_lesson()
+    {
+        await using var context = _fixture.CreateContext();
+        var host = await TestData.CreateUserAsync(context);
+        var (path, lessons) = await SubjectAsync(context, extraLessons: 1);
+
+        await UnlockAsync(context, host, path.GameId, lessons[0], lessons[1]);
+
+        var created = await MultiplayerTest.Matchmaking(context).MatchmakeAsync(host, Request(path.GameId, path.SubjectId));
+        var sessionId = created.Value!.Session!.Id;
+
+        var sessions = MultiplayerTest.Sessions(context);
+        await sessions.StartAsync(host, sessionId, new StartMultiplayerSessionRequest());
+
+        // The game seats one at minimum, so the host may start alone — and a roster of one never
+        // reaches the size that stamps a lesson on a seat. A match must not run without one.
+        var started = await sessions.StartAsync(host, sessionId, new StartMultiplayerSessionRequest());
+
+        Assert.True(started.Succeeded, started.Error?.Code);
+        Assert.Equal(MultiplayerSessionState.Running, started.Value!.State);
+        Assert.Contains(started.Value.CurriculumPath!.LessonId!.Value, lessons);
+
+        await using var check = _fixture.CreateContext();
+        var stored = await check.MultiplayerSessions.AsNoTracking().FirstAsync(s => s.Id == sessionId);
+        Assert.Equal(started.Value.CurriculumPath.LessonId, stored.LessonId);
+    }
+
+    [Fact]
     public async Task A_player_sharing_no_lesson_gets_their_own_session_rather_than_a_broken_match()
     {
         await using var context = _fixture.CreateContext();
@@ -218,8 +275,10 @@ public class SubjectMatchmakingTests
         var userId = await TestData.CreateUserAsync(context);
         var path = await TestData.CreateCurriculumPathAsync(context);
 
-        // Unlocked, in the right subject — and answerable only in Arabic.
-        var lesson = new Lesson { Id = Guid.NewGuid(), ChapterId = path.ChapterId, Order = 500 };
+        // Unlocked, in the right subject — and answerable only in Arabic. The order is far outside the
+        // range TestData's shared counter hands out: a fixed 500 collided with the path's own lesson
+        // whenever enough fixtures had run before this one to bring the counter to exactly 500.
+        var lesson = new Lesson { Id = Guid.NewGuid(), ChapterId = path.ChapterId, Order = 1_000_500 };
         context.Lessons.Add(lesson);
         await context.SaveChangesAsync();
         await EngineTest.BackfillAsync(context);

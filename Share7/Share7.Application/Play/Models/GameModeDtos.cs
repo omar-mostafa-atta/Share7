@@ -56,6 +56,15 @@ public class GameModeDto
 
     /// <summary>The mode a session plays when the client names none.</summary>
     public bool IsDefault { get; init; }
+
+    /// <summary>
+    /// How a match of this mode is won, first criterion first — what a lobby shows under "How to
+    /// win". Empty when the mode crowns nobody. Additive: a client that predates it ignores it.
+    /// </summary>
+    public IReadOnlyList<Multiplayer.Models.MatchWinCriterionDto> WinRule { get; init; } = [];
+
+    /// <summary>Offered as ranked: queue through a ranked ticket, get a seasonal rank. Additive.</summary>
+    public bool Ranked { get; init; }
 }
 
 /// <summary>
@@ -124,6 +133,19 @@ public class GameModeAdminDto
 
     /// <summary>How many runs have been recorded in this mode, so a console can say what deleting it would lose.</summary>
     public int RunCount { get; init; }
+
+    /// <summary>How a match of this mode is won, with each criterion's trust level. Empty when there is no rule.</summary>
+    public IReadOnlyList<Multiplayer.Models.MatchWinCriterionDto> WinRule { get; init; } = [];
+
+    /// <summary>
+    /// The least trustworthy thing the rule ranks on — <c>verified</c>, <c>bounded</c> or
+    /// <c>reported</c> — so a console can warn before a prize is put on a rule a modified client could
+    /// win. Null when there is no rule.
+    /// </summary>
+    public string? WinRuleTrust { get; init; }
+
+    /// <summary>Offered as ranked. Only a mode played versus with a win rule can be.</summary>
+    public bool Ranked { get; init; }
 }
 
 public class SaveGameModeRequest
@@ -174,6 +196,24 @@ public class SaveGameModeRequest
 
     [Required, MinLength(1, ErrorMessage = "A name is required for every configured language.")]
     public List<GameModeTranslationRequest> Translations { get; set; } = [];
+
+    /// <summary>
+    /// How a match of this mode is won: criteria in order, the first deciding and each later one
+    /// breaking the ties the earlier ones left. <c>[{ "metric": "correct_answers", "order": "higher" },
+    /// { "metric": "duration_ms", "order": "lower" }]</c> is "most correct answers, then fastest".
+    /// <para>
+    /// **Null leaves the mode's current rule as it is** — the one field of this full-replace save that
+    /// does, so a console or script that predates win rules cannot wipe one by saving a mode. Send an
+    /// empty list to remove the rule. Only a mode played versus can have one.
+    /// </para>
+    /// </summary>
+    public List<Multiplayer.Models.MatchWinCriterionDto>? WinRule { get; set; }
+
+    /// <summary>
+    /// Offer the mode as ranked. Null leaves it as it is, like <see cref="WinRule"/>, so an older
+    /// console cannot switch ranked off by saving. Needs Versus and a win rule.
+    /// </summary>
+    public bool? Ranked { get; set; }
 }
 
 public class GameModeTranslationRequest

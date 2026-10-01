@@ -50,6 +50,20 @@ public interface IMultiplayerSessionService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Seats the caller in the live private session holding this join code — what a friend does with
+    /// the code the host reads out.
+    /// <para>
+    /// **An unknown code, an ended session's code and a malformed code are one answer:**
+    /// <c>SESSION_NOT_FOUND</c>. Anything finer would tell a guesser which codes are live. Otherwise
+    /// the refusals are exactly a join's, because underneath it is one.
+    /// </para>
+    /// </summary>
+    Task<ServiceResult<MultiplayerSessionDto>> JoinByCodeAsync(
+        Guid userId,
+        JoinMultiplayerSessionByCodeRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Releases the caller's seat. **Idempotent**: leaving twice, or leaving a session that has
     /// already ended, succeeds and reports the session as it stands.
     /// <para>
@@ -61,6 +75,54 @@ public interface IMultiplayerSessionService
         Guid userId,
         Guid sessionId,
         LeaveMultiplayerSessionRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The host removes a player from the lobby, and keeps them out of this session until it ends.
+    /// <para>
+    /// **Before the match only** (<c>Creating</c> or <c>Created</c>). A host who wants a running match
+    /// over can close it; removing one player mid-match would let a host hand a child a loss.
+    /// Idempotent: removing someone already removed, or who already left, succeeds and ensures the ban.
+    /// A removed player sees the session as not found from then on, and <c>SESSION_REMOVED</c> if they
+    /// try to take a seat in it again.
+    /// </para>
+    /// </summary>
+    Task<ServiceResult<MultiplayerSessionDto>> RemovePlayerAsync(
+        Guid userId,
+        Guid sessionId,
+        RemovePlayerRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The host replaces a private session's join code; the old code opens nothing from then on.
+    /// <para>
+    /// **Before the match only**, like removal — nobody can join a running match by code, so a new
+    /// one would change nothing. Players already seated keep their seats (removal is the tool for
+    /// someone who should not be there), and anyone who has held a seat may still rejoin by id.
+    /// Idempotent per <c>requestId</c>: a retry returns the code the first call minted, never a
+    /// third one — the host may already have read the first one out.
+    /// </para>
+    /// </summary>
+    Task<ServiceResult<MultiplayerSessionDto>> RotateJoinCodeAsync(
+        Guid userId,
+        Guid sessionId,
+        RotateJoinCodeRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// A rematch of an ended match: a new private session, same game, mode, event and curriculum,
+    /// **reserved for the players who were in the match when it started**.
+    /// <para>
+    /// The first player to ask creates it and hosts it (in <c>Creating</c>, like any create — bring
+    /// the room up, then <c>start</c>). Everyone who asks after gets that same session back and joins
+    /// it once it is <c>Created</c>. Only players of the ended match may ask, and only they may take a
+    /// seat; anyone else is refused <c>SESSION_RESERVED</c>. A rematch is never ranked.
+    /// </para>
+    /// </summary>
+    Task<ServiceResult<MultiplayerSessionDto>> RematchAsync(
+        Guid userId,
+        Guid sessionId,
+        RematchRequest request,
         CancellationToken cancellationToken = default);
 
     /// <summary>

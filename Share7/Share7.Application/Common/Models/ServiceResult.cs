@@ -20,7 +20,13 @@ public enum ServiceErrorKind
     /// nothing that predates it uses this, so no existing response code moves.
     /// </para>
     /// </summary>
-    Unprocessable
+    Unprocessable,
+
+    /// <summary>
+    /// What the caller refers to existed and has been retired — maps to <c>410</c>. Added for the
+    /// player event feed, whose cursor can fall behind retention; nothing older uses it.
+    /// </summary>
+    Gone
 }
 
 public class ServiceResult

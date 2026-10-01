@@ -138,7 +138,14 @@ public enum GuardianConsentScope
     CalibrationUse = 1 << 2,
 
     /// <summary>Act on the learner's behalf: enrolments, curriculum choice, org invitations.</summary>
-    ManageEnrollment = 1 << 3
+    ManageEnrollment = 1 << 3,
+
+    /// <summary>
+    /// Let the learner add friends by friend code and play with them beyond their class — invites,
+    /// challenges and presence between friends. <b>A minor cannot grant it for themselves</b>, like
+    /// <see cref="CalibrationUse"/>. Classmates need no consent: the school put them together.
+    /// </summary>
+    SocialPlay = 1 << 4
 }
 
 /// <summary>

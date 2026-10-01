@@ -23,6 +23,34 @@ public class MultiplayerAdminServiceTests
         new(context, MultiplayerTest.Sessions(context));
 
     [Fact]
+    public async Task Health_figures_count_the_whole_game_not_the_rows_returned()
+    {
+        var open = await MultiplayerTest.OpenAsync(_fixture);
+
+        await using var context = _fixture.CreateContext();
+        var sessions = MultiplayerTest.Sessions(context);
+        var hostId = await TestData.CreateUserAsync(context);
+
+        var second = await sessions.CreateAsync(hostId, MultiplayerTest.CreateRequest(open.GameId));
+        await sessions.StartAsync(hostId, second.Value!.Id, new StartMultiplayerSessionRequest());
+        await sessions.StartAsync(hostId, second.Value.Id, new StartMultiplayerSessionRequest());
+
+        // A session ended by a path that forgot its players: the seat is still held.
+        await context.MultiplayerSessions
+            .Where(s => s.Id == open.SessionId)
+            .ExecuteUpdateAsync(set => set
+                .SetProperty(s => s.State, MultiplayerSessionState.Abandoned)
+                .SetProperty(s => s.EndedAtUtc, DateTime.UtcNow));
+
+        var result = await Admin(context).ListAsync(new MultiplayerAdminQuery { GameId = open.GameId, Limit = 1 });
+
+        Assert.Single(result.Value!.Sessions);
+        Assert.Equal(1, result.Value.StateCounts["Running"]);
+        Assert.Equal(1, result.Value.StateCounts["Abandoned"]);
+        Assert.Equal(1, result.Value.OrphanedSeats);
+    }
+
+    [Fact]
     public async Task Listing_is_not_scoped_to_any_caller()
     {
         var first = await MultiplayerTest.OpenAsync(_fixture);

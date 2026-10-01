@@ -2,6 +2,12 @@
 
 # Multiplayer sessions — build plan
 
+> **2026-09-30 — superseded as the design of record by [MultiplayerPlatform.md](MultiplayerPlatform.md)**
+> (audit, architecture, roadmap) and [MultiplayerUnityContract.md](MultiplayerUnityContract.md) (the
+> client contract). Kept as the history of how phases 1–5 were built. Two statements below are no
+> longer true: every session move is now guarded on *state* rather than on `RowVersion` (§5 Phase 2,
+> Phase 4), and one live seat per account is now an index rather than a read.
+
 Response to the Unity dev's multiplayer backend spec (received 2026-08-18). This file is the
 **plan**, not the design of record. When the work lands, the design moves into `Multiplayer.md`
 alongside `CommerceDecisions.md` and `Progress.md`, and this file goes away.

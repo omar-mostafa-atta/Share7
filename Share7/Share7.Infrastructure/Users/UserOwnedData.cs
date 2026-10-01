@@ -111,6 +111,29 @@ public static class UserOwnedData
         // runs before the user row goes, which is also what keeps the NoAction FK satisfied.
         typeof(MultiplayerSessionPlayer),
 
+        // Removals from other people's sessions, for the same second-cascade-path reason as the seats
+        // above. A ban names the account it kept out, and an erased account is not kept out of
+        // anything any more.
+        typeof(MultiplayerSessionBan),
+
+        // Places held for them in a rematch, likewise: the reservation names the account it admits.
+        typeof(MultiplayerSessionReservation),
+
+        // Invites they sent or received, and blocks they made or were the subject of. Both name two
+        // accounts, so both are purged on either column (see UserKeyProperties): a block that outlived
+        // the person it blocked would still say that person existed and was kept away from someone.
+        typeof(SessionInvitation),
+        typeof(Challenge),
+        typeof(PartyInvitation),
+
+        // Matchmaking tickets they queued or were queued on. The member rows name them; tickets they
+        // own go with their members. NoAction both ways, for the second-cascade-path reason.
+        typeof(MatchmakingTicketMember),
+        typeof(MatchmakingTicket),
+        typeof(Domain.Social.PlayerBlock),
+        typeof(Domain.Social.Friendship),
+        typeof(Domain.Social.FriendRequest),
+
         // Leaderboard standings, for the same structural reason: the cascade already arrives via
         // the cycle's board, and SQL Server allows only one path.
         //
@@ -188,6 +211,35 @@ public static class UserOwnedData
             .Where(l => l.UserId == userId && l.UserEmail != null)
             .ExecuteUpdateAsync(set => set.SetProperty(l => l.UserEmail, (string?)null), cancellationToken);
 
+    /// <summary>
+    /// Blanks the user's side of records they share with someone else.
+    /// <para>
+    /// A tournament pairing is two players' history at once: deleting it would take the opponent's
+    /// match, and their path through the bracket, with the erased account. So the pairing stays and
+    /// the erased side becomes nobody — the same "a player who left" the bracket already knows how to
+    /// show. The entry itself, which is about the erased player alone, is deleted by its cascade.
+    /// </para>
+    /// </summary>
+    public static async Task<int> BlankSharedAsync(
+        ApplicationDbContext context,
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        var blanked = await context.TournamentMatches
+            .Where(m => m.PlayerAUserId == userId)
+            .ExecuteUpdateAsync(set => set.SetProperty(m => m.PlayerAUserId, (Guid?)null), cancellationToken);
+
+        blanked += await context.TournamentMatches
+            .Where(m => m.PlayerBUserId == userId)
+            .ExecuteUpdateAsync(set => set.SetProperty(m => m.PlayerBUserId, (Guid?)null), cancellationToken);
+
+        blanked += await context.TournamentMatches
+            .Where(m => m.WinnerUserId == userId)
+            .ExecuteUpdateAsync(set => set.SetProperty(m => m.WinnerUserId, (Guid?)null), cancellationToken);
+
+        return blanked;
+    }
+
     public static async Task<int> PurgeAsync(
         ApplicationDbContext context,
         Guid userId,
@@ -196,6 +248,7 @@ public static class UserOwnedData
         var deleted = 0;
 
         await ScrubRetainedAsync(context, userId, cancellationToken);
+        await BlankSharedAsync(context, userId, cancellationToken);
 
         foreach (var clrType in ManuallyPurged)
         {
@@ -273,5 +326,5 @@ public static class UserOwnedData
     /// slip past the guard by not being called <c>UserId</c>.
     /// </summary>
     public static readonly IReadOnlyList<string> UserKeyProperties =
-        ["UserId", "LearnerId", "GuardianUserId", "LearnerUserId"];
+        ["UserId", "LearnerId", "GuardianUserId", "LearnerUserId", "BlockedUserId", "SenderUserId", "RecipientUserId", "ChallengerUserId", "FriendUserId", "OwnerUserId"];
 }

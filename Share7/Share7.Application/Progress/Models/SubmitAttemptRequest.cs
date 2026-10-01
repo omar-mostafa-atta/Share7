@@ -78,6 +78,18 @@ public class SubmitAttemptRequest
     /// </summary>
     public Guid? AssignmentId { get; set; }
 
+    /// <summary>
+    /// The multiplayer session this attempt was answered in, when it was. **Optional and additive** —
+    /// an attempt that names none is exactly the attempt it always was.
+    /// <para>
+    /// Naming one does two things, and only for a player who holds or held a seat in that session:
+    /// the attempt is checked as networked play rather than solo (so a versus-only mode accepts it),
+    /// and, once the match has started, its graded score counts towards the match's result when it
+    /// is on the lesson the match plays. Naming a session you were never in does neither.
+    /// </para>
+    /// </summary>
+    public Guid? SessionId { get; set; }
+
     [MaxLength(128)]
     public string? RequestId { get; set; }
 }

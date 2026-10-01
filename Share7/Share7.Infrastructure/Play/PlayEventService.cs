@@ -5,6 +5,7 @@ using Share7.Application.Play.Interfaces;
 using Share7.Application.Play.Models;
 using Share7.Application.Progression.Interfaces;
 using Share7.Domain.Leaderboards;
+using Share7.Domain.Multiplayer;
 using Share7.Domain.Play;
 using Share7.Domain.Runs;
 using Share7.Infrastructure.Persistence;
@@ -208,6 +209,13 @@ public class PlayEventService : IPlayEventService
 
         var cycleIds = events.Select(e => e.CycleId).ToList();
 
+        // The tournament each event is played as, if any — the one not called off.
+        var tournaments = await _dbContext.Tournaments
+            .AsNoTracking()
+            .Where(t => t.EventId != null && eventIds.Contains(t.EventId.Value) && t.State != TournamentState.Cancelled)
+            .Select(t => new { EventId = t.EventId!.Value, t.Id })
+            .ToListAsync(cancellationToken);
+
         var standings = await _dbContext.LeaderboardEntries
             .AsNoTracking()
             .Where(e => cycleIds.Contains(e.CycleId) && e.UserId == userId)
@@ -292,7 +300,8 @@ public class PlayEventService : IPlayEventService
                 EntriesToday = used?.Today ?? 0,
                 EntriesTotal = used?.Total ?? 0,
                 MyRank = standing is { Rank: > 0 } ? standing.Rank : null,
-                MyValue = standing?.Value
+                MyValue = standing?.Value,
+                TournamentId = tournaments.FirstOrDefault(t => t.EventId == playEvent.Id)?.Id
             });
         }
 

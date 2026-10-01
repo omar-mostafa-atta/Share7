@@ -101,10 +101,56 @@ public static class LeaderboardMetrics
     /// </summary>
     public const string CorrectAnswers = "CORRECT_ANSWERS";
 
+    // ---- multiplayer matches ------------------------------------------------------------------
+
+    /// <summary>
+    /// Matches the player took part in and reported a result for, counted once each when the
+    /// server decides the match. **A forfeit does not count** — otherwise "play five matches" is
+    /// won by joining five and quitting.
+    /// </summary>
+    public const string MatchesPlayed = "MATCHES_PLAYED";
+
+    /// <summary>
+    /// Matches won under the mode's win rule, decided by the server from the players' own results.
+    /// <para>
+    /// **A walkover is a result, not a win.** Raised only when at least two participants actually
+    /// reported — a second account that joins and forfeits must not be a way to farm wins — and
+    /// never for a flagged placement.
+    /// </para>
+    /// </summary>
+    public const string MatchesWon = "MATCHES_WON";
+
+    /// <summary>
+    /// Tournaments the player took part in, counted once each when the tournament completes — for
+    /// everyone still in it at the start, wherever they finished. A player who withdrew before it
+    /// began did not take part; one disqualified is not counted.
+    /// </summary>
+    public const string TournamentsPlayed = "TOURNAMENTS_PLAYED";
+
+    /// <summary>Tournaments won outright: first place, raised once when the tournament completes.</summary>
+    public const string TournamentsWon = "TOURNAMENTS_WON";
+
+    /// <summary>
+    /// The visible ranked tier reached this season, as a number — 1 bronze, 2 silver, 3 gold,
+    /// 4 platinum, 5 diamond. Raised when a player first reaches a tier in a season (placements end,
+    /// or a promotion), so an objective aggregated with <c>Best</c> reads "reach gold this month".
+    /// <para>
+    /// **Only ever rises within a season**, because the tier it reads never drops before the season
+    /// ends. Ranked seasons are calendar months in UTC; a <c>Monthly</c> objective lines up with
+    /// them exactly when <c>ObjectiveCycle.ResetOffsetHours</c> is 0.
+    /// </para>
+    /// </summary>
+    public const string RankedTier = "RANKED_TIER";
+
     public static readonly IReadOnlySet<string> Known = new HashSet<string>(StringComparer.Ordinal)
     {
         LessonsCompleted,
         CorrectAnswers,
+        MatchesPlayed,
+        MatchesWon,
+        TournamentsPlayed,
+        TournamentsWon,
+        RankedTier,
         LessonsAced,
         TotalLessonScore,
         LessonBestPercent,

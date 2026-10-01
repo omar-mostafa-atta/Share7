@@ -1,16 +1,30 @@
 namespace Share7.Application.Multiplayer.Interfaces;
 
 /// <summary>What one sweep pass actually did. Returned so the pass is observable and testable.</summary>
+/// <param name="OrphanedSeatsReleased">
+/// Seats still held in sessions that had already ended — released by the healing rule. Should be zero
+/// in steady state; anything else means a close was interrupted between its two writes (a crash, a
+/// killed app pool) or rows predate the rule, and is worth a look.
+/// </param>
+/// <param name="MatchesDecided">Matches whose result this pass decided.</param>
 public record MultiplayerSweepResult(
     int FailedCreating,
     int Abandoned,
     int ClosedEmpty,
     int PlayersReleased,
-    int RequestLogsPurged)
+    int RequestLogsPurged,
+    int OrphanedSeatsReleased = 0,
+    int MatchesDecided = 0,
+    int EventsPurged = 0,
+    int InvitationsExpired = 0,
+    int ChallengesSettled = 0,
+    int TournamentsAdvanced = 0)
 {
     public static readonly MultiplayerSweepResult Empty = new(0, 0, 0, 0, 0);
 
-    public int Total => FailedCreating + Abandoned + ClosedEmpty + PlayersReleased + RequestLogsPurged;
+    public int Total =>
+        FailedCreating + Abandoned + ClosedEmpty + PlayersReleased + RequestLogsPurged + OrphanedSeatsReleased
+        + MatchesDecided + EventsPurged + InvitationsExpired + ChallengesSettled + TournamentsAdvanced;
 }
 
 /// <summary>

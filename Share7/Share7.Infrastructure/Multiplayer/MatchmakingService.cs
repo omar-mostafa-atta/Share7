@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System.Diagnostics;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Share7.Application.Common.Models;
 using Share7.Application.Play.Interfaces;
@@ -48,6 +49,27 @@ public class MatchmakingService : IMatchmakingService
         MatchmakeRequest request,
         CancellationToken cancellationToken = default)
     {
+        var started = Stopwatch.GetTimestamp();
+        var tried = 0;
+
+        var result = await MatchmakeCoreAsync(userId, request, () => tried++, cancellationToken);
+
+        var outcome = result.Succeeded ? result.Value!.Outcome.ToString() : MultiplayerMetrics.Outcome(result);
+
+        MultiplayerMetrics.Matchmakes.Add(1, MultiplayerMetrics.Tag("outcome", outcome));
+        MultiplayerMetrics.MatchmakeDuration.Record(
+            Stopwatch.GetElapsedTime(started).TotalMilliseconds, MultiplayerMetrics.Tag("outcome", outcome));
+        MultiplayerMetrics.CandidatesTried.Record(tried, MultiplayerMetrics.Tag("outcome", outcome));
+
+        return result;
+    }
+
+    private async Task<ServiceResult<MatchmakeResponse>> MatchmakeCoreAsync(
+        Guid userId,
+        MatchmakeRequest request,
+        Action countCandidate,
+        CancellationToken cancellationToken)
+    {
         var requestId = MultiplayerRequestLogStore.ResolveKey(request.RequestId);
 
         // **Replay matters more here than anywhere else.** Nothing else in the schema still records
@@ -55,7 +77,10 @@ public class MatchmakingService : IMatchmakingService
         // could not be told which of the two happened the first time.
         if (await _log.TryReplayAsync<MatchmakeResponse>(
                 userId, requestId, MultiplayerOperations.Matchmake, cancellationToken) is { } replayed)
+        {
+            MultiplayerMetrics.Replays.Add(1, MultiplayerMetrics.Tag("operation", MultiplayerOperations.Matchmake));
             return ServiceResult<MatchmakeResponse>.Success(replayed);
+        }
 
         if (!_options.EffectiveProtocolVersions.Contains(request.ProtocolVersion))
             return ServiceResult<MatchmakeResponse>.Failure(
@@ -69,10 +94,7 @@ public class MatchmakingService : IMatchmakingService
                 });
 
         if (await _sessions.HasActiveMembershipAsync(userId, cancellationToken))
-            return ServiceResult<MatchmakeResponse>.Failure(
-                ApiErrors.AlreadyInSession,
-                ServiceErrorKind.Conflict,
-                "The caller already holds a seat in a session that has not ended.");
+            return await AlreadyInSessionOrReplayAsync(userId, requestId, cancellationToken);
 
         // The axes this search is scoped by, checked once: an unknown or withdrawn mode, a closed
         // event or a grade-gated one is refused here rather than after a room has been created.
@@ -123,8 +145,10 @@ public class MatchmakingService : IMatchmakingService
             myLessons = eligible.Select(l => l.LessonId).ToList();
         }
 
-        foreach (var candidateId in await FindCandidatesAsync(request, play, langId, myLessons, cancellationToken))
+        foreach (var candidateId in await FindCandidatesAsync(userId, request, play, langId, myLessons, cancellationToken))
         {
+            countCandidate();
+
             var seated = await _sessions.SeatAsync(userId, candidateId, request.ProtocolVersion, cancellationToken);
 
             if (seated.Succeeded)
@@ -136,10 +160,7 @@ public class MatchmakingService : IMatchmakingService
             // exists to absorb — move on. But if the caller has picked up a membership in the
             // meantime, every remaining candidate would refuse them for the same reason.
             if (seated.Error?.Code == ApiErrors.AlreadyInSession.Code)
-                return ServiceResult<MatchmakeResponse>.Failure(
-                    ApiErrors.AlreadyInSession,
-                    ServiceErrorKind.Conflict,
-                    "The caller already holds a seat in a session that has not ended.");
+                return await AlreadyInSessionOrReplayAsync(userId, requestId, cancellationToken);
         }
 
         if (!request.CreateIfNoneFound)
@@ -179,13 +200,54 @@ public class MatchmakingService : IMatchmakingService
         }, cancellationToken);
 
         if (!created.Succeeded)
+        {
+            if (created.Error?.Code == ApiErrors.AlreadyInSession.Code)
+                return await AlreadyInSessionOrReplayAsync(userId, requestId, cancellationToken);
+
+            // A retry resends the same room name, so a twin that created first makes this one collide
+            // on it before anything else. Same rule: if the twin finished, its answer is ours.
+            if (created.Error?.Code == ApiErrors.TransportNameTaken.Code
+                && await _log.TryReplayAsync<MatchmakeResponse>(
+                    userId, requestId, MultiplayerOperations.Matchmake, cancellationToken) is { } twin)
+            {
+                MultiplayerMetrics.Replays.Add(1, MultiplayerMetrics.Tag("operation", MultiplayerOperations.Matchmake));
+                return ServiceResult<MatchmakeResponse>.Success(twin);
+            }
+
             return ServiceResult<MatchmakeResponse>.Failure(
                 created.Error ?? ApiErrors.ValidationFailed,
                 created.ErrorKind,
                 string.Join(" ", created.Errors),
                 created.Details);
+        }
 
         return await CompleteAsync(userId, requestId, MatchOutcome.Created, created.Value!, cancellationToken);
+    }
+
+    /// <summary>
+    /// <c>ALREADY_IN_SESSION</c> — unless the seat the caller already holds was taken by a duplicate
+    /// of this very request.
+    /// <para>
+    /// **The case that matters is a phone retrying a matchmake whose first attempt is still running.**
+    /// Both carry the same key, both miss the log (it is written only on success), and the one-live-seat
+    /// index lets exactly one of them seat the player. The loser is owed the winner's answer — the same
+    /// session, the same <c>Joined</c> or <c>Created</c> — not a refusal caused by its own twin.
+    /// </para>
+    /// </summary>
+    private async Task<ServiceResult<MatchmakeResponse>> AlreadyInSessionOrReplayAsync(
+        Guid userId, string requestId, CancellationToken cancellationToken)
+    {
+        if (await _log.TryReplayAsync<MatchmakeResponse>(
+                userId, requestId, MultiplayerOperations.Matchmake, cancellationToken) is { } replayed)
+        {
+            MultiplayerMetrics.Replays.Add(1, MultiplayerMetrics.Tag("operation", MultiplayerOperations.Matchmake));
+            return ServiceResult<MatchmakeResponse>.Success(replayed);
+        }
+
+        return ServiceResult<MatchmakeResponse>.Failure(
+            ApiErrors.AlreadyInSession,
+            ServiceErrorKind.Conflict,
+            "The caller already holds a seat in a session that has not ended.");
     }
 
     /// <summary>
@@ -216,6 +278,7 @@ public class MatchmakingService : IMatchmakingService
     /// </para>
     /// </summary>
     private async Task<IReadOnlyList<Guid>> FindCandidatesAsync(
+        Guid userId,
         MatchmakeRequest request,
         PlaySelection play,
         Guid langId,
@@ -224,6 +287,9 @@ public class MatchmakingService : IMatchmakingService
     {
         var freshCutoff = DateTime.UtcNow.AddSeconds(-_options.SessionTimeoutSeconds);
 
+        // Never back into a lobby this player was removed from. The seat step would refuse it anyway;
+        // filtering here keeps a removed player from being handed the same full-ish lobby first on
+        // every search, which is where "fullest first" would otherwise send them.
         var query = _dbContext.MultiplayerSessions
             .AsNoTracking()
             .Where(s => s.GameId == request.GameId
@@ -234,7 +300,16 @@ public class MatchmakingService : IMatchmakingService
                         && s.CurrentPlayerCount < s.MaxPlayers
                         && s.LastHeartbeatAtUtc > freshCutoff
                         && s.ModeId == play.ModeId
-                        && s.EventId == play.EventId);
+                        && s.EventId == play.EventId
+                        && !_dbContext.MultiplayerSessionBans.Any(b => b.SessionId == s.Id && b.UserId == userId)
+
+                        // Never into a room with someone either of the two has blocked. The joiner is
+                        // not told why a lobby was skipped, and neither is anyone in it.
+                        && !s.Players.Any(p => p.Status != SessionPlayerStatus.Left
+                                               && p.Status != SessionPlayerStatus.Removed
+                                               && _dbContext.PlayerBlocks.Any(b =>
+                                                   (b.UserId == userId && b.BlockedUserId == p.UserId)
+                                                   || (b.UserId == p.UserId && b.BlockedUserId == userId))));
 
         if (request.CurriculumPath?.LessonId is { } lessonId)
         {

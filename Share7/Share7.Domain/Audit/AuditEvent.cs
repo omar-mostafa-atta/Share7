@@ -76,6 +76,9 @@ public static class AuditAreas
 
     /// <summary>Drafts, reviews and releases in the Content Studio.</summary>
     public const string Workspace = "workspace";
+
+    /// <summary>Tournaments and prize claims: what an organiser or reviewer decided about who won.</summary>
+    public const string Competitions = "competitions";
 }
 
 /// <summary>
@@ -168,4 +171,13 @@ public static class AuditActions
     public const string ObservationsExcluded = "workspace.observations.excluded";
     public const string BenchmarkBuilt = "workspace.benchmark.built";
     public const string BlueprintPublished = "workspace.blueprint.published";
+
+    // ---- competitions: tournaments and prizes. Every organiser decision that changes who wins
+    // something leaves a row, so a disputed result can be explained by who decided it and why.
+    public const string TournamentCreated = "competitions.tournament.created";
+    public const string TournamentStarted = "competitions.tournament.started";
+    public const string TournamentCancelled = "competitions.tournament.cancelled";
+    public const string TournamentMatchDecided = "competitions.tournament.match_decided";
+    public const string TournamentEntrantDisqualified = "competitions.tournament.entrant_disqualified";
+    public const string PrizeClaimReviewed = "competitions.prize_claim.reviewed";
 }

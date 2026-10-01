@@ -30,4 +30,11 @@ public static class RateLimitPolicies
     /// </para>
     /// </summary>
     public const string Telemetry = "telemetry";
+
+    /// <summary>
+    /// Joining a private session by its code, partitioned by user. Tighter than <see cref="Writes"/>
+    /// because it is the one route whose input is a guessable secret.
+    /// See <see cref="RateLimitOptions.JoinCodePermitsPerMinute"/>.
+    /// </summary>
+    public const string JoinCode = "join-code";
 }

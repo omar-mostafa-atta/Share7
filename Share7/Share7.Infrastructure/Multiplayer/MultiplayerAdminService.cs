@@ -51,10 +51,33 @@ public class MultiplayerAdminService : IMultiplayerAdminService
             .Take(limit)
             .ToListAsync(cancellationToken);
 
+        // Health figures over the whole game, not the page: a tile computed from the rows returned
+        // reads "200 live" on the day there are 900.
+        var ofGame = _dbContext.MultiplayerSessions.AsNoTracking();
+
+        if (query.GameId is { } scopedGame)
+            ofGame = ofGame.Where(s => s.GameId == scopedGame);
+
+        var stateCounts = await ofGame
+            .GroupBy(s => s.State)
+            .Select(g => new { State = g.Key, Count = g.Count() })
+            .ToListAsync(cancellationToken);
+
+        var orphanedSeats = await _dbContext.MultiplayerSessionPlayers
+            .CountAsync(p => p.Status != SessionPlayerStatus.Left
+                             && p.Status != SessionPlayerStatus.Removed
+                             && ofGame.Any(s => s.Id == p.SessionId
+                                                && (s.State == MultiplayerSessionState.Closed
+                                                    || s.State == MultiplayerSessionState.Abandoned
+                                                    || s.State == MultiplayerSessionState.Failed)),
+                cancellationToken);
+
         return ServiceResult<MultiplayerAdminSessionsDto>.Success(new MultiplayerAdminSessionsDto
         {
             Sessions = rows.Select(ToSummary).ToList(),
             TotalMatching = totalMatching,
+            StateCounts = stateCounts.ToDictionary(c => c.State.ToString(), c => c.Count),
+            OrphanedSeats = orphanedSeats,
             ServerTimeUtc = DateTime.UtcNow
         });
     }
@@ -90,10 +113,7 @@ public class MultiplayerAdminService : IMultiplayerAdminService
         Guid sessionId,
         CancellationToken cancellationToken = default)
     {
-        var session = await _dbContext.MultiplayerSessions
-            .FirstOrDefaultAsync(s => s.Id == sessionId, cancellationToken);
-
-        if (session is null)
+        if (!await _dbContext.MultiplayerSessions.AnyAsync(s => s.Id == sessionId, cancellationToken))
             return ServiceResult<MultiplayerSessionSummaryDto>.Failure(
                 ApiErrors.SessionNotFound,
                 ServiceErrorKind.NotFound,
@@ -101,8 +121,9 @@ public class MultiplayerAdminService : IMultiplayerAdminService
 
         // Routed through the session service's own close so the memberships are released by the same
         // code that releases them everywhere else. An admin close that forgot to do that would leave
-        // every player in the session unable to join anything again.
-        await _sessions.ApplyCloseAsync(session, SessionClosedReason.AdminClosed, cancellationToken);
+        // every player in the session unable to join anything again. No host is required: an
+        // operator's authority is the route's role check, not a seat.
+        await _sessions.ApplyCloseAsync(sessionId, SessionClosedReason.AdminClosed, requiredHostUserId: null, cancellationToken);
 
         var closed = await _dbContext.MultiplayerSessions
             .AsNoTracking()

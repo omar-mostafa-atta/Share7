@@ -118,7 +118,14 @@ internal static class MultiplayerOperations
 {
     public const string Create = "create";
     public const string Join = "join";
+    public const string JoinByCode = "join-by-code";
     public const string Leave = "leave";
+    public const string Remove = "remove";
+    public const string RotateJoinCode = "rotate-join-code";
+    public const string Rematch = "rematch";
+    public const string LiveChallenge = "live-challenge";
+    public const string PartyPlay = "party-play";
+    public const string TournamentPlay = "tournament-play";
     public const string Start = "start";
     public const string Close = "close";
     public const string Matchmake = "matchmake";

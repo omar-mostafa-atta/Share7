@@ -61,6 +61,18 @@ public class RateLimitOptions
     public int TelemetryPermitsPerMinute { get; set; } = 120;
 
     /// <summary>
+    /// Join-code attempts a minute per user.
+    /// <para>
+    /// **The guessing budget for private rooms.** A code is six characters from a 32-letter
+    /// alphabet — about a billion codes — and only a few are live at once, so at this rate one account
+    /// needs on the order of months of continuous guessing to land in a stranger's room, which will
+    /// have ended long before. The write budget would allow six times as many guesses. Nobody types a
+    /// friend's code ten times in a minute.
+    /// </para>
+    /// </summary>
+    public int JoinCodePermitsPerMinute { get; set; } = 10;
+
+    /// <summary>
     /// Whether to read the client address from <c>X-Forwarded-For</c> instead of the socket.
     /// <para>
     /// **Off by default, and the default is the safe one in both directions.** Trusting the header

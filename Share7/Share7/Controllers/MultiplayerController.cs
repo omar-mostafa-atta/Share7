@@ -30,16 +30,72 @@ public class MultiplayerController : ControllerBase
 {
     private readonly IMultiplayerSessionService _sessions;
     private readonly IMatchmakingService _matchmaking;
+    private readonly IMatchResultService _results;
+    private readonly ITransportAuthService _transport;
     private readonly ICurrentUserService _currentUser;
 
     public MultiplayerController(
         IMultiplayerSessionService sessions,
         IMatchmakingService matchmaking,
+        IMatchResultService results,
+        ITransportAuthService transport,
         ICurrentUserService currentUser)
     {
         _sessions = sessions;
         _matchmaking = matchmaking;
+        _results = results;
+        _transport = transport;
         _currentUser = currentUser;
+    }
+
+    /// <summary>
+    /// A short-lived ticket to hand Photon when connecting, so Photon can ask the backend who this is.
+    /// <code>
+    /// → { "ticket": "…", "expiresAtUtc": "…Z", "provider": "photon" }
+    /// </code>
+    /// <para>
+    /// Fetch a fresh one right before each connect and pass <c>ticket</c> as a Photon custom-auth
+    /// parameter. It is good for one purpose — connecting to Photon — and for two minutes; it is not
+    /// an access token and every API route refuses it.
+    /// </para>
+    /// </summary>
+    [HttpPost("transport/ticket")]
+    [EnableRateLimiting(RateLimitPolicies.Writes)]
+    public async Task<IActionResult> TransportTicket(CancellationToken cancellationToken)
+    {
+        if (_currentUser.UserId is not { } userId)
+            return Unauthorized();
+
+        var result = await _transport.IssueTicketAsync(userId, cancellationToken);
+
+        return result.Succeeded ? Ok(result.Value) : result.ToApiErrorResult();
+    }
+
+    /// <summary>
+    /// The match's result, decided by the server from each player's own settled run and graded
+    /// answers under the mode's win rule — or where it stands if it is not decided yet.
+    /// <code>
+    /// { "state": "Decided", "decidedBy": "all_reported",
+    ///   "rule": [ { "metric": "correct_answers", "order": "higher", "trust": "verified" } ],
+    ///   "placements": [ { "slot": 1, "displayName": "SwiftFalcon418", "placement": 1, "isWinner": true,
+    ///                     "reported": true, "values": { "correct_answers": 8 } } ] }
+    /// </code>
+    /// <para>
+    /// <c>Pending</c> means results are still arriving: poll every few seconds on the results
+    /// screen. A match is decided as soon as every player has reported, or
+    /// <c>MatchResultGraceSeconds</c> after it ended, when anyone still missing forfeits.
+    /// Members only; <c>SESSION_NOT_FOUND</c> otherwise.
+    /// </para>
+    /// </summary>
+    [HttpGet("sessions/{sessionId:guid}/result")]
+    public async Task<IActionResult> Result(Guid sessionId, CancellationToken cancellationToken)
+    {
+        if (_currentUser.UserId is not { } userId)
+            return Unauthorized();
+
+        var result = await _results.GetAsync(userId, sessionId, cancellationToken);
+
+        return result.Succeeded ? Ok(result.Value) : result.ToApiErrorResult();
     }
 
     /// <summary>
@@ -136,6 +192,36 @@ public class MultiplayerController : ControllerBase
     }
 
     /// <summary>
+    /// Joins a friend's private session with the code on the host's screen.
+    /// <code>
+    /// { "joinCode": "K3F9QA", "protocolVersion": 1, "requestId": "…" }
+    /// </code>
+    /// <para>
+    /// The code goes in the body, never the route — a room code in an access log is a room code
+    /// anyone reading the log can use. Case, spaces and hyphens are ignored.
+    /// </para>
+    /// <para>
+    /// **One refusal for every code that does not open a room** — unknown, ended or malformed are all
+    /// <c>SESSION_NOT_FOUND</c>, so a guesser learns nothing from the answer. The rest are a join's:
+    /// <c>SESSION_FULL</c>, <c>SESSION_CLOSED</c>, <c>ALREADY_IN_SESSION</c>,
+    /// <c>PROTOCOL_VERSION_MISMATCH</c>. Rate-limited far tighter than other writes.
+    /// </para>
+    /// </summary>
+    [HttpPost("sessions/join-by-code")]
+    [EnableRateLimiting(RateLimitPolicies.JoinCode)]
+    public async Task<IActionResult> JoinByCode(
+        [FromBody] JoinMultiplayerSessionByCodeRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (_currentUser.UserId is not { } userId)
+            return Unauthorized();
+
+        var result = await _sessions.JoinByCodeAsync(userId, request, cancellationToken);
+
+        return result.Succeeded ? Ok(result.Value) : result.ToApiErrorResult();
+    }
+
+    /// <summary>
     /// Releases the caller's seat. **Idempotent** — leaving twice, or leaving a session that has
     /// already ended, returns 200 either way.
     /// <para>
@@ -154,6 +240,102 @@ public class MultiplayerController : ControllerBase
             return Unauthorized();
 
         var result = await _sessions.LeaveAsync(userId, sessionId, request, cancellationToken);
+
+        return result.Succeeded ? Ok(result.Value) : result.ToApiErrorResult();
+    }
+
+    /// <summary>
+    /// Host only, before the match starts. Removes one player from the lobby and keeps them out of this
+    /// session until it ends.
+    /// <code>
+    /// { "userId": "…", "requestId": "…" }
+    /// </code>
+    /// <para>
+    /// The removed player's seat becomes <c>Removed</c>; they can no longer read the session, and an
+    /// attempt to take a seat in it again — by id, by code or through matchmaking — is refused with
+    /// <c>SESSION_REMOVED</c>. **The host must also disconnect them from the Photon room**: the backend
+    /// cannot reach into the transport.
+    /// </para>
+    /// <para>
+    /// Refusals: <c>SESSION_NOT_FOUND</c>, <c>NOT_SESSION_HOST</c>, <c>NOT_SESSION_MEMBER</c> (never
+    /// held a seat here), <c>SESSION_INVALID_TRANSITION</c> (the match has started),
+    /// <c>SESSION_CLOSED</c>, <c>VALIDATION_FAILED</c> (removing yourself — leave instead).
+    /// </para>
+    /// </summary>
+    [HttpPost("sessions/{sessionId:guid}/remove")]
+    [EnableRateLimiting(RateLimitPolicies.Writes)]
+    public async Task<IActionResult> RemovePlayer(
+        Guid sessionId,
+        [FromBody] RemovePlayerRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (_currentUser.UserId is not { } userId)
+            return Unauthorized();
+
+        var result = await _sessions.RemovePlayerAsync(userId, sessionId, request, cancellationToken);
+
+        return result.Succeeded ? Ok(result.Value) : result.ToApiErrorResult();
+    }
+
+    /// <summary>
+    /// Any player of an ended match asks for its rematch.
+    /// <code>
+    /// { "transportSessionName": "r7f3a91d", "transportRegion": "eu", "protocolVersion": 1, "requestId": "…" }
+    /// </code>
+    /// <para>
+    /// The first to ask gets a new private session they host, in <c>Creating</c> — bring the Photon room
+    /// up under the name they sent, then <c>start</c>. Everyone after gets that same session back, not
+    /// seated: wait for <c>Created</c> (poll <c>GET /sessions/{id}</c>), then <c>join</c>. Only the
+    /// ended match's players may take a seat. Never ranked.
+    /// </para>
+    /// <para>
+    /// Refusals: <c>SESSION_NOT_FOUND</c>, <c>NOT_SESSION_MEMBER</c> (not a player of that match),
+    /// <c>SESSION_INVALID_TRANSITION</c> (it never started, or has not ended), and every refusal a
+    /// create can give.
+    /// </para>
+    /// </summary>
+    [HttpPost("sessions/{sessionId:guid}/rematch")]
+    [EnableRateLimiting(RateLimitPolicies.Writes)]
+    public async Task<IActionResult> Rematch(
+        Guid sessionId,
+        [FromBody] RematchRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (_currentUser.UserId is not { } userId)
+            return Unauthorized();
+
+        var result = await _sessions.RematchAsync(userId, sessionId, request, cancellationToken);
+
+        return result.Succeeded ? Ok(result.Value) : result.ToApiErrorResult();
+    }
+
+    /// <summary>
+    /// Host only, private sessions, before the match starts. Replaces the join code; the old one
+    /// opens nothing from then on.
+    /// <code>
+    /// { "requestId": "…" }
+    /// </code>
+    /// <para>
+    /// Returns the session with its new <c>joinCode</c>. Seated players keep their seats — remove
+    /// anyone who should not be there. A retry with the same <c>requestId</c> returns the same code.
+    /// </para>
+    /// <para>
+    /// Refusals: <c>SESSION_NOT_FOUND</c>, <c>NOT_SESSION_HOST</c>, <c>SESSION_INVALID_TRANSITION</c>
+    /// (the match has started), <c>SESSION_CLOSED</c>, <c>VALIDATION_FAILED</c> (a public session has
+    /// no code).
+    /// </para>
+    /// </summary>
+    [HttpPost("sessions/{sessionId:guid}/join-code/rotate")]
+    [EnableRateLimiting(RateLimitPolicies.Writes)]
+    public async Task<IActionResult> RotateJoinCode(
+        Guid sessionId,
+        [FromBody] RotateJoinCodeRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (_currentUser.UserId is not { } userId)
+            return Unauthorized();
+
+        var result = await _sessions.RotateJoinCodeAsync(userId, sessionId, request, cancellationToken);
 
         return result.Succeeded ? Ok(result.Value) : result.ToApiErrorResult();
     }

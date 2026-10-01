@@ -60,6 +60,13 @@ export function Multiplayer() {
   const sessions = data.sessions ?? []
   const live = sessions.filter((s) => LIVE_STATES.includes(s.state))
 
+  // The server's per-state totals when it sends them: the list is capped at 200, and a tile
+  // counted from it reads "200 live" on the day there are 900.
+  const liveTotal = data.stateCounts
+    ? LIVE_STATES.reduce((sum, state) => sum + (data.stateCounts?.[state] ?? 0), 0)
+    : live.length
+  const orphaned = data.orphanedSeats ?? 0
+
   // Measured against the SERVER's clock, not the browser's. The two disagree
   // often enough that a locally-computed staleness marks healthy sessions dead
   // on a machine whose time is off by a few minutes.
@@ -201,7 +208,7 @@ export function Multiplayer() {
       />
 
       <StatRow>
-        <Stat icon={<Wifi size={13} />} label="Live now" value={live.length} sub="Creating, created, starting or running" tone="cool" />
+        <Stat icon={<Wifi size={13} />} label="Live now" value={liveTotal} sub="Creating, created, starting or running" tone="cool" />
         <Stat
           icon={<Users2 size={13} />}
           label="Players in session"
@@ -215,6 +222,13 @@ export function Multiplayer() {
           value={stale.length}
           sub={`No heartbeat for ${STALE_AFTER_MS / 60000} minutes`}
           tone={stale.length ? 'danger' : 'success'}
+        />
+        <Stat
+          icon={<DoorClosed size={13} />}
+          label="Seats left in ended rooms"
+          value={orphaned}
+          sub={orphaned ? 'Those players cannot join a match until the next sweep' : 'Every ended room let its players go'}
+          tone={orphaned ? 'danger' : 'success'}
         />
       </StatRow>
 

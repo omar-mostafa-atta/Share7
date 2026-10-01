@@ -46,6 +46,29 @@ internal static class MultiplayerMappings
     }
 
     /// <summary>
+    /// The path the match actually plays: the client's own path, echoed, with the lesson the server
+    /// chose filled in when the client named none.
+    /// <para>
+    /// **Without this a subject-matched client could not learn its lesson.** Subject matchmaking
+    /// stamps the shared lesson into its own column once the roster forms, but the response only ever
+    /// echoed the path the client sent — a subject and no lesson — so the one fact the client needs
+    /// to load its questions never reached it. Filling the existing <c>lessonId</c> is additive: a
+    /// client that named its lesson gets its path back byte for byte, because the column holds that
+    /// same lesson.
+    /// </para>
+    /// </summary>
+    public static CurriculumPathDto? PlayedPath(string? pathJson, Guid? stampedLessonId)
+    {
+        var path = DeserializePath(pathJson);
+
+        if (path is null || path.LessonId is not null || stampedLessonId is null)
+            return path;
+
+        path.LessonId = stampedLessonId;
+        return path;
+    }
+
+    /// <summary>
     /// Re-stamps a timestamp read back from the database as UTC.
     /// <para>
     /// **Every timestamp on the wire must go through this.** SQL Server's <c>datetime2</c> carries no
@@ -103,7 +126,7 @@ internal static class MultiplayerMappings
             CurrentPlayerCount = session.CurrentPlayerCount,
             ProtocolVersion = session.ProtocolVersion,
             IsRanked = session.IsRanked,
-            CurriculumPath = DeserializePath(session.CurriculumPathJson),
+            CurriculumPath = PlayedPath(session.CurriculumPathJson, session.LessonId),
             CreatedAtUtc = AsUtc(session.CreatedAtUtc),
             StartedAtUtc = AsUtc(session.StartedAtUtc),
             EndedAtUtc = AsUtc(session.EndedAtUtc),

@@ -110,6 +110,49 @@ public class MultiplayerHeartbeatTests
     }
 
     [Fact]
+    public async Task A_host_that_does_not_list_itself_is_still_present()
+    {
+        var session = await MultiplayerTest.OpenAsync(_fixture);
+        var joinerId = await MultiplayerTest.JoinAsync(_fixture, session.SessionId);
+
+        await using var aging = _fixture.CreateContext();
+        await MultiplayerTest.AgePlayerAsync(
+            aging, session.SessionId, session.HostId, seconds: 120, status: SessionPlayerStatus.Connected);
+
+        // Some transports report only the *other* peers. The host is the one heartbeating, so it is
+        // present whatever its list says — marking it missing would eventually let the sweeper release
+        // the seat of the one player demonstrably still holding authority.
+        await using var context = _fixture.CreateContext();
+        var beat = await MultiplayerTest.Sessions(context)
+            .HeartbeatAsync(session.HostId, session.SessionId, Beat(joinerId));
+
+        Assert.True(beat.Succeeded);
+
+        var host = Assert.Single(beat.Value!.Players, p => p.UserId == session.HostId);
+        Assert.Equal(SessionPlayerStatus.Connected, host.Status);
+        Assert.True(host.LastSeenAtUtc > DateTime.UtcNow.AddSeconds(-30));
+    }
+
+    [Fact]
+    public async Task A_seated_player_is_given_the_connect_grace_before_being_marked_missing()
+    {
+        var session = await MultiplayerTest.OpenAsync(_fixture);
+        var joinerId = await MultiplayerTest.JoinAsync(_fixture, session.SessionId);
+
+        // Seated 50 seconds ago and not yet in the room: past the dropped-player grace (45) but inside
+        // the longer connect grace (60) a newly seated player gets to load and reach the transport.
+        await using var aging = _fixture.CreateContext();
+        await MultiplayerTest.AgePlayerAsync(aging, session.SessionId, joinerId, seconds: 50);
+
+        await using var context = _fixture.CreateContext();
+        var beat = await MultiplayerTest.Sessions(context)
+            .HeartbeatAsync(session.HostId, session.SessionId, Beat(session.HostId));
+
+        var joiner = Assert.Single(beat.Value!.Players, p => p.UserId == joinerId);
+        Assert.Equal(SessionPlayerStatus.Joined, joiner.Status);
+    }
+
+    [Fact]
     public async Task A_member_who_is_not_the_host_cannot_heartbeat()
     {
         var session = await MultiplayerTest.OpenAsync(_fixture);

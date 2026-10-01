@@ -94,6 +94,19 @@ public static class RateLimitingExtensions
                         QueueLimit = 0
                     }));
 
+            // Sliding, like the auth policy and for the same reason: its input is a secret being
+            // guessed, and a fixed window hands a guesser twice the budget across each boundary.
+            limiter.AddPolicy(RateLimitPolicies.JoinCode, context =>
+                RateLimitPartition.GetSlidingWindowLimiter(
+                    $"join-code:{PartitionKeyFor(context, options)}",
+                    _ => new SlidingWindowRateLimiterOptions
+                    {
+                        PermitLimit = options.JoinCodePermitsPerMinute,
+                        Window = TimeSpan.FromMinutes(1),
+                        SegmentsPerWindow = 4,
+                        QueueLimit = 0
+                    }));
+
             limiter.OnRejected = async (context, cancellationToken) =>
             {
                 context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;

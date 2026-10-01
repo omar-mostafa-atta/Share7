@@ -125,6 +125,17 @@ public class RunService : IRunService
                 ServiceErrorKind.Conflict,
                 $"Game '{game.GameKey}' is retired and cannot start new runs.");
 
+        // A networked run's topology was already enforced when its session was formed, so it skips the
+        // seat-count check below — **but only if it really belongs to that session.** Naming a session
+        // id used to be enough, which let a player put any id at all on a solo run and play a
+        // versus-only mode alone. A seat is what earns the exemption now; any seat ever held counts,
+        // because a run can legitimately start after the roster has moved on. Without one, the run is
+        // held to solo rules, and settlement still flags the unverifiable session exactly as before.
+        var networked = request.SessionId is { } claimedSession
+                        && await _dbContext.MultiplayerSessionPlayers
+                            .AsNoTracking()
+                            .AnyAsync(p => p.SessionId == claimedSession && p.UserId == userId, cancellationToken);
+
         // What the client asked to play, checked once, here. **Before the run row exists**, so a
         // refusal costs nothing and an accepted run carries its policy from its first moment — the
         // alternative, deciding at settlement, prices a run after it has been played.
@@ -137,10 +148,8 @@ public class RunService : IRunService
                 ContextKey = request.ContextKey,
                 EventId = request.EventId,
 
-                // A networked run's topology was already enforced when the session was formed, and
-                // this service cannot see the roster; checking a seat count of one here would refuse
-                // every multiplayer run of a versus-only mode.
-                PlayerCount = request.SessionId is null ? 1 : 0
+                // Zero skips the topology check; see above for why only a seated player gets it.
+                PlayerCount = networked ? 0 : 1
             },
             cancellationToken);
 

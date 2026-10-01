@@ -32,6 +32,7 @@ public static class ApiErrorExtensions
             ServiceErrorKind.Conflict => StatusCodes.Status409Conflict,
             ServiceErrorKind.Forbidden => StatusCodes.Status403Forbidden,
             ServiceErrorKind.Unprocessable => StatusCodes.Status422UnprocessableEntity,
+            ServiceErrorKind.Gone => StatusCodes.Status410Gone,
             _ => StatusCodes.Status400BadRequest
         };
 

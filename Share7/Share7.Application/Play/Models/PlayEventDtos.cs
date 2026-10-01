@@ -72,6 +72,13 @@ public class PlayEventDto
     public int? MyRank { get; init; }
 
     public long? MyValue { get; init; }
+
+    /// <summary>
+    /// The event's tournament, when it is played as one: show its bracket (<c>GET
+    /// /api/multiplayer/tournaments/{id}</c>) rather than the ladder — the prize table pays the
+    /// bracket's final placements, and the ladder only counts matches. Null for an ordinary event.
+    /// </summary>
+    public Guid? TournamentId { get; init; }
 }
 
 /// <summary>The conditions an entry has to meet. All optional; zero and null both mean "no limit".</summary>
@@ -417,6 +424,43 @@ public class PrizeClaimAdminDto
     public DateTime? FulfilledAtUtc { get; init; }
     public string? ReviewNote { get; init; }
     public Guid? ReviewedByUserId { get; init; }
+
+    /// <summary>
+    /// What the winner's matches in this event look like, for the reviewer. Null for an event with no
+    /// matches — a solo ladder has nothing here to read.
+    /// </summary>
+    public PrizeClaimSignalsDto? Signals { get; init; }
+}
+
+/// <summary>
+/// The shape of a winner's matches in a prize-bearing event — what collusion looks like from the
+/// outside: the same opponent over and over, wins that were handed over rather than played, results
+/// that failed a plausibility bound. <b>Signals for a person, never a verdict</b>: two friends who
+/// simply keep meeting look the same as two accounts farming each other, and only a reviewer can tell.
+/// </summary>
+public class PrizeClaimSignalsDto
+{
+    /// <summary>Decided matches the winner played in the event.</summary>
+    public int Matches { get; init; }
+
+    public int Wins { get; init; }
+
+    public int DistinctOpponents { get; init; }
+
+    /// <summary>The share of their matches played against the one opponent they met most, 0 to 1.</summary>
+    public double TopOpponentShare { get; init; }
+
+    /// <summary>Wins where every opponent reported nothing — joined and left.</summary>
+    public int WinsByForfeit { get; init; }
+
+    /// <summary>Tournament pairings won without playing: the opponent never came, or left.</summary>
+    public int Walkovers { get; init; }
+
+    /// <summary>Matches where the winner's own result was flagged as past what is possible.</summary>
+    public int FlaggedMatches { get; init; }
+
+    /// <summary><c>repeat_opponent</c>, <c>opponent_forfeits</c>, <c>flagged_matches</c> — what deserves a look.</summary>
+    public List<string> Warnings { get; init; } = [];
 }
 
 /// <summary>Moving a claim along. The transitions are fixed; the note is for whoever reads it next.</summary>

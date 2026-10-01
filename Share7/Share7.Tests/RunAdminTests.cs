@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Share7.Application.Runs.Models;
 using Share7.Application.Runs.Models.Admin;
 using Share7.Domain.Multiplayer;
+using Share7.Domain.Play;
 using Share7.Application.Rewards.Models;
 using Share7.Domain.Rewards;
 using Share7.Domain.Runs;
@@ -323,6 +324,33 @@ public class RunAdminTests
         // identical to a forged one, and the child who actually played must not lose their run.
         Assert.True(claimed.Succeeded);
         Assert.Equal(5, Assert.Single(claimed.Value!.Rewards).Amount);
+    }
+
+    [Fact]
+    public async Task A_run_naming_a_session_it_holds_no_seat_in_is_held_to_solo_rules()
+    {
+        await using var context = _fixture.CreateContext();
+        var player = await TestData.CreateUserAsync(context);
+        var loner = await TestData.CreateUserAsync(context);
+        var game = await context.CreateGameAsync();
+
+        // A mode offered only head to head.
+        await context.AddModeAsync(game.Id, isDefault: true, topologies: PlayTopologies.Versus);
+
+        var sessionId = await SeatAsync(context, game.Id, player);
+        var runs = RunTestExtensions.CreateRunService(context);
+
+        // The seated player's networked run is exempt from the seat count, as it always was.
+        var seated = await runs.StartAsync(player, new StartRunRequest { GameId = game.Id, SessionId = sessionId });
+        Assert.True(seated.Succeeded, seated.Error?.Code);
+
+        // A player alone, naming a session they were never in — or one that does not exist — does not
+        // get to play a versus-only mode by writing an id on the request.
+        var borrowed = await runs.StartAsync(loner, new StartRunRequest { GameId = game.Id, SessionId = sessionId });
+        var invented = await runs.StartAsync(loner, new StartRunRequest { GameId = game.Id, SessionId = Guid.NewGuid() });
+
+        Assert.Equal("PC_TOPOLOGY_MISMATCH", borrowed.Error?.Code);
+        Assert.Equal("PC_TOPOLOGY_MISMATCH", invented.Error?.Code);
     }
 
     // ---- review queue ----------------------------------------------------------------------

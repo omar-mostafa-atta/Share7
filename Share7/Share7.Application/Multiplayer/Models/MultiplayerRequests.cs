@@ -78,7 +78,57 @@ public class JoinMultiplayerSessionRequest : MultiplayerRequest
     public int ProtocolVersion { get; set; }
 }
 
+/// <summary>
+/// Joins a private session by the code its host read out, typed or scanned.
+/// <para>
+/// **In the body, never the route.** A code in a URL ends up in access logs, proxies and browser
+/// history; a code is the only thing keeping a stranger out of a room of children.
+/// </para>
+/// </summary>
+public class JoinMultiplayerSessionByCodeRequest : MultiplayerRequest
+{
+    /// <summary>
+    /// The six characters on the host's screen. Case, spaces and hyphens are ignored, so
+    /// <c>k3f 9qa</c> and <c>K3F-9QA</c> are the same code.
+    /// </summary>
+    [MaxLength(16)]
+    public string JoinCode { get; set; } = string.Empty;
+
+    public int ProtocolVersion { get; set; }
+}
+
 public class LeaveMultiplayerSessionRequest : MultiplayerRequest;
+
+/// <summary>
+/// The host removing one player from the lobby.
+/// <para>
+/// Like <see cref="TransferHostRequest"/>, it names a user — as a **target**. The caller is still the
+/// token's subject, and must be the host.
+/// </para>
+/// </summary>
+public class RemovePlayerRequest : MultiplayerRequest
+{
+    public Guid UserId { get; set; }
+}
+
+/// <summary>Replace a private session's join code. The caller must be the host.</summary>
+public class RotateJoinCodeRequest : MultiplayerRequest;
+
+/// <summary>
+/// Ask for a rematch of an ended match. Carries what only the asking client can know — the Photon
+/// room it will bring up if it turns out to be the one hosting — and nothing about the match itself,
+/// which the server copies from the one that ended.
+/// </summary>
+public class RematchRequest : MultiplayerRequest
+{
+    /// <summary>The room this client will create if it hosts the rematch. Unused if someone asked first.</summary>
+    public string TransportSessionName { get; set; } = string.Empty;
+
+    /// <summary>Defaults to the ended match's region.</summary>
+    public string? TransportRegion { get; set; }
+
+    public int ProtocolVersion { get; set; }
+}
 
 public class StartMultiplayerSessionRequest : MultiplayerRequest;
 

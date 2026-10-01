@@ -1,0 +1,897 @@
+[
+  {
+    "request": "POST /api/multiplayer/sessions",
+    "as": "student-en",
+    "requestBody": {
+      "gameId": "game:lane-runner",
+      "transportSessionName": "contract_room_one",
+      "transportRegion": "eu",
+      "maxPlayers": 2,
+      "isRanked": false,
+      "protocolVersion": 1,
+      "curriculumPath": {
+        "gradeId": "grade:PrimaryFour",
+        "termId": "term:first",
+        "subjectId": "subject:science",
+        "chapterId": "chapter:matter",
+        "lessonId": "lesson:solids"
+      },
+      "requestId": "contract-create-1"
+    },
+    "status": 201,
+    "body": {
+      "id": "<id:1>",
+      "gameId": "game:lane-runner",
+      "hostUserId": "user:student-en",
+      "transportSessionName": "contract_room_one",
+      "transportRegion": "eu",
+      "joinCode": null,
+      "state": "Creating",
+      "visibility": "Public",
+      "maxPlayers": 2,
+      "minPlayers": 1,
+      "currentPlayerCount": 1,
+      "protocolVersion": 1,
+      "isRanked": false,
+      "curriculumPath": {
+        "gradeId": "grade:PrimaryFour",
+        "termId": "term:first",
+        "subjectId": "subject:science",
+        "chapterId": "chapter:matter",
+        "lessonId": "lesson:solids"
+      },
+      "createdAtUtc": "<timestamp>",
+      "startedAtUtc": null,
+      "endedAtUtc": null,
+      "serverTimeUtc": "<timestamp>",
+      "players": [
+        {
+          "userId": "user:student-en",
+          "displayName": "ContractOwl11",
+          "slot": 0,
+          "isHost": true,
+          "status": "Joined",
+          "joinedAtUtc": "<timestamp>",
+          "lastSeenAtUtc": "<timestamp>"
+        }
+      ]
+    }
+  },
+  {
+    "request": "POST /api/multiplayer/sessions/<id:1>/start",
+    "as": "student-en",
+    "requestBody": {
+      "requestId": "contract-confirm-1"
+    },
+    "status": 200,
+    "body": {
+      "id": "<id:1>",
+      "gameId": "game:lane-runner",
+      "hostUserId": "user:student-en",
+      "transportSessionName": "contract_room_one",
+      "transportRegion": "eu",
+      "joinCode": null,
+      "state": "Created",
+      "visibility": "Public",
+      "maxPlayers": 2,
+      "minPlayers": 1,
+      "currentPlayerCount": 1,
+      "protocolVersion": 1,
+      "isRanked": false,
+      "curriculumPath": {
+        "gradeId": "grade:PrimaryFour",
+        "termId": "term:first",
+        "subjectId": "subject:science",
+        "chapterId": "chapter:matter",
+        "lessonId": "lesson:solids"
+      },
+      "createdAtUtc": "<timestamp>",
+      "startedAtUtc": null,
+      "endedAtUtc": null,
+      "serverTimeUtc": "<timestamp>",
+      "players": [
+        {
+          "userId": "user:student-en",
+          "displayName": "ContractOwl11",
+          "slot": 0,
+          "isHost": true,
+          "status": "Joined",
+          "joinedAtUtc": "<timestamp>",
+          "lastSeenAtUtc": "<timestamp>"
+        }
+      ]
+    }
+  },
+  {
+    "request": "POST /api/multiplayer/sessions/<id:1>/join",
+    "as": "student-ar",
+    "requestBody": {
+      "protocolVersion": 1,
+      "requestId": "contract-join-1"
+    },
+    "status": 200,
+    "body": {
+      "id": "<id:1>",
+      "gameId": "game:lane-runner",
+      "hostUserId": "user:student-en",
+      "transportSessionName": "contract_room_one",
+      "transportRegion": "eu",
+      "joinCode": null,
+      "state": "Created",
+      "visibility": "Public",
+      "maxPlayers": 2,
+      "minPlayers": 1,
+      "currentPlayerCount": 2,
+      "protocolVersion": 1,
+      "isRanked": false,
+      "curriculumPath": {
+        "gradeId": "grade:PrimaryFour",
+        "termId": "term:first",
+        "subjectId": "subject:science",
+        "chapterId": "chapter:matter",
+        "lessonId": "lesson:solids"
+      },
+      "createdAtUtc": "<timestamp>",
+      "startedAtUtc": null,
+      "endedAtUtc": null,
+      "serverTimeUtc": "<timestamp>",
+      "players": [
+        {
+          "userId": "user:student-en",
+          "displayName": "ContractOwl11",
+          "slot": 0,
+          "isHost": true,
+          "status": "Joined",
+          "joinedAtUtc": "<timestamp>",
+          "lastSeenAtUtc": "<timestamp>"
+        },
+        {
+          "userId": "user:student-ar",
+          "displayName": "ContractFox22",
+          "slot": 1,
+          "isHost": false,
+          "status": "Joined",
+          "joinedAtUtc": "<timestamp>",
+          "lastSeenAtUtc": "<timestamp>"
+        }
+      ]
+    }
+  },
+  {
+    "request": "POST /api/multiplayer/sessions/<id:1>/heartbeat",
+    "as": "student-en",
+    "requestBody": {
+      "connectedUserIds": [
+        "user:student-en",
+        "user:student-ar"
+      ],
+      "state": "Created"
+    },
+    "status": 200,
+    "body": {
+      "state": "Created",
+      "serverTimeUtc": "<timestamp>",
+      "nextHeartbeatInSeconds": 15,
+      "players": [
+        {
+          "userId": "user:student-en",
+          "displayName": "ContractOwl11",
+          "slot": 0,
+          "isHost": true,
+          "status": "Connected",
+          "joinedAtUtc": "<timestamp>",
+          "lastSeenAtUtc": "<timestamp>"
+        },
+        {
+          "userId": "user:student-ar",
+          "displayName": "ContractFox22",
+          "slot": 1,
+          "isHost": false,
+          "status": "Connected",
+          "joinedAtUtc": "<timestamp>",
+          "lastSeenAtUtc": "<timestamp>"
+        }
+      ]
+    }
+  },
+  {
+    "request": "GET /api/multiplayer/sessions/<id:1>",
+    "as": "student-en",
+    "requestBody": null,
+    "status": 200,
+    "body": {
+      "id": "<id:1>",
+      "gameId": "game:lane-runner",
+      "hostUserId": "user:student-en",
+      "transportSessionName": "contract_room_one",
+      "transportRegion": "eu",
+      "joinCode": null,
+      "state": "Created",
+      "visibility": "Public",
+      "maxPlayers": 2,
+      "minPlayers": 1,
+      "currentPlayerCount": 2,
+      "protocolVersion": 1,
+      "isRanked": false,
+      "curriculumPath": {
+        "gradeId": "grade:PrimaryFour",
+        "termId": "term:first",
+        "subjectId": "subject:science",
+        "chapterId": "chapter:matter",
+        "lessonId": "lesson:solids"
+      },
+      "createdAtUtc": "<timestamp>",
+      "startedAtUtc": null,
+      "endedAtUtc": null,
+      "serverTimeUtc": "<timestamp>",
+      "players": [
+        {
+          "userId": "user:student-en",
+          "displayName": "ContractOwl11",
+          "slot": 0,
+          "isHost": true,
+          "status": "Connected",
+          "joinedAtUtc": "<timestamp>",
+          "lastSeenAtUtc": "<timestamp>"
+        },
+        {
+          "userId": "user:student-ar",
+          "displayName": "ContractFox22",
+          "slot": 1,
+          "isHost": false,
+          "status": "Connected",
+          "joinedAtUtc": "<timestamp>",
+          "lastSeenAtUtc": "<timestamp>"
+        }
+      ]
+    }
+  },
+  {
+    "request": "GET /api/multiplayer/sessions/<id:1>/players",
+    "as": "student-ar",
+    "requestBody": null,
+    "status": 200,
+    "body": [
+      {
+        "userId": "user:student-en",
+        "displayName": "ContractOwl11",
+        "slot": 0,
+        "isHost": true,
+        "status": "Connected",
+        "joinedAtUtc": "<timestamp>",
+        "lastSeenAtUtc": "<timestamp>"
+      },
+      {
+        "userId": "user:student-ar",
+        "displayName": "ContractFox22",
+        "slot": 1,
+        "isHost": false,
+        "status": "Connected",
+        "joinedAtUtc": "<timestamp>",
+        "lastSeenAtUtc": "<timestamp>"
+      }
+    ]
+  },
+  {
+    "request": "GET /api/multiplayer/sessions",
+    "as": "student-ar",
+    "requestBody": null,
+    "status": 200,
+    "body": [
+      {
+        "id": "<id:1>",
+        "gameId": "game:lane-runner",
+        "hostUserId": "user:student-en",
+        "transportSessionName": "contract_room_one",
+        "transportRegion": "eu",
+        "joinCode": null,
+        "state": "Created",
+        "visibility": "Public",
+        "maxPlayers": 2,
+        "minPlayers": 1,
+        "currentPlayerCount": 2,
+        "protocolVersion": 1,
+        "isRanked": false,
+        "curriculumPath": {
+          "gradeId": "grade:PrimaryFour",
+          "termId": "term:first",
+          "subjectId": "subject:science",
+          "chapterId": "chapter:matter",
+          "lessonId": "lesson:solids"
+        },
+        "createdAtUtc": "<timestamp>",
+        "startedAtUtc": null,
+        "endedAtUtc": null,
+        "serverTimeUtc": "<timestamp>",
+        "players": [
+          {
+            "userId": "user:student-en",
+            "displayName": "ContractOwl11",
+            "slot": 0,
+            "isHost": true,
+            "status": "Connected",
+            "joinedAtUtc": "<timestamp>",
+            "lastSeenAtUtc": "<timestamp>"
+          },
+          {
+            "userId": "user:student-ar",
+            "displayName": "ContractFox22",
+            "slot": 1,
+            "isHost": false,
+            "status": "Connected",
+            "joinedAtUtc": "<timestamp>",
+            "lastSeenAtUtc": "<timestamp>"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "request": "POST /api/multiplayer/sessions/<id:1>/start",
+    "as": "student-en",
+    "requestBody": {
+      "requestId": "contract-start-1"
+    },
+    "status": 200,
+    "body": {
+      "id": "<id:1>",
+      "gameId": "game:lane-runner",
+      "hostUserId": "user:student-en",
+      "transportSessionName": "contract_room_one",
+      "transportRegion": "eu",
+      "joinCode": null,
+      "state": "Running",
+      "visibility": "Public",
+      "maxPlayers": 2,
+      "minPlayers": 1,
+      "currentPlayerCount": 2,
+      "protocolVersion": 1,
+      "isRanked": false,
+      "curriculumPath": {
+        "gradeId": "grade:PrimaryFour",
+        "termId": "term:first",
+        "subjectId": "subject:science",
+        "chapterId": "chapter:matter",
+        "lessonId": "lesson:solids"
+      },
+      "createdAtUtc": "<timestamp>",
+      "startedAtUtc": "<timestamp>",
+      "endedAtUtc": null,
+      "serverTimeUtc": "<timestamp>",
+      "players": [
+        {
+          "userId": "user:student-en",
+          "displayName": "ContractOwl11",
+          "slot": 0,
+          "isHost": true,
+          "status": "Connected",
+          "joinedAtUtc": "<timestamp>",
+          "lastSeenAtUtc": "<timestamp>"
+        },
+        {
+          "userId": "user:student-ar",
+          "displayName": "ContractFox22",
+          "slot": 1,
+          "isHost": false,
+          "status": "Connected",
+          "joinedAtUtc": "<timestamp>",
+          "lastSeenAtUtc": "<timestamp>"
+        }
+      ]
+    }
+  },
+  {
+    "request": "POST /api/multiplayer/sessions/<id:1>/heartbeat",
+    "as": "student-ar",
+    "requestBody": {
+      "connectedUserIds": [
+        "user:student-ar"
+      ]
+    },
+    "status": 403,
+    "body": {
+      "code": "NOT_SESSION_HOST",
+      "messageKey": "multiplayer.session.not_host",
+      "details": {}
+    }
+  },
+  {
+    "request": "POST /api/multiplayer/sessions/<id:1>/leave",
+    "as": "student-ar",
+    "requestBody": {
+      "requestId": "contract-leave-1"
+    },
+    "status": 200,
+    "body": {
+      "id": "<id:1>",
+      "gameId": "game:lane-runner",
+      "hostUserId": "user:student-en",
+      "transportSessionName": "contract_room_one",
+      "transportRegion": "eu",
+      "joinCode": null,
+      "state": "Running",
+      "visibility": "Public",
+      "maxPlayers": 2,
+      "minPlayers": 1,
+      "currentPlayerCount": 1,
+      "protocolVersion": 1,
+      "isRanked": false,
+      "curriculumPath": {
+        "gradeId": "grade:PrimaryFour",
+        "termId": "term:first",
+        "subjectId": "subject:science",
+        "chapterId": "chapter:matter",
+        "lessonId": "lesson:solids"
+      },
+      "createdAtUtc": "<timestamp>",
+      "startedAtUtc": "<timestamp>",
+      "endedAtUtc": null,
+      "serverTimeUtc": "<timestamp>",
+      "players": [
+        {
+          "userId": "user:student-en",
+          "displayName": "ContractOwl11",
+          "slot": 0,
+          "isHost": true,
+          "status": "Connected",
+          "joinedAtUtc": "<timestamp>",
+          "lastSeenAtUtc": "<timestamp>"
+        }
+      ]
+    }
+  },
+  {
+    "request": "POST /api/multiplayer/sessions/<id:1>/leave",
+    "as": "student-ar",
+    "requestBody": {
+      "requestId": "contract-leave-2"
+    },
+    "status": 200,
+    "body": {
+      "id": "<id:1>",
+      "gameId": "game:lane-runner",
+      "hostUserId": "user:student-en",
+      "transportSessionName": "contract_room_one",
+      "transportRegion": "eu",
+      "joinCode": null,
+      "state": "Running",
+      "visibility": "Public",
+      "maxPlayers": 2,
+      "minPlayers": 1,
+      "currentPlayerCount": 1,
+      "protocolVersion": 1,
+      "isRanked": false,
+      "curriculumPath": {
+        "gradeId": "grade:PrimaryFour",
+        "termId": "term:first",
+        "subjectId": "subject:science",
+        "chapterId": "chapter:matter",
+        "lessonId": "lesson:solids"
+      },
+      "createdAtUtc": "<timestamp>",
+      "startedAtUtc": "<timestamp>",
+      "endedAtUtc": null,
+      "serverTimeUtc": "<timestamp>",
+      "players": [
+        {
+          "userId": "user:student-en",
+          "displayName": "ContractOwl11",
+          "slot": 0,
+          "isHost": true,
+          "status": "Connected",
+          "joinedAtUtc": "<timestamp>",
+          "lastSeenAtUtc": "<timestamp>"
+        }
+      ]
+    }
+  },
+  {
+    "request": "POST /api/multiplayer/sessions/<id:1>/close",
+    "as": "student-en",
+    "requestBody": {
+      "reason": "HostClosed",
+      "requestId": "contract-close-1"
+    },
+    "status": 200,
+    "body": {
+      "id": "<id:1>",
+      "gameId": "game:lane-runner",
+      "hostUserId": "user:student-en",
+      "transportSessionName": "contract_room_one",
+      "transportRegion": "eu",
+      "joinCode": null,
+      "state": "Closed",
+      "visibility": "Public",
+      "maxPlayers": 2,
+      "minPlayers": 1,
+      "currentPlayerCount": 0,
+      "protocolVersion": 1,
+      "isRanked": false,
+      "curriculumPath": {
+        "gradeId": "grade:PrimaryFour",
+        "termId": "term:first",
+        "subjectId": "subject:science",
+        "chapterId": "chapter:matter",
+        "lessonId": "lesson:solids"
+      },
+      "createdAtUtc": "<timestamp>",
+      "startedAtUtc": "<timestamp>",
+      "endedAtUtc": "<timestamp>",
+      "serverTimeUtc": "<timestamp>",
+      "players": []
+    }
+  },
+  {
+    "request": "POST /api/multiplayer/sessions/<id:1>/close",
+    "as": "student-en",
+    "requestBody": {
+      "reason": "HostClosed",
+      "requestId": "contract-close-2"
+    },
+    "status": 200,
+    "body": {
+      "id": "<id:1>",
+      "gameId": "game:lane-runner",
+      "hostUserId": "user:student-en",
+      "transportSessionName": "contract_room_one",
+      "transportRegion": "eu",
+      "joinCode": null,
+      "state": "Closed",
+      "visibility": "Public",
+      "maxPlayers": 2,
+      "minPlayers": 1,
+      "currentPlayerCount": 0,
+      "protocolVersion": 1,
+      "isRanked": false,
+      "curriculumPath": {
+        "gradeId": "grade:PrimaryFour",
+        "termId": "term:first",
+        "subjectId": "subject:science",
+        "chapterId": "chapter:matter",
+        "lessonId": "lesson:solids"
+      },
+      "createdAtUtc": "<timestamp>",
+      "startedAtUtc": "<timestamp>",
+      "endedAtUtc": "<timestamp>",
+      "serverTimeUtc": "<timestamp>",
+      "players": []
+    }
+  },
+  {
+    "request": "POST /api/multiplayer/sessions/<id:1>/join",
+    "as": "student-ar",
+    "requestBody": {
+      "protocolVersion": 1
+    },
+    "status": 409,
+    "body": {
+      "code": "SESSION_CLOSED",
+      "messageKey": "multiplayer.session.closed",
+      "details": {
+        "state": "CLOSED",
+        "closedReason": "HOST_CLOSED"
+      }
+    }
+  },
+  {
+    "request": "POST /api/multiplayer/matchmaking",
+    "as": "student-en",
+    "requestBody": {
+      "gameId": "game:lane-runner",
+      "protocolVersion": 1,
+      "curriculumPath": {
+        "lessonId": "lesson:solids"
+      },
+      "createIfNoneFound": false
+    },
+    "status": 200,
+    "body": {
+      "outcome": "NoMatch",
+      "session": null
+    }
+  },
+  {
+    "request": "POST /api/multiplayer/matchmaking",
+    "as": "student-en",
+    "requestBody": {
+      "gameId": "game:lane-runner",
+      "protocolVersion": 1,
+      "maxPlayers": 2,
+      "curriculumPath": {
+        "lessonId": "lesson:solids"
+      },
+      "createIfNoneFound": true,
+      "transportSessionName": "contract_room_two",
+      "requestId": "contract-matchmake-1"
+    },
+    "status": 200,
+    "body": {
+      "outcome": "Created",
+      "session": {
+        "id": "<id:2>",
+        "gameId": "game:lane-runner",
+        "hostUserId": "user:student-en",
+        "transportSessionName": "contract_room_two",
+        "transportRegion": null,
+        "joinCode": null,
+        "state": "Creating",
+        "visibility": "Public",
+        "maxPlayers": 2,
+        "minPlayers": 1,
+        "currentPlayerCount": 1,
+        "protocolVersion": 1,
+        "isRanked": false,
+        "curriculumPath": {
+          "gradeId": null,
+          "termId": null,
+          "subjectId": null,
+          "chapterId": null,
+          "lessonId": "lesson:solids"
+        },
+        "createdAtUtc": "<timestamp>",
+        "startedAtUtc": null,
+        "endedAtUtc": null,
+        "serverTimeUtc": "<timestamp>",
+        "players": [
+          {
+            "userId": "user:student-en",
+            "displayName": "ContractOwl11",
+            "slot": 0,
+            "isHost": true,
+            "status": "Joined",
+            "joinedAtUtc": "<timestamp>",
+            "lastSeenAtUtc": "<timestamp>"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "request": "POST /api/multiplayer/sessions/<id:2>/start",
+    "as": "student-en",
+    "requestBody": {
+      "requestId": "contract-confirm-2"
+    },
+    "status": 200,
+    "body": {
+      "id": "<id:2>",
+      "gameId": "game:lane-runner",
+      "hostUserId": "user:student-en",
+      "transportSessionName": "contract_room_two",
+      "transportRegion": null,
+      "joinCode": null,
+      "state": "Created",
+      "visibility": "Public",
+      "maxPlayers": 2,
+      "minPlayers": 1,
+      "currentPlayerCount": 1,
+      "protocolVersion": 1,
+      "isRanked": false,
+      "curriculumPath": {
+        "gradeId": null,
+        "termId": null,
+        "subjectId": null,
+        "chapterId": null,
+        "lessonId": "lesson:solids"
+      },
+      "createdAtUtc": "<timestamp>",
+      "startedAtUtc": null,
+      "endedAtUtc": null,
+      "serverTimeUtc": "<timestamp>",
+      "players": [
+        {
+          "userId": "user:student-en",
+          "displayName": "ContractOwl11",
+          "slot": 0,
+          "isHost": true,
+          "status": "Joined",
+          "joinedAtUtc": "<timestamp>",
+          "lastSeenAtUtc": "<timestamp>"
+        }
+      ]
+    }
+  },
+  {
+    "request": "POST /api/multiplayer/matchmaking",
+    "as": "student-ar",
+    "requestBody": {
+      "gameId": "game:lane-runner",
+      "protocolVersion": 1,
+      "curriculumPath": {
+        "lessonId": "lesson:solids"
+      },
+      "createIfNoneFound": true,
+      "transportSessionName": "contract_room_three",
+      "requestId": "contract-matchmake-2"
+    },
+    "status": 200,
+    "body": {
+      "outcome": "Joined",
+      "session": {
+        "id": "<id:2>",
+        "gameId": "game:lane-runner",
+        "hostUserId": "user:student-en",
+        "transportSessionName": "contract_room_two",
+        "transportRegion": null,
+        "joinCode": null,
+        "state": "Created",
+        "visibility": "Public",
+        "maxPlayers": 2,
+        "minPlayers": 1,
+        "currentPlayerCount": 2,
+        "protocolVersion": 1,
+        "isRanked": false,
+        "curriculumPath": {
+          "gradeId": null,
+          "termId": null,
+          "subjectId": null,
+          "chapterId": null,
+          "lessonId": "lesson:solids"
+        },
+        "createdAtUtc": "<timestamp>",
+        "startedAtUtc": null,
+        "endedAtUtc": null,
+        "serverTimeUtc": "<timestamp>",
+        "players": [
+          {
+            "userId": "user:student-en",
+            "displayName": "ContractOwl11",
+            "slot": 0,
+            "isHost": true,
+            "status": "Joined",
+            "joinedAtUtc": "<timestamp>",
+            "lastSeenAtUtc": "<timestamp>"
+          },
+          {
+            "userId": "user:student-ar",
+            "displayName": "ContractFox22",
+            "slot": 1,
+            "isHost": false,
+            "status": "Joined",
+            "joinedAtUtc": "<timestamp>",
+            "lastSeenAtUtc": "<timestamp>"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "request": "POST /api/multiplayer/sessions/<id:2>/host-transfer",
+    "as": "student-en",
+    "requestBody": {
+      "toUserId": "user:student-ar",
+      "reason": "Voluntary"
+    },
+    "status": 200,
+    "body": {
+      "id": "<id:2>",
+      "gameId": "game:lane-runner",
+      "hostUserId": "user:student-ar",
+      "transportSessionName": "contract_room_two",
+      "transportRegion": null,
+      "joinCode": null,
+      "state": "Created",
+      "visibility": "Public",
+      "maxPlayers": 2,
+      "minPlayers": 1,
+      "currentPlayerCount": 2,
+      "protocolVersion": 1,
+      "isRanked": false,
+      "curriculumPath": {
+        "gradeId": null,
+        "termId": null,
+        "subjectId": null,
+        "chapterId": null,
+        "lessonId": "lesson:solids"
+      },
+      "createdAtUtc": "<timestamp>",
+      "startedAtUtc": null,
+      "endedAtUtc": null,
+      "serverTimeUtc": "<timestamp>",
+      "players": [
+        {
+          "userId": "user:student-en",
+          "displayName": "ContractOwl11",
+          "slot": 0,
+          "isHost": false,
+          "status": "Joined",
+          "joinedAtUtc": "<timestamp>",
+          "lastSeenAtUtc": "<timestamp>"
+        },
+        {
+          "userId": "user:student-ar",
+          "displayName": "ContractFox22",
+          "slot": 1,
+          "isHost": true,
+          "status": "Joined",
+          "joinedAtUtc": "<timestamp>",
+          "lastSeenAtUtc": "<timestamp>"
+        }
+      ]
+    }
+  },
+  {
+    "request": "POST /api/multiplayer/sessions/<id:2>/close",
+    "as": "student-en",
+    "requestBody": {},
+    "status": 403,
+    "body": {
+      "code": "NOT_SESSION_HOST",
+      "messageKey": "multiplayer.session.not_host",
+      "details": {}
+    }
+  },
+  {
+    "request": "POST /api/multiplayer/sessions/<id:2>/close",
+    "as": "student-ar",
+    "requestBody": {
+      "requestId": "contract-close-3"
+    },
+    "status": 200,
+    "body": {
+      "id": "<id:2>",
+      "gameId": "game:lane-runner",
+      "hostUserId": "user:student-ar",
+      "transportSessionName": "contract_room_two",
+      "transportRegion": null,
+      "joinCode": null,
+      "state": "Closed",
+      "visibility": "Public",
+      "maxPlayers": 2,
+      "minPlayers": 1,
+      "currentPlayerCount": 0,
+      "protocolVersion": 1,
+      "isRanked": false,
+      "curriculumPath": {
+        "gradeId": null,
+        "termId": null,
+        "subjectId": null,
+        "chapterId": null,
+        "lessonId": "lesson:solids"
+      },
+      "createdAtUtc": "<timestamp>",
+      "startedAtUtc": null,
+      "endedAtUtc": "<timestamp>",
+      "serverTimeUtc": "<timestamp>",
+      "players": []
+    }
+  },
+  {
+    "request": "POST /api/multiplayer/sessions",
+    "as": "student-en",
+    "requestBody": {
+      "gameId": "game:lane-runner",
+      "transportSessionName": "contract_room_four",
+      "protocolVersion": 99
+    },
+    "status": 400,
+    "body": {
+      "code": "PROTOCOL_VERSION_MISMATCH",
+      "messageKey": "multiplayer.protocol_version_mismatch",
+      "details": {
+        "requested": 99,
+        "accepted": [
+          1
+        ]
+      }
+    }
+  },
+  {
+    "request": "GET /api/multiplayer/sessions/<id:3>",
+    "as": "student-en",
+    "requestBody": null,
+    "status": 404,
+    "body": {
+      "code": "SESSION_NOT_FOUND",
+      "messageKey": "multiplayer.session.not_found",
+      "details": {}
+    }
+  },
+  {
+    "request": "GET /api/multiplayer/sessions/<id:1>",
+    "as": "anonymous",
+    "requestBody": null,
+    "status": 401,
+    "body": null
+  }
+]

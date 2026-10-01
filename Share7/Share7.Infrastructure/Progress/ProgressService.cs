@@ -19,6 +19,7 @@ using Share7.Application.Progression.Interfaces;
 using Share7.Application.Rewards.Interfaces;
 using Share7.Application.Rewards.Models;
 using Share7.Domain.Leaderboards;
+using Share7.Domain.Multiplayer;
 using Share7.Domain.Play;
 using Share7.Domain.Evidence;
 using Share7.Domain.Progress;
@@ -206,6 +207,16 @@ public class ProgressService : IProgressService
         if (!isUnlocked)
             return ServiceResult<AttemptResultDto>.Forbidden("This lesson is still locked for this game.");
 
+        // The match this attempt belongs to, if it names one and the caller really had a seat in it.
+        // Naming a session is a claim; the seat is what makes it true — the same rule a run follows.
+        var match = request.SessionId is { } sessionId
+            ? await _dbContext.MultiplayerSessions
+                .AsNoTracking()
+                .Where(s => s.Id == sessionId && s.Players.Any(p => p.UserId == userId))
+                .Select(s => new { s.Id, s.LessonId, s.StartedAtUtc })
+                .FirstOrDefaultAsync(cancellationToken)
+            : null;
+
         // Which rules, and why. Checked here — after the lesson is known to be playable and before
         // anything is written — so a refused mode costs the same as a locked lesson: nothing.
         var selection = await _play.ResolveAsync(
@@ -217,7 +228,10 @@ public class ProgressService : IProgressService
                 ContextKey = request.ContextKey,
                 EventId = request.EventId,
                 AssignmentId = request.AssignmentId,
-                PlayerCount = 1
+
+                // Zero skips the seat-count check: a networked attempt's topology was enforced when
+                // its session formed, and one of one would refuse every answer in a versus-only mode.
+                PlayerCount = match is null ? 1 : 0
             },
             cancellationToken);
 
@@ -333,6 +347,24 @@ public class ProgressService : IProgressService
             },
             [.. answerResults.Select(a => ToEvidence(a, conditionsByQuestion.GetValueOrDefault(a.QuestionId)))],
             cancellationToken);
+
+        // **The match's copy of the grade.** Queued before the settlement split so it commits on both
+        // paths — a practice-mode match still has a winner. Only once the match has started, and only
+        // on the lesson it plays: a match with no lesson has no answers to compare, and an easier
+        // lesson answered mid-match must not count towards it.
+        if (match is { StartedAtUtc: not null, LessonId: { } matchLesson } && matchLesson == request.LessonId)
+        {
+            _dbContext.MatchAttemptScores.Add(new MatchAttemptScore
+            {
+                Id = Guid.NewGuid(),
+                SessionId = match.Id,
+                UserId = userId,
+                LessonId = request.LessonId,
+                CorrectCount = correctCount,
+                TotalCount = totalCount,
+                SubmittedAtUtc = now
+            });
+        }
 
         // **Graded in full, recorded as nothing.** A practice run, a free-play replay or an event
         // entry is answered with the same breakdown a curriculum attempt gets — the child still sees

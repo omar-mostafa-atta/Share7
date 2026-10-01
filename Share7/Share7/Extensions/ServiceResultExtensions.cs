@@ -27,6 +27,7 @@ public static class ServiceResultExtensions
         ServiceErrorKind.Conflict => new ConflictObjectResult(body),
         ServiceErrorKind.Forbidden => new ObjectResult(body) { StatusCode = StatusCodes.Status403Forbidden },
         ServiceErrorKind.Unprocessable => new ObjectResult(body) { StatusCode = StatusCodes.Status422UnprocessableEntity },
+        ServiceErrorKind.Gone => new ObjectResult(body) { StatusCode = StatusCodes.Status410Gone },
         _ => new BadRequestObjectResult(body)
     };
 }

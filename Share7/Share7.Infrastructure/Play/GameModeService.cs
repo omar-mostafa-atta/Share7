@@ -3,7 +3,9 @@ using Microsoft.EntityFrameworkCore;
 using Share7.Application.Curriculum.Interfaces;
 using Share7.Application.Play.Interfaces;
 using Share7.Application.Play.Models;
+using Share7.Domain.Multiplayer;
 using Share7.Domain.Play;
+using Share7.Infrastructure.Multiplayer;
 using Share7.Infrastructure.Persistence;
 
 namespace Share7.Infrastructure.Play;
@@ -109,6 +111,8 @@ public class GameModeService : IGameModeService
         public required string EconomyProfileKey { get; init; }
         public required int SortOrder { get; init; }
         public required bool IsDefault { get; init; }
+        public required string? WinRuleJson { get; init; }
+        public required bool Ranked { get; init; }
 
         public GameModeDto ToDto(DateTime now) => new()
         {
@@ -131,7 +135,11 @@ public class GameModeService : IGameModeService
             CountsTowardRanking = CountsTowardRanking,
             EconomyProfileKey = EconomyProfileKey,
             SortOrder = SortOrder,
-            IsDefault = IsDefault
+            IsDefault = IsDefault,
+
+            // Parsed here rather than projected: it is JSON, and parsing is a method call SQL cannot run.
+            WinRule = MatchRuleMapping.ToDto(MatchWinRule.Parse(WinRuleJson)),
+            Ranked = Ranked
         };
     }
 
@@ -161,6 +169,8 @@ public class GameModeService : IGameModeService
             CountsTowardRanking = m.CountsTowardRanking,
             EconomyProfileKey = m.EconomyProfile != null ? m.EconomyProfile.ProfileKey : defaultProfileKey,
             SortOrder = m.SortOrder,
-            IsDefault = m.IsDefault
+            IsDefault = m.IsDefault,
+            WinRuleJson = m.WinRuleJson,
+            Ranked = m.Ranked
         };
 }

@@ -43,4 +43,16 @@ public interface ISessionLessonMatcher
     /// </summary>
     Task<ServiceResult> NarrowForSeatAsync(
         Guid sessionId, Guid userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Stamps a subject-scoped session's lesson if it has none yet, by the same rule a full roster
+    /// uses — least practised first, then earliest in the curriculum, ordered through
+    /// <paramref name="userId"/>'s view of the tree.
+    /// <para>
+    /// For a match starting below the size that would have stamped it on a seat: a host starting
+    /// alone, where the game allows one player. **A match never runs without the lesson it plays.**
+    /// A no-op for a session that already has one, or that was never subject-scoped.
+    /// </para>
+    /// </summary>
+    Task EnsureLessonAsync(Guid sessionId, Guid userId, CancellationToken cancellationToken = default);
 }

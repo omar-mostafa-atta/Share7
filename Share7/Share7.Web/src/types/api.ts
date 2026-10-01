@@ -746,6 +746,10 @@ export interface MultiplayerSessionSummaryDto {
 export interface MultiplayerAdminSessionsDto {
   sessions: MultiplayerSessionSummaryDto[]
   totalMatching: number
+  /** Sessions per state name across the whole game, not just the rows returned. Absent on an older server. */
+  stateCounts?: Record<string, number>
+  /** Seats still held in ended sessions — always 0 unless a close path has a defect. */
+  orphanedSeats?: number
   serverTimeUtc: string
 }
 
@@ -1352,6 +1356,33 @@ export interface GameModeAdminDto {
   translations: GameModeTranslationRequest[]
   /** How many runs have been recorded in this mode — what deleting it would detach. */
   runCount: number
+  /** How a match of this mode is won, first criterion first. Empty when the mode crowns nobody. */
+  winRule: MatchWinCriterionDto[]
+  /** The least trustworthy thing the rule ranks on, or null when there is no rule. */
+  winRuleTrust: MatchMetricTrust | null
+  /** Offered as ranked: queued alone, matched by skill, given a monthly rank. */
+  ranked: boolean
+}
+
+/** How far the server can vouch for a match metric. */
+export type MatchMetricTrust = 'verified' | 'bounded' | 'reported'
+
+/** One step of a win rule: what is measured, and which way wins. */
+export interface MatchWinCriterionDto {
+  /** `correct_answers`, `accuracy`, `duration_ms`, `outcome`, or `signal:<kind>`. */
+  metric: string
+  order: 'higher' | 'lower'
+  /** Read-only; sent back freely and ignored on save. */
+  trust?: MatchMetricTrust | null
+}
+
+/** Something a win rule may rank on, from `GET /api/admin/modes/win-metrics`. */
+export interface MatchMetricOptionDto {
+  metric: string
+  trust: MatchMetricTrust
+  /** `answers` (graded attempts) or `run`. */
+  source: 'answers' | 'run'
+  suggestedOrder: 'higher' | 'lower'
 }
 
 export interface SaveGameModeRequest {
@@ -1373,6 +1404,13 @@ export interface SaveGameModeRequest {
   economyProfileId: string | null
   sortOrder: number
   translations: GameModeTranslationRequest[]
+  /**
+   * The mode's win rule. **Omitted or null keeps what is saved**; an empty list removes it. This
+   * console always sends the rule it shows, so what the admin sees is what is stored.
+   */
+  winRule?: MatchWinCriterionDto[] | null
+  /** Offer as ranked. Omitted or null keeps what is saved. Needs Versus and a win rule. */
+  ranked?: boolean | null
 }
 
 export interface GameWorldTranslationRequest {

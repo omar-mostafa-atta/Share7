@@ -58,6 +58,10 @@ using Share7.Infrastructure.Users;
 using Share7.Infrastructure.Games;
 using Share7.Infrastructure.Identity;
 using Share7.Infrastructure.Multiplayer;
+using Share7.Infrastructure.Feed;
+using Share7.Infrastructure.Social;
+using Share7.Application.Feed;
+using Share7.Application.Social;
 using Share7.Infrastructure.Progression;
 using Share7.Infrastructure.Identity.ExternalAuth;
 using Share7.Application.Admin.Interfaces;
@@ -87,8 +91,18 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
+        // The feed's wake-up: interceptors that notice events committing and wake the players' waiting
+        // reads. Singletons, because the waiting reads live across requests.
+        services.AddSingleton<PlayerEventSignal>();
+        services.AddSingleton<PlayerEventCommitTracker>();
+        services.AddSingleton<PlayerEventSaveInterceptor>();
+        services.AddSingleton<PlayerEventTransactionInterceptor>();
+
+        services.AddDbContext<ApplicationDbContext>((sp, options) =>
+            options.UseSqlServer(configuration.GetConnectionString("DefaultConnection"))
+                .AddInterceptors(
+                    sp.GetRequiredService<PlayerEventSaveInterceptor>(),
+                    sp.GetRequiredService<PlayerEventTransactionInterceptor>()));
 
         services.AddIdentityCore<ApplicationUser>(options =>
             {
@@ -370,11 +384,42 @@ public static class DependencyInjection
         services.AddScoped<MultiplayerSessionService>();
         services.AddScoped<IMultiplayerSessionService>(sp => sp.GetRequiredService<MultiplayerSessionService>());
         services.AddScoped<ISessionLessonMatcher, SessionLessonMatcher>();
+
+        // The name on each seat. Reuses the leaderboards' handle issuer so a child has one public
+        // name across the platform — see RosterNameResolver and MultiplayerOptions.RosterNames.
+        services.AddScoped<IRosterNameResolver, RosterNameResolver>();
         services.AddScoped<IMatchmakingService, MatchmakingService>();
+
+        // Match verdicts, derived from the players' own settled results under each mode's win rule.
+        services.AddScoped<IMatchResultService, MatchResultService>();
+        services.AddScoped<ITransportAuthService, TransportAuthService>();
+        services.AddScoped<SessionInvitationService>();
+        services.AddScoped<ISessionInvitationService>(sp => sp.GetRequiredService<SessionInvitationService>());
+        services.AddScoped<IChallengeService, ChallengeService>();
+        services.AddScoped<IPartyService, PartyService>();
+        services.AddScoped<IRatingService, RatingService>();
+        services.AddScoped<IMatchmakingTicketService, MatchmakingTicketService>();
+        services.AddScoped<ITournamentService, TournamentService>();
+
+        // The player feed and the social seams (MultiplayerPlatform.md §6.2, §10.2).
+        services.AddScoped<IPlayerEventPublisher, PlayerEventPublisher>();
+        services.AddScoped<IPlayerEventFeed, PlayerEventFeed>();
+        services.AddScoped<IBlockList, BlockList>();
+        services.AddScoped<ISocialConsent, SocialConsent>();
+        services.AddScoped<IFriendGraph, FriendGraph>();
+        services.AddScoped<IFriendService, FriendService>();
+        services.AddScoped<ISocialPolicy, SocialPolicy>();
+        services.AddScoped<IPresenceReader, PresenceService>();
+        services.AddScoped<ISocialService, SocialService>();
         services.AddScoped<IMultiplayerAdminService, MultiplayerAdminService>();
 
+        // When this process started taking traffic, so a restart is not read as every host going
+        // quiet at once — see SweeperWarmup. A singleton, first resolved by the hosted sweeper below
+        // as the host starts.
+        services.AddSingleton(_ => new SweeperWarmup());
         services.AddScoped<IMultiplayerSweepService, MultiplayerSweepService>();
         services.AddHostedService<MultiplayerSessionSweeper>();
+        services.AddHostedService<MatchmakingWorker>();
 
         // Leaderboards. Note there is no ILeaderboardWriteService and there must never be one:
         // ranking is projected from results the server graded, so the only write seam is
@@ -390,7 +435,9 @@ public static class DependencyInjection
         // Settlement observers. Registered against the interface rather than called from the
         // settlement service directly, so leaderboard machinery never grows a dependency on every
         // feature that cares about a final rank.
-        services.AddScoped<ICycleSettlementObserver, EventPrizeAwardService>();
+        // Also by its own type: a tournament hosted by an event pays the event's table through it.
+        services.AddScoped<EventPrizeAwardService>();
+        services.AddScoped<ICycleSettlementObserver>(sp => sp.GetRequiredService<EventPrizeAwardService>());
         services.AddScoped<ILeaderboardJobRunner, LeaderboardJobRunner>();
         services.AddScoped<ILeaderboardService, LeaderboardService>();
         services.AddScoped<ILeaderboardAdminService, LeaderboardAdminService>();

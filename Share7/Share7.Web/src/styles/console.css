@@ -2447,3 +2447,105 @@ button.s7-scope-twist:hover { color: var(--s7-ink); }
 .s7-link-handover > svg { flex: 0 0 auto; color: var(--s7-brand); }
 .s7-link-handover > code { flex: 1 1 auto; min-width: 0; }
 .s7-link-handover > .s7-btn { flex: 0 0 auto; }
+
+/* ───────────────────────────────────────────────────────────────────
+   How a match is won — the ordered measures a versus mode is decided by
+   ─────────────────────────────────────────────────────────────────── */
+
+.s7-winrule { display: flex; flex-direction: column; gap: 0.6rem; }
+.s7-winrule > .s7-subhead { margin-bottom: 0; }
+.s7-winrule .s7-hint { margin-top: 0; }
+
+/* The rule read back as one sentence — what an operator checks before saving. */
+.s7-winrule-sentence {
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--s7-ink);
+  background: var(--s7-bg-alt);
+  border: 1px solid var(--s7-line);
+  border-radius: var(--s7-radius);
+  text-wrap: pretty;
+}
+
+.s7-winrule-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.s7-winrule-row {
+  display: grid;
+  grid-template-columns: 4.25rem minmax(0, 1fr) auto;
+  grid-template-areas:
+    'step pick actions'
+    '.    trust trust';
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+  padding: 0.6rem 0.65rem;
+  background: var(--s7-surface);
+  border: 1px solid var(--s7-line);
+  border-radius: var(--s7-radius);
+}
+
+.s7-winrule-step {
+  grid-area: step;
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: var(--s7-muted);
+}
+.s7-winrule-row:first-child .s7-winrule-step { color: var(--s7-ink); }
+
+.s7-winrule-pick {
+  grid-area: pick;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  min-width: 0;
+}
+.s7-winrule-pick > :first-child { flex: 1 1 11rem; min-width: 0; }
+.s7-winrule-pick > .s7-input { flex: 0 1 8.5rem; min-width: 6rem; }
+.s7-winrule-pick > :last-child { flex: 0 1 9.5rem; min-width: 8rem; }
+
+.s7-winrule-trust { grid-area: trust; justify-self: start; cursor: help; }
+.s7-winrule-trust .s7-badge { display: inline-flex; align-items: center; gap: 0.3rem; }
+
+.s7-winrule-actions { grid-area: actions; display: flex; gap: 0.15rem; }
+.s7-winrule-actions .s7-btn-icon { width: 30px; height: 30px; }
+
+@media (max-width: 34rem) {
+  .s7-winrule-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'step actions'
+      'pick pick'
+      'trust trust';
+  }
+  .s7-winrule-pick > * { flex: 1 1 100%; }
+}
+
+.s7-winrule-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--s7-ink-soft);
+  background: var(--s7-bg-alt);
+  border: 1px solid var(--s7-line);
+  border-radius: var(--s7-radius);
+}
+.s7-winrule-note > svg { flex: 0 0 auto; margin-top: 0.1rem; color: var(--s7-muted); }
+.s7-winrule-note.is-warning {
+  color: var(--s7-ink);
+  background: var(--s7-warning-bg);
+  border-color: color-mix(in srgb, var(--s7-warning) 40%, transparent);
+}
+.s7-winrule-note.is-warning > svg { color: var(--s7-warning-ink); }

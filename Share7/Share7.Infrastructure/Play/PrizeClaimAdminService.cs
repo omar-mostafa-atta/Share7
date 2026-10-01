@@ -1,8 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using Share7.Application.Audit.Interfaces;
 using Share7.Application.Common.Models;
 using Share7.Application.Curriculum.Interfaces;
 using Share7.Application.Play.Interfaces;
 using Share7.Application.Play.Models;
+using Share7.Domain.Audit;
+using Share7.Domain.Multiplayer;
 using Share7.Domain.Play;
 using Share7.Infrastructure.Persistence;
 
@@ -16,16 +19,28 @@ namespace Share7.Infrastructure.Play;
 /// how it ended. It holds no address, no phone number and no payment detail — the users are children,
 /// and a prize is not a reason to start collecting any of that.
 /// </para>
+/// <para>
+/// <b>Every move is audited</b>, in the same transaction as the move: a prize decided by a person is
+/// a decision someone may later have to explain.
+/// </para>
 /// </summary>
 public class PrizeClaimAdminService : IPrizeClaimAdminService
 {
+    /// <summary>Matches before "the same opponent most of the time" means anything.</summary>
+    private const int RepeatOpponentMinMatches = 4;
+
+    /// <summary>Wins handed over before "most wins were handed over" means anything.</summary>
+    private const int ForfeitMinWins = 3;
+
     private readonly ApplicationDbContext _dbContext;
     private readonly ILanguageService _languageService;
+    private readonly IAuditLog _audit;
 
-    public PrizeClaimAdminService(ApplicationDbContext dbContext, ILanguageService languageService)
+    public PrizeClaimAdminService(ApplicationDbContext dbContext, ILanguageService languageService, IAuditLog audit)
     {
         _dbContext = dbContext;
         _languageService = languageService;
+        _audit = audit;
     }
 
     public async Task<IReadOnlyList<PrizeClaimAdminDto>> ListAsync(
@@ -61,6 +76,10 @@ public class PrizeClaimAdminService : IPrizeClaimAdminService
             .Where(n => userIds.Contains(n.UserId))
             .ToDictionaryAsync(n => n.UserId, n => n.Handle, cancellationToken);
 
+        var signals = await SignalsAsync(
+            claims.Where(c => c.Award is not null).Select(c => (c.Award!.EventId, c.UserId)).Distinct().ToList(),
+            cancellationToken);
+
         return claims
             .Select(c => new PrizeClaimAdminDto
             {
@@ -81,7 +100,8 @@ public class PrizeClaimAdminService : IPrizeClaimAdminService
                 ReviewedAtUtc = c.ReviewedAtUtc,
                 FulfilledAtUtc = c.FulfilledAtUtc,
                 ReviewNote = c.ReviewNote,
-                ReviewedByUserId = c.ReviewedByUserId
+                ReviewedByUserId = c.ReviewedByUserId,
+                Signals = c.Award is { } award ? signals.GetValueOrDefault((award.EventId, c.UserId)) : null
             })
             .ToList();
     }
@@ -114,6 +134,7 @@ public class PrizeClaimAdminService : IPrizeClaimAdminService
                 new Dictionary<string, object?> { ["state"] = WireEnum.ToWire(claim.State) });
 
         var now = DateTime.UtcNow;
+        var from = claim.State;
 
         claim.State = target;
         claim.ReviewNote = string.IsNullOrWhiteSpace(request.Note) ? claim.ReviewNote : request.Note.Trim();
@@ -139,10 +160,118 @@ public class PrizeClaimAdminService : IPrizeClaimAdminService
             award.UpdatedAtUtc = now;
         }
 
+        // Ids and states only: the note is free text an operator wrote, and may name a person.
+        _audit.Record(new AuditEntry(
+            AuditActions.PrizeClaimReviewed,
+            AuditAreas.Competitions,
+            $"Moved a prize claim from {WireEnum.ToWire(from)} to {WireEnum.ToWire(target)}.",
+            "prize_claim",
+            claim.Id.ToString(),
+            new { claim.AwardId, eventId = claim.Award?.EventId, from = WireEnum.ToWire(from), to = WireEnum.ToWire(target) },
+            ActingUserId: reviewedByUserId));
+
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         var updated = await ListAsync(null, claim.Award?.EventId, cancellationToken);
 
         return ServiceResult<PrizeClaimAdminDto>.Success(updated.First(c => c.ClaimId == claimId));
+    }
+
+    /// <summary>
+    /// The review signals for each (event, winner): their decided matches in the event and how they
+    /// went, plus tournament pairings they won without playing. Read at review time from the results
+    /// themselves — nothing is stored, so nothing can drift from what happened.
+    /// </summary>
+    private async Task<Dictionary<(Guid EventId, Guid UserId), PrizeClaimSignalsDto>> SignalsAsync(
+        IReadOnlyList<(Guid EventId, Guid UserId)> keys, CancellationToken cancellationToken)
+    {
+        var signals = new Dictionary<(Guid, Guid), PrizeClaimSignalsDto>();
+
+        foreach (var group in keys.GroupBy(k => k.EventId))
+        {
+            var eventId = group.Key;
+            var users = group.Select(k => k.UserId).Distinct().ToList();
+
+            var mine = await _dbContext.MatchPlacements
+                .AsNoTracking()
+                .Where(p => users.Contains(p.UserId)
+                            && _dbContext.MatchResults.Any(r => r.SessionId == p.SessionId
+                                                                && r.EventId == eventId
+                                                                && r.State == MatchResultState.Decided))
+                .Select(p => new { p.SessionId, p.UserId, p.IsWinner, p.Flagged })
+                .ToListAsync(cancellationToken);
+
+            var sessionIds = mine.Select(p => p.SessionId).Distinct().ToList();
+
+            var everyone = sessionIds.Count == 0
+                ? []
+                : await _dbContext.MatchPlacements
+                    .AsNoTracking()
+                    .Where(p => sessionIds.Contains(p.SessionId))
+                    .Select(p => new { p.SessionId, p.UserId, p.Forfeited })
+                    .ToListAsync(cancellationToken);
+
+            var walkovers = await _dbContext.TournamentMatches
+                .AsNoTracking()
+                .Where(m => m.WinnerUserId != null
+                            && users.Contains(m.WinnerUserId.Value)
+                            && (m.Outcome == TournamentOutcomes.Walkover || m.Outcome == TournamentOutcomes.Forfeit)
+                            && _dbContext.Tournaments.Any(t => t.Id == m.TournamentId && t.EventId == eventId))
+                .GroupBy(m => m.WinnerUserId!.Value)
+                .Select(g => new { UserId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.UserId, x => x.Count, cancellationToken);
+
+            var bySession = everyone.ToLookup(p => p.SessionId);
+
+            foreach (var user in users)
+            {
+                var played = mine.Where(p => p.UserId == user).ToList();
+                var handedOver = walkovers.GetValueOrDefault(user);
+
+                if (played.Count == 0 && handedOver == 0)
+                    continue;
+
+                var opponents = played
+                    .SelectMany(p => bySession[p.SessionId].Where(o => o.UserId != user).Select(o => o.UserId))
+                    .GroupBy(id => id)
+                    .Select(g => g.Count())
+                    .ToList();
+
+                var wins = played.Count(p => p.IsWinner);
+
+                var winsByForfeit = played.Count(p => p.IsWinner
+                                                      && bySession[p.SessionId].Where(o => o.UserId != user).All(o => o.Forfeited));
+
+                var topShare = played.Count == 0 || opponents.Count == 0 ? 0 : (double)opponents.Max() / played.Count;
+                var flagged = played.Count(p => p.Flagged);
+
+                var warnings = new List<string>();
+
+                if (played.Count >= RepeatOpponentMinMatches && topShare >= 0.5)
+                    warnings.Add("repeat_opponent");
+
+                var unplayedWins = winsByForfeit + handedOver;
+
+                if (unplayedWins >= ForfeitMinWins && unplayedWins * 2 >= wins + handedOver)
+                    warnings.Add("opponent_forfeits");
+
+                if (flagged > 0)
+                    warnings.Add("flagged_matches");
+
+                signals[(eventId, user)] = new PrizeClaimSignalsDto
+                {
+                    Matches = played.Count,
+                    Wins = wins,
+                    DistinctOpponents = opponents.Count,
+                    TopOpponentShare = Math.Round(topShare, 2),
+                    WinsByForfeit = winsByForfeit,
+                    Walkovers = handedOver,
+                    FlaggedMatches = flagged,
+                    Warnings = warnings
+                };
+            }
+        }
+
+        return signals;
     }
 }

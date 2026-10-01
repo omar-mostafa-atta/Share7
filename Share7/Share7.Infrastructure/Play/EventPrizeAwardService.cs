@@ -5,6 +5,7 @@ using Share7.Application.Leaderboards.Interfaces;
 using Share7.Application.Rewards.Interfaces;
 using Share7.Application.Rewards.Models;
 using Share7.Domain.Leaderboards;
+using Share7.Domain.Multiplayer;
 using Share7.Domain.Play;
 using Share7.Infrastructure.Persistence;
 
@@ -52,6 +53,11 @@ public class EventPrizeAwardService : ICycleSettlementObserver
         // The ordinary case: a weekly board settling, with no event bound to it.
         if (playEvent is null) return;
 
+        // An event that hosted a tournament is paid by the bracket's final placings, never by its
+        // ladder as well — the ladder there only counts matches, and one prize table pays once.
+        if (await _dbContext.Tournaments.AnyAsync(t => t.EventId == playEvent.Id, cancellationToken))
+            return;
+
         if (playEvent.CancelledAtUtc is not null || !playEvent.IsActive)
         {
             // A called-off event pays nothing, however far its ladder got. Said out loud in the log
@@ -62,13 +68,6 @@ public class EventPrizeAwardService : ICycleSettlementObserver
             return;
         }
 
-        var tiers = playEvent.PrizeTiers
-            .OrderBy(t => t.Width)
-            .ThenBy(t => t.FromRank)
-            .ToList();
-
-        if (tiers.Count == 0) return;
-
         // Only the cohort the prize table ranks within. An event that pays per grade has its placings
         // in the Grade rows, and the All rows are a ladder nobody is being paid off.
         var placings = await _dbContext.LeaderboardSettlements
@@ -76,9 +75,70 @@ public class EventPrizeAwardService : ICycleSettlementObserver
             .Where(s => s.CycleId == cycleId && s.Cohort == playEvent.PrizeCohort && s.FinalRank > 0)
             .OrderBy(s => s.CohortKey)
             .ThenBy(s => s.FinalRank)
+            .Select(s => new Placing(s.UserId, s.Cohort, s.CohortKey, s.FinalRank, s.Value))
             .ToListAsync(cancellationToken);
 
-        if (placings.Count == 0) return;
+        await PayAsync(playEvent, placings, cancellationToken);
+    }
+
+    /// <summary>
+    /// Pays an event's prize table from the final placings of the tournament it hosted — the
+    /// bracket's placings standing where a ladder's ranks would. One table over everyone, whatever the
+    /// event's prize cohort: a bracket is one field. A disqualified entrant is never placed, so never
+    /// paid. Safe to run again: every award is claimed by its unique index before anything is paid.
+    /// <para>
+    /// Places are shared on a tie (two semi-final losers are both 3rd). Where a tier has fewer prizes
+    /// than the players sharing its places, the better seed is served first — the same order the
+    /// bracket itself was drawn in.
+    /// </para>
+    /// </summary>
+    public async Task AwardTournamentAsync(Guid tournamentId, CancellationToken cancellationToken = default)
+    {
+        var tournament = await _dbContext.Tournaments
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Id == tournamentId && t.State == TournamentState.Completed, cancellationToken);
+
+        if (tournament?.EventId is not { } eventId)
+            return;
+
+        var playEvent = await _dbContext.PlayEvents
+            .AsNoTracking()
+            .Include(e => e.PrizeTiers)
+            .FirstOrDefaultAsync(e => e.Id == eventId, cancellationToken);
+
+        if (playEvent is null)
+            return;
+
+        if (playEvent.CancelledAtUtc is not null || !playEvent.IsActive)
+        {
+            _logger.LogWarning(
+                "Tournament {TournamentId} finished inside event {EventKey}, which is cancelled or inactive; no prizes were awarded.",
+                tournamentId, playEvent.EventKey);
+            return;
+        }
+
+        var placings = await _dbContext.TournamentEntries
+            .AsNoTracking()
+            .Where(e => e.TournamentId == tournamentId && e.Placement != null && e.State != TournamentEntryState.Disqualified)
+            .OrderBy(e => e.Placement)
+            .ThenBy(e => e.Seed)
+            .Select(e => new Placing(e.UserId, LeaderboardCohort.All, Guid.Empty, e.Placement!.Value, e.Wins))
+            .ToListAsync(cancellationToken);
+
+        await PayAsync(playEvent, placings, cancellationToken);
+    }
+
+    /// <summary>A finishing place an event pays against: who, on which ladder, where, and the value it was won with.</summary>
+    private sealed record Placing(Guid UserId, LeaderboardCohort Cohort, Guid CohortKey, int FinalRank, long Value);
+
+    private async Task PayAsync(PlayEvent playEvent, List<Placing> placings, CancellationToken cancellationToken)
+    {
+        var tiers = playEvent.PrizeTiers
+            .OrderBy(t => t.Width)
+            .ThenBy(t => t.FromRank)
+            .ToList();
+
+        if (tiers.Count == 0 || placings.Count == 0) return;
 
         // How many of each limited prize have already gone out, so a retry does not re-issue them and
         // a tier with three physical prizes does not promise ten.
@@ -124,7 +184,7 @@ public class EventPrizeAwardService : ICycleSettlementObserver
     private async Task<bool> AwardAsync(
         PlayEvent playEvent,
         EventPrizeTier tier,
-        LeaderboardSettlement placing,
+        Placing placing,
         CancellationToken cancellationToken)
     {
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);

@@ -105,6 +105,8 @@ export function blankMode(gameId: string): SaveGameModeRequest {
     economyProfileId: null,
     sortOrder: 0,
     translations: [],
+    winRule: [],
+    ranked: false,
   }
 }
 
@@ -128,6 +130,11 @@ export function modeToRequest(mode: GameModeAdminDto): SaveGameModeRequest {
     economyProfileId: mode.economyProfileId,
     sortOrder: mode.sortOrder,
     translations: mode.translations.map((t) => ({ ...t })),
+
+    // Always sent, so what is on screen is what is stored. (The API also keeps the rule when this is
+    // missing, which is what protects it from any client that predates rules.)
+    winRule: (mode.winRule ?? []).map((c) => ({ metric: c.metric, order: c.order })),
+    ranked: mode.ranked,
   }
 }
 
