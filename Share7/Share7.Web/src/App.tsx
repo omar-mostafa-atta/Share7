@@ -8,6 +8,8 @@ import { setApiErrorHandler } from './lib/client'
 import { ADMIN_PORTAL } from './lib/portals'
 import { useToasts } from './store/toast'
 import { Analytics } from './routes/Analytics'
+import { SocialOperations } from './routes/SocialOperations'
+import { BrainPass } from './routes/BrainPass'
 import { Organizations } from './routes/Organizations'
 import { Exams } from './routes/Exams'
 import { Currencies } from './routes/Currencies'
@@ -99,6 +101,8 @@ export function App() {
           <Route path="/modes" element={<PlayModes />} />
 
           <Route path="/objectives" element={<Objectives />} />
+          <Route path="/brain-pass" element={<BrainPass />} />
+          <Route path="/social" element={<SocialOperations />} />
           <Route path="/leaderboards" element={<Leaderboards />} />
 
           {/* `/events` belongs to the telemetry event registry, which predates this.

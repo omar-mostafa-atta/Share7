@@ -43,6 +43,8 @@ public class MultiplayerSessionConfiguration : IEntityTypeConfiguration<Multipla
     public void Configure(EntityTypeBuilder<MultiplayerSession> builder)
     {
         builder.ToTable("MultiplayerSessions");
+        builder.Property(s => s.DirectorySequence).UseIdentityColumn();
+        builder.HasIndex(s => new { s.Visibility, s.State, s.ProtocolVersion, s.DirectorySequence }).HasDatabaseName("IX_Session_PublicDirectory");
         builder.HasKey(s => s.Id);
 
         builder.Property(s => s.TransportSessionName).IsRequired().HasMaxLength(64);

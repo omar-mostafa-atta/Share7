@@ -32,8 +32,8 @@ namespace Share7.Infrastructure.Multiplayer;
 /// <b>Locking.</b> Everything that changes a tournament's shape — registering, starting, advancing a
 /// round, withdrawing, an organiser's decision — takes the tournament's row first, so two of them
 /// take turns. Pressing play is the exception: it locks only its own pairing, so a hundred pairings
-/// opening their rooms at once do not queue behind each other. A pairing's deadline and its first
-/// press meet on the pairing row's guarded update, and whichever commits first decides.
+/// opening their rooms at once do not queue behind each other. Play also holds a shared tournament
+/// lock, so cancellation, withdrawal and advancement cannot invalidate its reads before it commits.
 /// </para>
 /// <para>
 /// <b>Results are read, never pushed.</b> Nothing in the match-result path knows tournaments exist:
@@ -415,21 +415,30 @@ public sealed class TournamentService : ITournamentService
         if (tournament.State == TournamentState.Running && await HasDueWorkAsync(tournament, DateTime.UtcNow, cancellationToken))
             await AdvanceAndFinishAsync(tournamentId, cancellationToken);
 
-        var running = await _dbContext.Tournaments.AsNoTracking()
-            .AnyAsync(t => t.Id == tournamentId && t.State == TournamentState.Running, cancellationToken);
-
         var match = await _dbContext.TournamentMatches.AsNoTracking()
             .FirstOrDefaultAsync(m => m.Id == matchId && m.TournamentId == tournamentId, cancellationToken);
 
         if (match is null || !match.Involves(userId))
             return PlayFailure(ApiErrors.TournamentMatchNotFound, ServiceErrorKind.NotFound, "That pairing isn't yours.");
 
+        if (!_options.EffectiveProtocolVersions.Contains(request.ProtocolVersion))
+            return PlayFailure(ApiErrors.ProtocolVersionMismatch, ServiceErrorKind.Conflict, "This game version can't join the match.");
+
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        // Shared across independent pairings, exclusive against every organiser/advance mutation.
+        // Re-read under this lock: cancellation can have committed after the preflight reads.
+        await _dbContext.Database.ExecuteSqlRawAsync(
+            "SELECT [Id] FROM [Tournaments] WITH (HOLDLOCK, ROWLOCK) WHERE [Id] = {0}",
+            [tournamentId], cancellationToken);
+        tournament = await _dbContext.Tournaments.AsNoTracking().FirstAsync(t => t.Id == tournamentId, cancellationToken);
         var now = DateTime.UtcNow;
 
         var stillIn = await _dbContext.TournamentEntries.AnyAsync(
             e => e.TournamentId == tournamentId && e.UserId == userId && e.State == TournamentEntryState.Entered, cancellationToken);
 
-        if (!running || !stillIn || match.State == TournamentMatchState.Completed || match.DeadlineAtUtc <= now)
+        if (tournament.State != TournamentState.Running || !stillIn || match.Round != tournament.CurrentRound
+            || match.State == TournamentMatchState.Completed || match.DeadlineAtUtc <= now)
             return PlayFailure(ApiErrors.TournamentMatchClosed, ServiceErrorKind.Conflict, "This match is over, or its time ran out.");
 
         if (match.PlayerAUserId is not { } playerA || match.PlayerBUserId is not { } playerB)
@@ -437,7 +446,10 @@ public sealed class TournamentService : ITournamentService
 
         var isA = playerA == userId;
 
-        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+        if (await _dbContext.PlayerBlocks.AnyAsync(
+                b => (b.UserId == playerA && b.BlockedUserId == playerB)
+                     || (b.UserId == playerB && b.BlockedUserId == playerA), cancellationToken))
+            return PlayFailure(ApiErrors.TournamentMatchClosed, ServiceErrorKind.Conflict, "This pairing is unavailable.");
 
         // Check in, guarded on the pairing still being playable — the row lock this takes is what a
         // deadline settling the same pairing meets.
@@ -459,8 +471,11 @@ public sealed class TournamentService : ITournamentService
         // The other of the pair opened the room already: it is this caller's answer, to join once it is up.
         if (await _sessions.LiveTournamentRoomAsync(matchId, cancellationToken) is { } opened)
         {
+            var currentRoom = await _sessions.DescribeAsync(opened, cancellationToken);
+            if (currentRoom.ProtocolVersion != request.ProtocolVersion)
+                return PlayFailure(ApiErrors.ProtocolVersionMismatch, ServiceErrorKind.Conflict, "This game version can't join the match.");
             await transaction.CommitAsync(cancellationToken);
-            return await PlayAnswerAsync(userId, matchId, await _sessions.DescribeAsync(opened, cancellationToken), cancellationToken);
+            return await PlayAnswerAsync(userId, matchId, currentRoom, cancellationToken);
         }
 
         var modeKey = await _dbContext.GameModes.AsNoTracking()
@@ -550,15 +565,17 @@ public sealed class TournamentService : ITournamentService
         if (!asAdmin && (request.CohortId is not { } teacherCohort || !await TeachesAsync(userId, teacherCohort, cancellationToken)))
             return Failure(ApiErrors.TournamentNotOrganiser, ServiceErrorKind.Forbidden, "Only a teacher of the class can create its tournament.");
 
-        if (request.Format is not (TournamentFormat.SingleElimination or TournamentFormat.Swiss))
-            return Failure(ApiErrors.ValidationFailed, ServiceErrorKind.Validation, "Format is SingleElimination or Swiss.");
+        if (request.Format is not (TournamentFormat.SingleElimination or TournamentFormat.Swiss or TournamentFormat.RoundRobin))
+            return Failure(ApiErrors.ValidationFailed, ServiceErrorKind.Validation, "Unknown tournament format.");
+        if (request.Format == TournamentFormat.RoundRobin && (request.MaxEntrants ?? 16) > 16)
+            return Failure(ApiErrors.ValidationFailed, ServiceErrorKind.Validation, "Round-robin leagues support at most sixteen players.");
 
         var swissRounds = request.SwissRounds ?? 0;
 
         if (swissRounds < 0 || swissRounds > TournamentBrackets.MaxSwissRounds)
             return Failure(ApiErrors.ValidationFailed, ServiceErrorKind.Validation, $"A Swiss runs 1 to {TournamentBrackets.MaxSwissRounds} rounds.");
 
-        var maxEntrants = request.MaxEntrants ?? Math.Min(64, _options.TournamentMaxEntrants);
+        var maxEntrants = request.MaxEntrants ?? Math.Min(request.Format == TournamentFormat.RoundRobin ? 16 : 64, _options.TournamentMaxEntrants);
 
         if (maxEntrants < 2 || maxEntrants > _options.TournamentMaxEntrants)
             return Failure(ApiErrors.ValidationFailed, ServiceErrorKind.Validation, $"A tournament takes 2 to {_options.TournamentMaxEntrants} players.");
@@ -632,7 +649,15 @@ public sealed class TournamentService : ITournamentService
             tournament.Id.ToString(),
             new { format = tournament.Format.ToString(), tournament.EventId, tournament.CohortId, tournament.ModeId, tournament.MaxEntrants }));
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (request.EventId is not null && IsUniqueViolation(exception))
+        {
+            Detach();
+            return Failure(ApiErrors.TournamentEventUnsuitable, ServiceErrorKind.Conflict, "That event already has a tournament.");
+        }
 
         _logger.LogInformation("Tournament {TournamentId} created by {UserId} ({Format}, event {EventId}, class {CohortId}).",
             tournament.Id, userId, tournament.Format, tournament.EventId, tournament.CohortId);
@@ -680,6 +705,13 @@ public sealed class TournamentService : ITournamentService
         if (playEvent.GameId != gameId || playEvent.ModeId != modeId)
             return "A tournament plays its event's own game and mode.";
 
+        if (await _dbContext.EventPrizeTiers.AnyAsync(t => t.EventId == eventId && t.Kind == EventPrizeKind.RealWorld, cancellationToken))
+        {
+            var rule = (await _dbContext.GameModes.AsNoTracking().FirstOrDefaultAsync(m => m.Id == modeId, cancellationToken))?.WinRule;
+            if (rule is null || rule.Trust != MatchMetricTrust.Verified)
+                return "Real-prize tournaments require entirely server-verified win criteria.";
+        }
+
         if (playEvent.MaxEntriesPerDay is not null || playEvent.MaxEntriesTotal is not null)
             return "Remove the event's entry limits first: the bracket decides how many matches each player plays.";
 
@@ -704,7 +736,7 @@ public sealed class TournamentService : ITournamentService
     }
 
     private static int RoundsFor(TournamentFormat format, int entrants, int swissRounds) =>
-        format == TournamentFormat.Swiss
+        format == TournamentFormat.RoundRobin ? TournamentBrackets.RoundRobinRounds(entrants) : format == TournamentFormat.Swiss
             ? TournamentBrackets.SwissRoundsFor(entrants, swissRounds)
             : TournamentBrackets.EliminationRounds(entrants);
 
@@ -1009,6 +1041,8 @@ public sealed class TournamentService : ITournamentService
 
                 var pairings = tournament.Format == TournamentFormat.SingleElimination
                     ? TournamentBrackets.SeparateBlocked(TournamentBrackets.EliminationFirstRound(seeded), pass.IsBlocked, id => entries[id].Seed)
+                    : tournament.Format == TournamentFormat.RoundRobin
+                    ? TournamentBrackets.RoundRobinRound(seeded, 1, _ => true, pass.IsBlocked)
                     : TournamentBrackets.SwissRound(
                         seeded.Select(id => new SwissPlayer(id, 0, entries[id].Seed, false)).ToList(), 1, (_, _) => false, pass.IsBlocked);
 
@@ -1191,8 +1225,11 @@ public sealed class TournamentService : ITournamentService
 
         if (!moved)
         {
-            await transaction.RollbackAsync(cancellationToken);
-            Detach();
+            // Rotate the bounded sweeper's queue even when this tournament is waiting. Otherwise
+            // fifty idle tournaments stay oldest forever and starve every tournament behind them.
+            tournament.AdvancedAtUtc = now;
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
             return (false, false);
         }
 
@@ -1218,6 +1255,17 @@ public sealed class TournamentService : ITournamentService
 
         var room = match.SessionId is { } roomId ? rooms.GetValueOrDefault(roomId) : null;
         var started = room?.StartedAtUtc is not null;
+
+        // A block made since seeding is as binding as one that existed in the draw. Never disclose
+        // the block; use the same neutral not-played outcome as an unavoidable blocked draw.
+        if (!started && a is { } blockedA && b is { } blockedB && pass.IsBlocked(blockedA, blockedB))
+        {
+            if (!await CloseRoomIfUnstartedAsync(match, cancellationToken))
+                return false;
+            Settle(pass, match, pass.Tournament.Format == TournamentFormat.SingleElimination ? BetterSeed(pass, match) : null,
+                TournamentOutcomes.NotPlayed);
+            return true;
+        }
 
         // Someone who left the tournament cannot play on. Unless their room is already playing — then
         // its result decides, and they cannot be the one to go through. An open pairing with an empty
@@ -1341,7 +1389,7 @@ public sealed class TournamentService : ITournamentService
     /// </summary>
     private void NoClearWinner(Pass pass, TournamentMatch match, bool played, bool level)
     {
-        if (pass.Tournament.Format == TournamentFormat.Swiss)
+        if (pass.Tournament.Format != TournamentFormat.SingleElimination)
         {
             Settle(pass, match, null, !played || level ? TournamentOutcomes.Draw : TournamentOutcomes.NoResult);
             return;
@@ -1476,7 +1524,7 @@ public sealed class TournamentService : ITournamentService
         pass.Tournament.CurrentRound >= pass.Tournament.RoundCount
 
         // A Swiss with fewer than two left has nobody to pair.
-        || (pass.Tournament.Format == TournamentFormat.Swiss
+        || (pass.Tournament.Format != TournamentFormat.SingleElimination
             && pass.Entries.Values.Count(e => e.State == TournamentEntryState.Entered) < 2);
 
     /// <summary>Writes the next round from the one just completed.</summary>
@@ -1498,6 +1546,11 @@ public sealed class TournamentService : ITournamentService
                 TournamentBrackets.EliminationNextRound(winners, id => pass.Entries[id].Seed),
                 pass.IsBlocked,
                 id => pass.Entries[id].Seed);
+        }
+        else if (tournament.Format == TournamentFormat.RoundRobin)
+        {
+            pairings = TournamentBrackets.RoundRobinRound(pass.Entries.Values.OrderBy(e => e.Seed).Select(e => e.UserId).ToArray(),
+                next, id => IsIn(pass, id), pass.IsBlocked);
         }
         else
         {
@@ -1961,6 +2014,9 @@ public sealed class TournamentService : ITournamentService
             .Where(m => m.TournamentId == tournament.Id && m.Round == tournament.CurrentRound)
             .AnyAsync(m => m.State != TournamentMatchState.Completed
                            && (m.DeadlineAtUtc <= now
+                               || _dbContext.PlayerBlocks.Any(b =>
+                                   (b.UserId == m.PlayerAUserId && b.BlockedUserId == m.PlayerBUserId)
+                                   || (b.UserId == m.PlayerBUserId && b.BlockedUserId == m.PlayerAUserId))
                                || (m.SessionId != null
                                    && (_dbContext.MatchResults.Any(r => r.SessionId == m.SessionId)
                                        || _dbContext.MultiplayerSessions.Any(s => s.Id == m.SessionId
@@ -1988,7 +2044,10 @@ public sealed class TournamentService : ITournamentService
         if (started)
             return false;
 
-        await _sessions.CloseUnstartedAsync(roomId, SessionClosedReason.AdminClosed, cancellationToken);
+        if (!await _sessions.CloseUnstartedAsync(roomId, SessionClosedReason.AdminClosed, cancellationToken)
+            && await _dbContext.MultiplayerSessions.AsNoTracking().AnyAsync(
+                s => s.Id == roomId && s.StartedAtUtc != null, cancellationToken))
+            return false;
         match.SessionId = null;
         return true;
     }

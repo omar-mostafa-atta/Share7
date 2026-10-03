@@ -367,13 +367,16 @@ public class EventPrizeSettlementTests
 
         var approved = await claims.UpdateAsync(
             queued.ClaimId,
-            new UpdatePrizeClaimRequest { State = "awaiting_guardian", Note = "Guardian contacted" },
+            new UpdatePrizeClaimRequest { State = "awaiting_guardian", Note = "Guardian contacted", EligibilityReviewed = true, FraudReviewed = true },
             operatorId);
 
         Assert.True(approved.Succeeded);
 
+        await SocialTest.GuardianConsentAsync(context, userId);
+        var guardianLink = await context.GuardianLinks.Where(g => g.LearnerUserId == userId).Select(g => g.Id).SingleAsync();
+
         var delivered = await claims.UpdateAsync(
-            queued.ClaimId, new UpdatePrizeClaimRequest { State = "fulfilled" }, operatorId);
+            queued.ClaimId, new UpdatePrizeClaimRequest { State = "fulfilled", GuardianConfirmed = true, GuardianLinkId = guardianLink }, operatorId);
 
         Assert.True(delivered.Succeeded);
 

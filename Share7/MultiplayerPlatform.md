@@ -114,9 +114,52 @@ meaning exactly what it meant.
 Suite after Phase 3: **1,028 passing, 17 failing — the same 17 as the baseline** (none multiplayer,
 social or ranked). The frozen game contract and the multiplayer snapshot pass unchanged.
 
+### 0.5 Phase 4 — tournament foundation and remaining load checks (1 Oct 2026)
+
+Resumed from `main` at `ae8c938`: P4's tournament implementation was already present, but its
+verification and client handoff were missing. This continuation completes that backend scope.
+See [MultiplayerCompletion.md](MultiplayerCompletion.md) for rollout and deliberate next stages.
+
+| Change | Proof |
+|---|---|
+| Knockout and Swiss tournaments, classroom authorization, reserved rooms, server-result advancement, organiser decisions and reviewed prizes verified | `TournamentBracketTests`, `TournamentTests`, `TournamentContractTests`; real SQL and HTTP |
+| Cancellation between Play preflight and room creation cannot leave an orphan room | Deterministic regression failed before the shared tournament lock and passes after |
+| A block added after seeding prevents an unstarted pairing, without revealing the block | Deterministic regression failed before the neutral settlement/re-check and passes after |
+| Existing-room Play validates supported and matching protocol versions | `TournamentTests` |
+| One non-cancelled tournament per event, enforced by SQL | `TournamentEventOwnership` migration; five simultaneous creations produce one bracket |
+| Limited prize quantities remain bounded across concurrent payouts | Deterministic last-prize regression failed with two awards for quantity one; passes with tier row locking |
+| The bounded tournament sweeper rotates waiting rows instead of starving later work | 50 waiting tournaments followed by an overdue one; two passes reach and complete it |
+| Last-seat storm, API restart recovery and reusable HTTP load driver | 100 joiners: one success, 99 capacity refusals; abrupt process restart recovers the same tournament room; `Share7.Multiplayer.Load` verified against local Kestrel |
+| Additive Unity/API handoff | Contract §13, API reference §14; frozen snapshots unchanged |
+
+**Validation:** the full suite reports **1,068 passing, 17 failing, 0 skipped (1,085 total)**.
+All 40 added checks pass, as do the frozen game/multiplayer contract checks. The 17 failures remain
+in the pre-existing leaderboard, reward and signal-economy fixture group recorded above; the full
+suite is therefore **not green**. No unrelated production code was changed to mask those failures.
+The API build succeeds with four existing warnings. Fresh isolated SQL databases applied the new
+migration successfully.
+
+From the backend repository root:
+
+```powershell
+dotnet build Share7/Share7/Share7.API.csproj --no-restore -v minimal
+$env:DOTNET_ROLL_FORWARD = 'LatestMajor'
+dotnet test Share7/Share7.Tests/Share7.Tests.csproj --no-restore -v minimal
+```
+
+The recorded full run took 1m24s. Local evidence: `H:\RUNNER\ScratchEval\multiplayer-full-tests.log`
+and `H:\RUNNER\ScratchEval\multiplayer-results\multiplayer-full.trx`. The HTTP smoke used four
+dedicated fixture accounts for three seconds: 38 requests, zero failures, approximately 12.5
+requests/s including startup and cleanup. This verifies the driver, **not server capacity**;
+Photon traffic, SQL outage rehearsals, production rolling deployments and regional latency were
+not exercised. No remote upload/migration or Unity screen implementation occurred.
+
 ---
 
 ## 1. Executive audit
+
+This section records the starting audit on 30 September. The implementation status is §0 and §22;
+social, ranked and tournament capabilities described as absent in the original audit now exist.
 
 ### Maturity
 
@@ -789,13 +832,20 @@ multi-player placements) at build time; **matchmaking rating is never the visibl
 is a seasonal projection (a leaderboard cycle already provides seasons and resets). Placement matches
 = high initial sigma. Party restrictions and anti-boosting live in the ranked playlist's rules.
 
-### 9.3 Tournaments (P4)
+### 9.3 Tournaments (P4 foundation built, §0.5)
 
 A tournament orchestrates **reserved sessions**: bracket → reservation per match → check-in (seat
 by reservation) → play → `MatchResult` → advance. It uses Sessions and Results; ordinary matchmaking
-never knows it exists. Formats (single/double elimination, Swiss, round robin) are bracket strategies
-over the same reservation primitive. Classroom tournaments are the same thing scoped to a cohort,
-created by a teacher (`OrgRole.Teacher` via cohort membership — the authorization join already exists).
+never knows it exists. **Single elimination and Swiss are implemented** in `TournamentBracket` and
+`TournamentService`. Double elimination, round robin and teams remain future format strategies over
+the same reservation primitive. Classroom tournaments are scoped to a cohort and created by an
+authorized teacher; the organiser may start, cancel and resolve disputes, with admin overrides and
+audit records. Public identities are handles. A later block prevents an unstarted pairing without
+disclosing the block; a started match retains its server result.
+
+Completion emits tournament metrics into `GameResults` once, so leaderboard consumers can reuse
+them. Optional event prizes use the existing review/claim flow. The Unity flow, retry keys, deadlines,
+feed events, errors and exact DTOs are documented in `MultiplayerUnityContract.md` §13.
 
 ### 9.4 Real prizes (P4+)
 
@@ -1086,20 +1136,27 @@ ratio, P95 duration, ended-by-reason stacked, heartbeat outcomes, sweeper rows b
 | `MultiplayerJoinCodeRotationTests` *(P1)* | 8: old code dead, seats kept, retry returns the same code, host only, public refused, pre-match only, a host transfer racing the rotation |
 | `MultiplayerRematchTests` *(P1)* | 9: first asker hosts and later askers get the same room, reserved seats by id and by code, reserved players can read, reserved players keep the by-id route under mandatory codes, not-yet-ended refused, pre-kick-off leavers refused, retries, two simultaneous askers, a failed rematch can be retried |
 | `TransportAuthTests`, `TransportAuthContractTests` *(P1)* | 12: ticket in → user id and handle out, access token refused as ticket, ticket refused as access token (over HTTP), expiry, garbage, malformed, locked accounts, the shared key, Photon's PascalCase reply, always-200 |
+| `TournamentBracketTests`, `TournamentTests`, `TournamentContractTests` *(P4)* | Knockout/Swiss, byes/seed order, blocks, registration/caps, authorization, concurrent start/Play/advance, real run results and ties, cancellation race, event ownership, once-only completion, prize review/quantity and abrupt HTTP process restart |
+| `MultiplayerLoadTests`, `MultiplayerLoadContractTests` *(P1 completion)* | 100 concurrent joiners for one seat; actual HTTP load driver, per-route report and cleanup on an isolated local API |
 
 **`InterleavingInterceptor`** (Tests/Infrastructure) is the reusable tool: it commits a competing
 write at the exact moment an operation starts acting. Use it for every new race.
 
-### 18.2 Still to build
+### 18.2 Load and operational checks
 
-- **Load harness (P1):** a console driver (NBomber or plain `HttpClient` tasks) running N simulated
-  hosts heartbeating and M players matchmaking against a staging API, reporting P50/P95/P99 per route,
-  SQL CPU and batch requests/s. **No scalability claim in §19 is measured yet** — they are estimates
-  until this runs.
-- **Chaos checks:** kill the API mid-matchmake (process kill in the contract host) and assert recovery
-  via `GET /sessions`; database pause (`ALTER DATABASE … SET OFFLINE` in a throwaway DB) and assert
-  retries converge.
-- **Last-seat storm:** 100 concurrent joiners for one seat (the existing test uses a handful).
+- **Built:** `Share7.Multiplayer.Load` uses plain `HttpClient` tasks, dedicated test accounts and a
+  bounded report (per-route P50/P95/P99, throughput, status/error counts). It creates/confirms lobbies,
+  matchmakes guests, polls recovery/rooms, heartbeats at the server cadence and cleans up its seats.
+  See its `README.md`. Capture SQL CPU/batch requests/s and API process metrics through deployment
+  monitoring alongside that report; the driver does not claim to measure them itself.
+- **Verified locally:** 100 concurrent joiners for one remaining seat; abrupt API process kill/restart
+  followed by retry/recovery of a tournament room; an actual HTTP driver smoke with cleanup.
+- **Operational work remains:** sustained increasing-load runs against approved dedicated staging,
+  process termination while matchmaking is in flight, isolated SQL outage/retry convergence,
+  production rolling deployment and Photon/network impairments.
+
+**No scalability claim in §19 is measured yet.** The small local smoke verifies harness behavior;
+capacity estimates require sustained measurements on the deployment in question.
 
 ---
 
@@ -1182,7 +1239,8 @@ Everything in §0.
    when the ticket-sending client ships and anonymous Photon access is turned off.
 3. ~~**Rematch**~~ — **done** (§12), with session reservations.
 4. ~~Kick + per-session bans~~ — **done** (§8.1).
-5. **Load harness** (§18.2) — before any claim about 10K.
+5. ~~**Load harness**~~ — **built and locally verified** (§0.5, §18.2); staging measurements still
+   required before any claim about 10K.
 6. **Session archival** (§11.2) — needs a retention period decided.
 7. ~~**Join-code rotation**~~ — **done** (§8.1).
 
@@ -1194,8 +1252,8 @@ social seams with real implementations (friends by code, blocks, `SocialPlay` co
 
 Still open from P2's neighbourhood: **reporting a player** (§15 — needs a moderation reader before
 it is more than a table), **a guardian-facing switch for `SocialPlay`** (today it is set through the
-existing guardian-link consent tools; a parent portal is a separate surface), and the P1 leftovers
-(load harness; session archival once a retention period is chosen).
+existing guardian-link consent tools; a parent portal is a separate surface), and session archival
+once a retention period is chosen. The P1 load driver is now built (§0.5).
 
 ### P3 — competitive (done, §0.4)
 
@@ -1206,11 +1264,17 @@ operator may reconfigure would let a board edit end everyone's season. Not built
 ladder (a leaderboard of handles by tier) and review tooling for rating anomalies — both are reads over
 the tables that now exist.
 
-### P4 — live service
+### P4 — live-service foundation (tournaments complete, §0.5)
 
-Battle-pass / season progression as **consumers** of `GameResults` (no multiplayer change) →
-tournaments via reservations (§9.3) → classroom tournaments → prize-bearing competitions on derived
-results with review.
+~~Tournaments via reservations (§9.3) → classroom tournaments → prize-bearing competitions on
+derived results with review~~ — backend implementation, integration tests and Unity contract are
+complete. The existing claim/guardian review flow handles real prizes; fulfilment remains an
+operational action. Tournament screen integration requires the normal approved Unity design flow.
+
+Battle-pass / new seasonal progression remains a future **consumer** of `GameResults`, selected
+when the product rules exist; the multiplayer core requires no change. Further formats, a public
+ladder, moderation operations and retention policy remain the explicit next-stage decisions in
+`MultiplayerCompletion.md`.
 
 ### P5 — large scale
 

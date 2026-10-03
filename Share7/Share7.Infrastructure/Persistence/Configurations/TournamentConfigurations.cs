@@ -34,7 +34,10 @@ public class TournamentConfiguration : IEntityTypeConfiguration<Tournament>
         // The sweeper's read: what is due to start, and what is running.
         builder.HasIndex(t => new { t.State, t.StartsAtUtc }).HasDatabaseName("IX_Tournament_State");
 
-        builder.HasIndex(t => t.EventId).HasDatabaseName("IX_Tournament_Event");
+        // One non-cancelled bracket owns an event's prize table, including after it completes.
+        builder.HasIndex(t => t.EventId).IsUnique()
+            .HasFilter("[EventId] IS NOT NULL AND [State] <> 'CANCELLED'")
+            .HasDatabaseName("UQ_Tournament_Event");
         builder.HasIndex(t => t.CohortId).HasDatabaseName("IX_Tournament_Cohort");
     }
 }

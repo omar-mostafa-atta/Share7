@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Share7.Application.Social;
 using Share7.Domain.Organizations;
+using Share7.Domain.Social;
 using Share7.Infrastructure.Persistence;
 
 namespace Share7.Infrastructure.Social;
@@ -40,13 +41,17 @@ public class SocialPolicy : ISocialPolicy
         if (await _blocks.IsBlockedEitherWayAsync(actor, target, cancellationToken))
             return SocialPermission.Deny("not_connected");
 
-        if (await ClassmatesQuery(actor).AnyAsync(id => id == target, cancellationToken))
-            return SocialPermission.Allow("classmate");
+        var now = DateTime.UtcNow;
+        if (await _dbContext.SocialRestrictions.AnyAsync(r => (r.UserId == actor || r.UserId == target)
+            && r.RevokedAtUtc == null && r.StartsAtUtc <= now && (r.ExpiresAtUtc == null || r.ExpiresAtUtc > now), cancellationToken))
+            return SocialPermission.Deny("not_connected");
 
-        if (await _friends.AreFriendsAsync(actor, target, cancellationToken))
-            return SocialPermission.Allow("friend");
-
-        return SocialPermission.Deny("not_connected");
+        var friend = await _friends.AreFriendsAsync(actor, target, cancellationToken);
+        var classmate = !friend && await ClassmatesQuery(actor).AnyAsync(id => id == target, cancellationToken);
+        if (!friend && !classmate) return SocialPermission.Deny("not_connected");
+        var privacy = await _dbContext.SocialPrivacy.AsNoTracking().FirstOrDefaultAsync(p => p.UserId == target, cancellationToken);
+        return Visible(privacy, action, friend ? SocialRelation.Friend : SocialRelation.Classmate)
+            ? SocialPermission.Allow(friend ? "friend" : "classmate") : SocialPermission.Deny("not_connected");
     }
 
     public async Task<IReadOnlyList<SocialConnection>> ConnectionsAsync(
@@ -54,6 +59,10 @@ public class SocialPolicy : ISocialPolicy
     {
         if (action == SocialAction.SeeRealName)
             return [];
+
+        var now = DateTime.UtcNow;
+        if (await _dbContext.SocialRestrictions.AnyAsync(r => r.UserId == actor && r.RevokedAtUtc == null
+            && r.StartsAtUtc <= now && (r.ExpiresAtUtc == null || r.ExpiresAtUtc > now), cancellationToken)) return [];
 
         var blocked = await _blocks.BlockedEitherWayAsync(actor, cancellationToken);
 
@@ -73,10 +82,29 @@ public class SocialPolicy : ISocialPolicy
         foreach (var id in friends.Where(id => id != actor && !blocked.Contains(id)))
             connections[id] = SocialRelation.Friend;
 
-        return connections
+        var ids = connections.Keys.ToArray();
+        var privacy = await _dbContext.SocialPrivacy.AsNoTracking().Where(p => ids.Contains(p.UserId)).ToDictionaryAsync(p => p.UserId, cancellationToken);
+        var restricted = await _dbContext.SocialRestrictions.Where(r => ids.Contains(r.UserId) && r.RevokedAtUtc == null
+            && r.StartsAtUtc <= now && (r.ExpiresAtUtc == null || r.ExpiresAtUtc > now)).Select(r => r.UserId).ToListAsync(cancellationToken);
+        return connections.Where(c => !restricted.Contains(c.Key) && Visible(privacy.GetValueOrDefault(c.Key), action, c.Value))
             .Take(MaxConnections)
             .Select(c => new SocialConnection(c.Key, c.Value))
             .ToList();
+    }
+
+    private static bool Visible(SocialPrivacy? privacy, SocialAction action, SocialRelation relation)
+    {
+        privacy ??= new SocialPrivacy();
+        var scope = action switch
+        {
+            SocialAction.Invite => privacy.Invitations,
+            SocialAction.Challenge => privacy.Challenges,
+            SocialAction.SeePresence => privacy.Presence,
+            SocialAction.SeeProfile => privacy.Profile,
+            SocialAction.SeeStatistics => privacy.Statistics,
+            _ => SocialVisibility.Nobody
+        };
+        return scope == SocialVisibility.Connections || scope == SocialVisibility.Friends && relation == SocialRelation.Friend;
     }
 
     /// <summary>

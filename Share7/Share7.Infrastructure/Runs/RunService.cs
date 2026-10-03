@@ -821,14 +821,17 @@ public class RunService : IRunService
             .Where(c => keys.Contains(c.Key))
             .ToDictionaryAsync(c => c.Key, c => c.Id, cancellationToken);
 
-        foreach (var reward in ruleRewards)
+        // One settlement can cross several levels and pay the same level-up rule repeatedly.
+        // The reward ledger keeps each earning key; a run payout is one explanatory total per
+        // source/currency, matching its unique contract and the replay response.
+        foreach (var line in ruleRewards.SelectMany(reward => reward.Grants.Select(grant => new { reward.RuleId, grant.Currency, grant.Amount }))
+                     .GroupBy(grant => new { grant.RuleId, grant.Currency }))
         {
-            foreach (var grant in reward.Grants)
-            {
-                if (!currencyIds.TryGetValue(grant.Currency, out var currencyId))
+                if (!currencyIds.TryGetValue(line.Key.Currency, out var currencyId))
                     continue;
 
-                var source = $"rule:{reward.RuleId}";
+                var source = $"rule:{line.Key.RuleId}";
+                var amount = line.Sum(grant => grant.Amount);
 
                 // Counts and unit value are zero: a rule bonus is a fixed amount that scales with
                 // nothing, which is exactly why it could not be expressed as a valuation row.
@@ -841,21 +844,20 @@ public class RunService : IRunService
                     CollectedCount = 0,
                     PaidCount = 0,
                     UnitValue = 0,
-                    GrossAmount = grant.Amount,
+                    GrossAmount = amount,
                     CappedAmount = 0,
-                    NetAmount = grant.Amount,
+                    NetAmount = amount,
                     CreatedAtUtc = now
                 });
 
                 rewards.Add(new RunRewardDto
                 {
-                    Currency = grant.Currency,
-                    Amount = grant.Amount,
+                    Currency = line.Key.Currency,
+                    Amount = amount,
                     Source = source
                 });
 
-                Accumulate(earnedByCurrency, currencyId, grant.Amount);
-            }
+                Accumulate(earnedByCurrency, currencyId, amount);
         }
     }
 

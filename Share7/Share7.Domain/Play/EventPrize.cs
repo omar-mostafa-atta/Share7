@@ -211,6 +211,10 @@ public enum PrizeClaimState
 /// </summary>
 public class PrizeClaim
 {
+    public DateTime? EligibilityReviewedAtUtc { get; set; }
+    public DateTime? FraudReviewedAtUtc { get; set; }
+    public DateTime? GuardianConfirmedAtUtc { get; set; }
+    public Guid? GuardianLinkId { get; set; }
     public Guid Id { get; set; }
 
     public Guid AwardId { get; set; }

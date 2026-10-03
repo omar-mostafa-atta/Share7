@@ -58,7 +58,10 @@ public class GameResultRetentionService : IGameResultRetentionService
         var deleted = await _dbContext.GameResults
             .Where(r => r.OccurredAtUtc < cutoff
                         && (r.ProjectedAtUtc != null || r.IsFlagged)
-                        && r.Sequence <= watermark)
+                        && r.Sequence <= watermark
+                        && !_dbContext.BrainPassSeasons.Any(s => s.State == Domain.BrainPass.BrainPassState.Published
+                            && r.OccurredAtUtc >= s.StartsAtUtc && r.OccurredAtUtc < s.EndsAtUtc
+                            && !_dbContext.BrainPassCredits.Any(c => c.SeasonId == s.Id && c.ResultId == r.Id)))
             .OrderBy(r => r.Sequence)
             .Take(batch)
             .ExecuteDeleteAsync(cancellationToken);

@@ -35,8 +35,9 @@ public class LeaderboardBoardListingTests
             LeaderboardMetrics.LessonsCompleted, gameId: null);
         var (gameBoard, _) = await context.CreateBoardAsync(
             LeaderboardMetrics.LessonsAced, gameId: path.GameId);
+        var otherGame = await context.CreateGameAsync();
         var (otherGameBoard, _) = await context.CreateBoardAsync(
-            LeaderboardMetrics.RunsCompleted, gameId: Guid.NewGuid());
+            LeaderboardMetrics.RunsCompleted, gameId: otherGame.Id);
 
         var service = CreateService(context, userId);
 
@@ -60,8 +61,9 @@ public class LeaderboardBoardListingTests
 
         var (globalBoard, _) = await context.CreateBoardAsync(
             LeaderboardMetrics.LessonsCompleted, gameId: null);
+        var game = await context.CreateGameAsync();
         var (gameBoard, _) = await context.CreateBoardAsync(
-            LeaderboardMetrics.LessonsAced, gameId: Guid.NewGuid());
+            LeaderboardMetrics.LessonsAced, gameId: game.Id);
 
         var service = CreateService(context, userId);
 

@@ -411,6 +411,20 @@ public static class DependencyInjection
         services.AddScoped<ISocialPolicy, SocialPolicy>();
         services.AddScoped<IPresenceReader, PresenceService>();
         services.AddScoped<ISocialService, SocialService>();
+        services.AddScoped<IGamingProfileService, GamingProfileService>();
+        services.AddScoped<ISocialProfileAdminService, SocialProfileAdminService>();
+        services.AddScoped<ISocialSafetyService, SocialSafetyService>();
+        services.AddScoped<IGuardianSocialConsentService, GuardianSocialConsentService>();
+        services.AddScoped<IInboxService, InboxService>();
+        services.AddScoped<IPlayerTeamService, PlayerTeamService>();
+        services.AddScoped<Share7.Application.BrainPass.IBrainPassService, Share7.Infrastructure.BrainPass.BrainPassService>();
+        services.AddScoped<Share7.Application.BrainPass.IBrainPassAdminService, Share7.Infrastructure.BrainPass.BrainPassAdminService>();
+        services.AddScoped<Share7.Application.BrainPass.IBrainPassRewardService, RewardService>();
+        services.AddHostedService<Share7.Infrastructure.BrainPass.BrainPassWorker>();
+        services.AddScoped<ISessionArchiveService, SessionArchiveService>();
+        services.AddScoped<IPublicRoomDirectory, PublicRoomDirectory>();
+        services.AddScoped<ISessionObserverService, SessionObserverService>();
+        services.AddHostedService<SessionArchiveWorker>();
         services.AddScoped<IMultiplayerAdminService, MultiplayerAdminService>();
 
         // When this process started taking traffic, so a restart is not read as every host going

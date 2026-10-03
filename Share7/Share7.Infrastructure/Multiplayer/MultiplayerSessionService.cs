@@ -269,6 +269,12 @@ public class MultiplayerSessionService : IMultiplayerSessionService
 
         var play = selection.Value!;
 
+        if (reserved?.TournamentMatchId != null && request.EventId is { } prizeEvent
+            && await _dbContext.EventPrizeTiers.AnyAsync(t => t.EventId == prizeEvent && t.Kind == Domain.Play.EventPrizeKind.RealWorld, cancellationToken)
+            && play.Mode?.WinRule?.Trust != MatchMetricTrust.Verified)
+            return ServiceResult<MultiplayerSessionDto>.Failure(ApiErrors.TournamentModeUnsuitable, ServiceErrorKind.Conflict,
+                "Real-prize pairings require entirely server-verified win criteria.");
+
         // The language the host is playing in. Questions exist per language, so it is part of what
         // makes two players able to share a lesson at all.
         var langId = await _languageService.ResolveCurrentAsync(cancellationToken);

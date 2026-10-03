@@ -1848,6 +1848,17 @@ everyone seated and announces them on the feed, and `GET /api/multiplayer/ranked
 reads the monthly visible rank. Only server-formed matches are rated; the client's `isRanked` flag
 never is.
 
+**Tournaments** (MultiplayerUnityContract.md §13): `/api/multiplayer/tournaments` provides knockout
+and Swiss registration, brackets, standings and reserved-room Play. Teachers organise competitions
+for their active class; admins manage event-backed tournaments. Results advance from server
+verdicts, completion metrics enter `GameResults` once, and event prizes retain the existing review
+and guardian claim flow. Organiser start/cancel/decision and admin routes, retry rules, refusal codes
+and exact request/response shapes are in that contract.
+
+The continuation and migration handoff are in [MultiplayerCompletion.md](MultiplayerCompletion.md).
+`Share7.Multiplayer.Load/README.md` describes the measured HTTP driver for dedicated local/staging
+test accounts; its local smoke establishes driver behavior, not production capacity.
+
 ---
 
 ## Not built yet
@@ -1858,8 +1869,9 @@ never is.
 - **Data export** — `GET /api/users/me/export` does not exist yet.
 - **Content manifest, server time, profile read** — `GET /api/content/manifest`, `GET /api/time`
   and `GET /api/users/me/profile` are not built.
-- **Player reports, tournaments, a public ranked ladder** — sessions, matchmaking, match results,
-  rematch, the social layer and ranked play are built (§14); what comes next is in `MultiplayerPlatform.md` §22.
+- **Player reports and a public ranked ladder** — sessions, matchmaking, match results, rematch,
+  the social layer, ranked play and tournament backends are built (§14); next stages are in
+  `MultiplayerPlatform.md` §22.
 - **`recoveryQuestions` trigger logic** — the pool itself now exists (table, upload, endpoints —
   see §5), but *when* the game shows a recovery question is still undefined. Storage and delivery
   are ready; the rule that fires them is not.

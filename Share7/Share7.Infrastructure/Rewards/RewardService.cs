@@ -29,23 +29,26 @@ namespace Share7.Infrastructure.Rewards;
 /// student their progress.</item>
 /// </list>
 /// </summary>
-public class RewardService : IRewardService
+public class RewardService : IRewardService, Share7.Application.BrainPass.IBrainPassRewardService
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly IWalletService _wallet;
     private readonly ILevelService _levels;
     private readonly IEntitlementService _entitlements;
+    private readonly Share7.Application.Feed.IPlayerEventPublisher? _events;
 
     public RewardService(
         ApplicationDbContext dbContext,
         IWalletService wallet,
         ILevelService levels,
-        IEntitlementService entitlements)
+        IEntitlementService entitlements,
+        Share7.Application.Feed.IPlayerEventPublisher? events = null)
     {
         _dbContext = dbContext;
         _wallet = wallet;
         _levels = levels;
         _entitlements = entitlements;
+        _events = events;
     }
 
     public async Task<IReadOnlyList<RewardDto>> EvaluateProgressAttemptAsync(
@@ -236,6 +239,21 @@ public class RewardService : IRewardService
             }));
 
         return await PayWithLevelUpsAsync([rule], target, transaction, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<RewardDto>> EvaluateBrainPassAsync(
+        Share7.Application.BrainPass.BrainPassRewardContext context, CancellationToken token = default)
+    {
+        var transaction = _dbContext.Database.CurrentTransaction
+            ?? throw new InvalidOperationException("Brain Pass rewards require the claim transaction.");
+        var rule = await _dbContext.RewardRules.AsNoTracking().Include(r => r.Grants).ThenInclude(g => g.Currency)
+            .Include(r => r.EntitlementGrants).ThenInclude(g => g.Product)
+            .FirstOrDefaultAsync(r => r.Id == context.RewardRuleId && r.Enabled && r.EventType == RewardEventType.BrainPassTier
+                && r.RepeatPolicy == RewardRepeatPolicy.Once, token);
+        if (rule is null) return [];
+        var key = $"pass:{context.SeasonId:N}:{context.Tier}:{(int)context.Track}";
+        return await PayWithLevelUpsAsync([rule], new PayoutTarget(context.UserId, LedgerSourceType.System,
+            context.SeasonId.ToString(), key, key, JsonSerializer.Serialize(new { context.SeasonId, context.Tier, context.Track })), transaction, token);
     }
 
     public async Task<IReadOnlyList<RewardDto>> EvaluateRunSettlementAsync(
@@ -633,6 +651,9 @@ public class RewardService : IRewardService
             });
         }
 
+        // Stage only after every grant succeeded, in the earning transaction. Replay never
+        // stages another notification and rollback cannot leave a celebration without a payout.
+        _events?.Stage(context.UserId, "reward.granted", new { transactionId = rewardTransaction.Id, type = WireEnum.ToWire(rule.EventType) });
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         return new RewardDto

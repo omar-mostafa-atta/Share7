@@ -71,7 +71,7 @@ public class UserProfileServiceTests
     }
 
     [Fact]
-    public async Task Another_players_profile_comes_back_without_their_contact_details()
+    public async Task Another_players_private_profile_is_unavailable_to_a_stranger()
     {
         await using var context = _fixture.CreateContext();
 
@@ -80,18 +80,9 @@ public class UserProfileServiceTests
 
         var result = await Service(context).GetAsync(strangerId, subjectId, callerIsAdmin: false);
 
-        Assert.True(result.Succeeded);
-
-        // The name is what a roster needs to render an opponent, and it is fine to share. A phone
-        // number and an email address are not, and every signed-in account can ask for any id.
-        Assert.Equal("Layla Hassan", result.Value!.FullName);
-        Assert.Equal(11, result.Value.Age);
-
-        Assert.Null(result.Value.PhoneNumber);
-        Assert.Null(result.Value.Email);
-
-        // The flag is what lets a client tell "not recorded" from "not shown to you".
-        Assert.False(result.Value.IsSelf);
+        Assert.False(result.Succeeded);
+        Assert.Equal(ServiceErrorKind.NotFound, result.ErrorKind);
+        Assert.Null(result.Value);
     }
 
     [Fact]

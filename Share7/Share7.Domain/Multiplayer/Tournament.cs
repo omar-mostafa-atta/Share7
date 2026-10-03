@@ -13,7 +13,9 @@ public enum TournamentFormat
     /// the classroom format: a class of thirty all play five matches, rather than half of them
     /// watching after the first.
     /// </summary>
-    Swiss
+    Swiss,
+    /// <summary>A bounded league in which each pair meets once; fixed seeded schedule.</summary>
+    RoundRobin
 }
 
 /// <summary>Where a tournament is in its life. Stored as text.</summary>

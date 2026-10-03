@@ -482,6 +482,32 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, Applicati
     public DbSet<Share7.Domain.Staff.StaffSignInEvent> StaffSignInEvents => Set<Share7.Domain.Staff.StaffSignInEvent>();
     public DbSet<Share7.Domain.Staff.StaffSecuritySettings> StaffSecuritySettings => Set<Share7.Domain.Staff.StaffSecuritySettings>();
 
+    public DbSet<Domain.Social.SocialPrivacy> SocialPrivacy => Set<Domain.Social.SocialPrivacy>();
+    public DbSet<Domain.Social.OfficialProfile> OfficialProfiles => Set<Domain.Social.OfficialProfile>();
+    public DbSet<Domain.Social.ShowcaseContent> ShowcaseContents => Set<Domain.Social.ShowcaseContent>();
+    public DbSet<Domain.Social.PlayerShowcase> PlayerShowcases => Set<Domain.Social.PlayerShowcase>();
+    public DbSet<Domain.Social.OfficialFollow> OfficialFollows => Set<Domain.Social.OfficialFollow>();
+    public DbSet<Domain.Social.OfficialActivity> OfficialActivities => Set<Domain.Social.OfficialActivity>();
+    public DbSet<Domain.Social.PlayerMute> PlayerMutes => Set<Domain.Social.PlayerMute>();
+    public DbSet<Domain.Social.PlayerReport> PlayerReports => Set<Domain.Social.PlayerReport>();
+    public DbSet<Domain.Social.SocialRestriction> SocialRestrictions => Set<Domain.Social.SocialRestriction>();
+    public DbSet<Domain.Social.InboxRead> InboxReads => Set<Domain.Social.InboxRead>();
+    public DbSet<Domain.Social.InboxPreference> InboxPreferences => Set<Domain.Social.InboxPreference>();
+    public DbSet<SessionArchive> SessionArchives => Set<SessionArchive>();
+    public DbSet<GameObservationCapability> GameObservationCapabilities => Set<GameObservationCapability>();
+    public DbSet<SessionObserver> SessionObservers => Set<SessionObserver>();
+    public DbSet<Domain.Social.PlayerTeam> PlayerTeams => Set<Domain.Social.PlayerTeam>();
+    public DbSet<Domain.Social.PlayerTeamMember> PlayerTeamMembers => Set<Domain.Social.PlayerTeamMember>();
+    public DbSet<SessionArchiveParticipant> SessionArchiveParticipants => Set<SessionArchiveParticipant>();
+    public DbSet<Domain.BrainPass.BrainPassSeason> BrainPassSeasons => Set<Domain.BrainPass.BrainPassSeason>();
+    public DbSet<Domain.BrainPass.BrainPassTier> BrainPassTiers => Set<Domain.BrainPass.BrainPassTier>();
+    public DbSet<Domain.BrainPass.BrainPassXpRule> BrainPassXpRules => Set<Domain.BrainPass.BrainPassXpRule>();
+    public DbSet<Domain.BrainPass.BrainPassProgress> BrainPassProgress => Set<Domain.BrainPass.BrainPassProgress>();
+    public DbSet<Domain.BrainPass.BrainPassCredit> BrainPassCredits => Set<Domain.BrainPass.BrainPassCredit>();
+    public DbSet<Domain.BrainPass.BrainPassSource> BrainPassSources => Set<Domain.BrainPass.BrainPassSource>();
+    public DbSet<Domain.BrainPass.BrainPassDaily> BrainPassDaily => Set<Domain.BrainPass.BrainPassDaily>();
+    public DbSet<Domain.BrainPass.BrainPassClaim> BrainPassClaims => Set<Domain.BrainPass.BrainPassClaim>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);

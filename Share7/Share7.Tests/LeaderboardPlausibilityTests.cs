@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Share7.Domain.Leaderboards;
 using Share7.Tests.Infrastructure;
 using Xunit;
@@ -60,7 +60,7 @@ public class LeaderboardPlausibilityTests
         // The right default for a platform expecting new mini-games: an unauthored bound must not
         // silently flag every result the first game to raise a new metric produces.
         Assert.Null(await new Share7.Infrastructure.Leaderboards.PlausibilityGuard(context)
-            .ReasonToFlagAsync(userId, path.GameId, modeId: null, LeaderboardMetrics.LessonsAced, 999_999, DateTime.UtcNow));
+            .ReasonToFlagAsync(userId, path.GameId, modeId: null, "FUTURE_TEST_METRIC", 999_999, DateTime.UtcNow));
     }
 
     [Fact]
@@ -106,7 +106,7 @@ public class LeaderboardPlausibilityTests
         await using var context = _fixture.CreateContext();
         var userId = await TestData.CreateUserAsync(context);
         var path = await TestData.CreateCurriculumPathAsync(context);
-        var (_, cycle) = await context.CreateBoardAsync(LeaderboardMetrics.LessonsAced);
+        var (_, cycle) = await context.CreateBoardAsync(LeaderboardMetrics.LessonsAced, gameId: path.GameId);
 
         var flagged = await context.AddResultAsync(
             userId, path.GameId, LeaderboardMetrics.LessonsAced, 5, isFlagged: true);
@@ -138,7 +138,7 @@ public class LeaderboardPlausibilityTests
         await using var context = _fixture.CreateContext();
         var userId = await TestData.CreateUserAsync(context);
         var path = await TestData.CreateCurriculumPathAsync(context);
-        var (_, cycle) = await context.CreateBoardAsync(LeaderboardMetrics.LessonsAced);
+        var (_, cycle) = await context.CreateBoardAsync(LeaderboardMetrics.LessonsAced, gameId: path.GameId);
 
         var flagged = await context.AddResultAsync(
             userId, path.GameId, LeaderboardMetrics.LessonsAced, 9999, isFlagged: true);

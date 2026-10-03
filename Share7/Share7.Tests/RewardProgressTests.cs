@@ -274,9 +274,9 @@ public class RewardProgressTests
 
         Assert.True(first.Succeeded && retry.Succeeded);
 
-        // The retry re-records progress — attempts go up, which is correct, the run really was
-        // submitted twice — but the reward replays instead of paying again.
-        Assert.Equal(2, retry.Value!.Attempts);
+        // A transport retry returns the original submission, including its attempt count.
+        // It cannot create a second lesson attempt, signal result, or reward.
+        Assert.Equal(1, retry.Value!.Attempts);
         Assert.Equal(
             Assert.Single(first.Value!.Rewards).TransactionId,
             Assert.Single(retry.Value.Rewards).TransactionId);

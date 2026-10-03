@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Share7.Infrastructure\Share7.Infrastructure.csproj" />
+    <ProjectReference Include="..\Share7.Multiplayer.Load\Share7.Multiplayer.Load.csproj" />
 
     <!-- Build order only. The contract tests run the API as its own process (Contracts/ContractHost),
          so they need it built next to this project's output, not loaded into it. -->

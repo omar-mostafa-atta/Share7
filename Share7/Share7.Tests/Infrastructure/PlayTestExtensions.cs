@@ -44,7 +44,7 @@ public static class PlayTest
         new(context, new StubLanguageService(langId ?? LanguageIds.English));
 
     public static PrizeClaimAdminService Claims(ApplicationDbContext context, Guid? langId = null) =>
-        new(context, new StubLanguageService(langId ?? LanguageIds.English));
+        new(context, new StubLanguageService(langId ?? LanguageIds.English), TestAudit.For(context));
 
     /// <summary>The prize observer, wired to the real reward engine it pays through.</summary>
     public static EventPrizeAwardService Awards(ApplicationDbContext context)

@@ -778,3 +778,171 @@ GET /api/multiplayer/ranked/{modeId}/standing
   `repeat_opponent` (you have played these players many times today). Say so plainly — a child should
   not wonder why a win "did nothing".
 - **Leaving a ranked match counts as a loss.** Say so before the match starts.
+
+## 13. Tournaments (Phase 4)
+
+Tournaments use the ordinary reserved sessions and ordinary server-derived match result. Do not
+implement a second networking or result path. The backend currently supports `SingleElimination`
+and `Swiss`, open/operator events and teacher-created classroom tournaments.
+
+### 13.1 Routes and authority
+
+All player routes require the usual access token; the caller's identity always comes from it.
+`T` below means `/api/multiplayer/tournaments`, `A` means
+`/api/admin/multiplayer/tournaments`. Admin routes require Admin or SuperAdmin. On `T`, organiser
+authority is an active **teacher membership of that tournament's active class in an active school**,
+not a client flag or a generic role claim. A classroom outsider gets `TOURNAMENT_NOT_FOUND`.
+
+| Method and route | Request | Response / retry behaviour |
+|---|---|---|
+| `GET T` | none | `TournamentSummaryDto[]`: up to 100, newest first; visible active tournaments and ones you entered; finished tournaments listed for 7 days |
+| `GET T/{id}` | none | `TournamentDto`; also advances due pairings; safe to poll/retry |
+| `POST T/{id}/register` | no body needed | `TournamentDto`; repeated/concurrent entry takes one place; full refusal does not create an entry |
+| `POST T/{id}/withdraw` | no body needed | `TournamentDto`; before start frees the place; after start forfeits unstarted pairing; a retry may return `TOURNAMENT_NOT_ENTERED` — reconcile with GET |
+| `POST T/{id}/matches/{matchId}/play` | `PlayTournamentMatchRequest` | `TournamentPlayDto`; reuse one `requestId` for this game's retries; **fresh key for the next game/replay** |
+| `POST T` | `CreateTournamentRequest`, with `cohortId` | `TournamentDto`; teachers only for their own class; no create request id, so reconcile list before retrying an ambiguous success |
+| `POST T/{id}/start` | no body needed | `TournamentDto`; repeated start while running reads the same tournament; terminal states refuse |
+| `POST T/{id}/cancel` | optional `{ reason }` | `TournamentDto`; repeats in a terminal state refuse; reconcile with GET |
+| `POST T/{id}/matches/{matchId}/decide` | `{ winnerUserId, replay, reason }` | `TournamentDto`; organiser only, nonempty reason, current unfinished pairing; never blind-retry a replay instruction — read game number first |
+| `POST T/{id}/entries/{userId}/disqualify` | `{ reason }` | `TournamentDto`; organiser only, reason required; disqualified entrant never placed or paid |
+| `GET A` | none | up to 200 summaries, all scopes |
+| `GET A/{id}` | none | `TournamentDto`, operator view |
+| `POST A` | `CreateTournamentRequest` | `TournamentDto`; may create open/event/classroom tournaments |
+| `POST A/{id}/start`, `/cancel`, `/matches/{matchId}/decide`, `/entries/{userId}/disqualify` | same as player organiser routes | same response and retry rules; decisions audited |
+
+Refusals use the existing `{ code, message, details? }` envelope. Existing protocol, play-selection
+and session errors also apply to Play/registration. Interpret these new codes:
+
+| Code | Client response |
+|---|---|
+| `TOURNAMENT_NOT_FOUND` | Leave the unavailable detail; refresh the list; never tell someone it is another class's tournament |
+| `TOURNAMENT_REGISTRATION_CLOSED` | Refresh bracket; hide entry action |
+| `TOURNAMENT_FULL` | Show full, keep browsing available tournaments |
+| `TOURNAMENT_NOT_ELIGIBLE`, `TOURNAMENT_LESSON_LOCKED`, `PC_NO_SHARED_LESSON` | Explain the actual entry requirement; keep the Learn path available |
+| `TOURNAMENT_NOT_ENTERED` | Refresh entry state; an already-completed withdrawal may be treated as converged |
+| `TOURNAMENT_NOT_ORGANISER` | Hide organiser controls; no automatic retry |
+| `TOURNAMENT_INVALID_STATE` | Refresh; the lifecycle moved while the action was in flight |
+| `TOURNAMENT_MODE_UNSUITABLE`, `TOURNAMENT_EVENT_UNSUITABLE` | Authoring refusal; organiser corrects mode/event configuration |
+| `TOURNAMENT_MATCH_NOT_FOUND` | Pairing is not yours or unavailable; refresh `myMatch` |
+| `TOURNAMENT_MATCH_CLOSED` | Refresh bracket/game number; do not reopen an expired or unavailable pairing |
+
+### 13.2 Requests and responses
+
+`CreateTournamentRequest`:
+
+```json
+{
+  "title": "Fractions cup",
+  "gameId": "<guid>",
+  "modeId": "<guid>",
+  "format": "SingleElimination",
+  "maxEntrants": 64,
+  "matchMinutes": 10,
+  "startsAtUtc": null,
+  "eventId": null,
+  "cohortId": null,
+  "swissRounds": 0,
+  "curriculumPath": { "lessonId": "<guid>" }
+}
+```
+
+The mode must seat 2 and allow Versus with a win rule. `eventId` and `cohortId` are mutually
+exclusive. A path may name a lesson everyone plays, a subject each pair finds a shared lesson in,
+or be absent. Title is 1–80 plain-text characters, supplied by an authorised organiser; render
+as backend content, never markup. Swiss rounds default to log₂ of the field, bounded by field
+size and 12. Match minutes are 2–10,080; the default is `Multiplayer:TournamentMatchMinutes`.
+Max entrants default to min(64, configured cap). An event's game/mode, eligibility, time window
+and prize table remain authoritative; per-player event entry caps are incompatible with a bracket.
+One non-cancelled tournament may own an event. Classroom tournaments carry no event prizes.
+
+`TournamentSummaryDto` fields: `id, title, gameId, modeId, modeKey, scope` (`open|event|classroom`),
+`eventId?, cohortId?, format, state, entrantCount, maxEntrants, currentRound, roundCount,
+matchMinutes, curriculumPath?, startsAtUtc?, startedAtUtc?, completedAtUtc?, createdAtUtc,
+myState?, myPlacement?, canManage`.
+
+`TournamentDto` adds `entrants[]`, `rounds[]`, `myMatch?`, `cancelReason?`, `serverTimeUtc`.
+Entrants contain `userId, displayName?, seed, state, points, wins, losses, draws, byes, placement?`.
+Names are generated public handles, never real names; accounts are not tappable. Swiss `points`
+are wins/byes ×1 and draws ×0.5; mastery is still a separate band. Round is `{ round, matches[] }`.
+Each match contains `id, round, position, playerAUserId?, playerAName?, playerBUserId?,
+playerBName?, state, gameNumber, sessionId?, playerACheckedIn, playerBCheckedIn,
+deadlineAtUtc?, winnerUserId?, outcome?, flagged`.
+
+Play request: `{ transportSessionName, transportRegion?, protocolVersion, requestId? }`.
+Response: `{ match: TournamentMatchDto, session: MultiplayerSessionDto, youHost: boolean }`.
+Every room is private, reserved for the pair, exactly 2 seats, and unrated: the bracket chose
+the opponent rather than ranked matchmaking. The same supported protocol is required for both.
+
+### 13.3 Client flow and reconnect
+
+```mermaid
+flowchart LR
+  List[Tournament list] --> Detail[Details and entry requirement]
+  Detail --> Enter[Register]
+  Enter --> Wait[Await start / next round]
+  Wait --> Ready[myMatch ready]
+  Ready --> Play[POST pairing/play]
+  Play --> Host[youHost: create Photon room and confirm]
+  Play --> Guest[otherwise: wait for Created and join reserved session]
+  Host --> Both[Both seated: host starts, use ordinary HUD]
+  Guest --> Both
+  Both --> Results[Ordinary run settlement and match result]
+  Results --> Bracket[Refresh tournament]
+  Bracket --> Wait
+  Bracket --> Final[Final placement / existing rewards chain]
+```
+
+Tournament states: `Registration → Running → Completed`, or cancellation before completion.
+Fewer than 2 entrants at start cancels with `too_few_players`; it is not a tournament victory.
+Entry states: `Entered`, `Eliminated` (knockout), `Withdrawn`, `Disqualified`.
+Pairing states: `Ready → Playing → Completed`; a replay moves to `Ready` with `gameNumber + 1`,
+fresh check-ins, fresh deadline and a fresh room. A room that dies before kickoff may reopen the
+same game before its deadline. Re-read `myMatch` after reconnect; do not infer a new room from the
+old Photon room name. Retry the same Play key after a lost response or backend restart. Existing
+session recovery, host heartbeat, transport authentication and membership reconciliation still apply.
+
+The first player to press Play hosts; the second is returned the same room. Confirm it to `Created`,
+then the second player uses ordinary Join. The host cannot start it with one player. Use the
+server's clock for the pairing deadline. A started game is allowed to settle beyond that deadline;
+it is not stopped by a timer while the child is playing. Results, not the client, advance rounds.
+The sweeper moves unattended tournaments; reading one lazily settles due work too.
+
+Outcomes: `played`, `draw` (Swiss), `walkover`, `bye`, `seed`, `no_show`, `no_result`, `not_played`,
+`forfeit`, `organiser`, `empty`. Knockout ties replay up to 3 games, then advance the better seed;
+Swiss ties score a draw. An organiser may order a replay with a recorded reason. An unavoidable
+blocked pair is never put in a room; display `not_played` neutrally, without revealing a block.
+Two successive missed Swiss pairings withdraw the entrant. Knockout placements may be shared
+(both semi-final losers are 3rd); Swiss ties break by points, opponent points, wins, then seed.
+
+### 13.4 Player-feed events
+
+All flow **server → recipient** via §11.1, staged in the tournament mutation's own transaction.
+The event envelope/cursor, gap recovery, expiry and idempotent event-id handling are unchanged.
+Treat events as a reason to GET authoritative detail, not as instructions to reconstruct a bracket.
+
+| Type | Payload | When / client action |
+|---|---|---|
+| `multiplayer.tournament.match_ready` | `tournamentId, matchId, round, gameNumber, opponentUserId?, opponentName?, deadlineAtUtc?, replay` | Pairing/replay ready; refresh `myMatch`, offer Play; expires at deadline |
+| `multiplayer.tournament.match_decided` | `tournamentId, matchId, round, outcome, result` (`won|lost|draw|bye`), `eliminated` | Pairing decided; refresh; expires after 1 day |
+| `multiplayer.tournament.completed` | `tournamentId, placement?, champion` | Final; refresh results; expires after 7 days |
+| `multiplayer.tournament.cancelled` | `tournamentId, reason` | Cancelled; exit waiting state; expires after 1 day |
+
+There is no separate tournament websocket or Photon result event. Do not add a celebration modal
+after the fixed results chain. Tournament metrics (`TOURNAMENTS_PLAYED`, `TOURNAMENTS_WON`) enter
+the existing results stream once, so quests/season tracks consume them without direct coupling.
+Event prizes are paid once by final tournament placements, not again by the event ladder.
+Physical prizes open `PendingReview` claims and use the existing grown-up/operations flow.
+
+### 13.5 Required UX states and implementation boundary
+
+List/detail regions need loading skeletons, slow/error with retry, empty with a learning/play path,
+offline cached read plus disabled network actions, full/locked/unavailable, registration closed,
+waiting for start/round/opponent, room creating, reconnecting, match expired, withdrawn/disqualified,
+cancelled and completed. Keep ordinary session refusals actionable. Never promise reward amounts
+before a lesson or invent an opponent while searching. Use public avatar renders when available;
+no tappable strangers, free text or pressure copy. Static UI is EN/AR together; numbers/timers keep
+Western digits, the layout mirrors, and backend-authored titles/handles are rendered as received.
+
+These contracts make the Unity work possible; **they do not approve new screens**. Placement in
+Arena, contextual Learn/Play entry points and the existing results chain follows
+`Design/UX_PLAYBOOK.md`: Integration Brief, approved prototype/references in EN and AR, then Unity.

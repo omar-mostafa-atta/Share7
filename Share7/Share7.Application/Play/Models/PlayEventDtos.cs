@@ -400,6 +400,10 @@ public class CancelPlayEventRequest
 /// <summary>A prize claim as an operator works it.</summary>
 public class PrizeClaimAdminDto
 {
+    public DateTime? EligibilityReviewedAtUtc { get; init; }
+    public DateTime? FraudReviewedAtUtc { get; init; }
+    public DateTime? GuardianConfirmedAtUtc { get; init; }
+    public Guid? GuardianLinkId { get; init; }
     public Guid ClaimId { get; init; }
     public Guid AwardId { get; init; }
     public Guid EventId { get; init; }
@@ -466,6 +470,10 @@ public class PrizeClaimSignalsDto
 /// <summary>Moving a claim along. The transitions are fixed; the note is for whoever reads it next.</summary>
 public class UpdatePrizeClaimRequest
 {
+    public bool EligibilityReviewed { get; set; }
+    public bool FraudReviewed { get; set; }
+    public bool GuardianConfirmed { get; set; }
+    public Guid? GuardianLinkId { get; set; }
     /// <summary><c>awaiting_guardian</c>, <c>fulfilled</c>, <c>forfeited</c> or <c>rejected</c>.</summary>
     [Required, MaxLength(32)]
     public string State { get; set; } = string.Empty;

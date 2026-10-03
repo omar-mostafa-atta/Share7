@@ -296,6 +296,15 @@ public class SocialController : ControllerBase
         return result.Succeeded ? Ok(result.Value) : result.ToApiErrorResult();
     }
 
+    [HttpPost("friend-requests/{requestId:guid}/cancel")]
+    [EnableRateLimiting(RateLimitPolicies.Writes)]
+    public async Task<IActionResult> CancelFriend(Guid requestId, CancellationToken cancellationToken)
+    {
+        if (_currentUser.UserId is not { } userId) return Unauthorized();
+        var result = await _friends.CancelAsync(userId, requestId, cancellationToken);
+        return result.Succeeded ? Ok(result.Value) : result.ToApiErrorResult();
+    }
+
     [HttpDelete("blocks/{blockedUserId:guid}")]
     [EnableRateLimiting(RateLimitPolicies.Writes)]
     public async Task<IActionResult> Unblock(Guid blockedUserId, CancellationToken cancellationToken)

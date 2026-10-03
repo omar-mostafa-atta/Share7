@@ -167,6 +167,31 @@ public static class TournamentBrackets
     public static int EliminationPlacement(int roundCount, int eliminatedInRound) =>
         (1 << Math.Max(0, roundCount - eliminatedInRound)) + 1;
 
+    // ---- round robin ----------------------------------------------------------------------------
+
+    public static int RoundRobinRounds(int entrants) => entrants < 2 ? 0 : entrants % 2 == 0 ? entrants - 1 : entrants;
+
+    /// <summary>Circle schedule: one match per player per round, every pair exactly once.
+    /// Withdrawn players leave empty slots; blocks skip a pairing without changing its schedule.</summary>
+    public static IReadOnlyList<TournamentPairing> RoundRobinRound(IReadOnlyList<Guid> seeded, int round,
+        Func<Guid, bool> active, Func<Guid, Guid, bool> blocked)
+    {
+        if (seeded.Count < 2 || seeded.Count > 16 || round < 1 || round > RoundRobinRounds(seeded.Count))
+            throw new ArgumentOutOfRangeException(nameof(round));
+        var slots = seeded.Select(id => (Guid?)id).ToList();
+        if (slots.Count % 2 != 0) slots.Add(null);
+        for (var i = 1; i < round; i++) { var last = slots[^1]; slots.RemoveAt(slots.Count - 1); slots.Insert(1, last); }
+        Guid? Present(Guid? id) => id is { } user && active(user) ? user : null;
+        var pairs = new List<TournamentPairing>();
+        for (var i = 0; i < slots.Count / 2; i++)
+        {
+            var a = Present(slots[i]); var b = Present(slots[^(i + 1)]);
+            if (a is null && b is not null) (a, b) = (b, a);
+            pairs.Add(new(a, b, a is { } x && b is { } y && blocked(x, y)));
+        }
+        return pairs;
+    }
+
     // ---- Swiss ----------------------------------------------------------------------------------
 
     /// <summary>Rounds a Swiss runs: as asked, or log₂ of the field — enough for one unbeaten player to emerge — within what the field can play.</summary>

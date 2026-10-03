@@ -84,6 +84,10 @@ public class PrizeClaimAdminService : IPrizeClaimAdminService
             .Select(c => new PrizeClaimAdminDto
             {
                 ClaimId = c.Id,
+                EligibilityReviewedAtUtc = c.EligibilityReviewedAtUtc,
+                FraudReviewedAtUtc = c.FraudReviewedAtUtc,
+                GuardianConfirmedAtUtc = c.GuardianConfirmedAtUtc,
+                GuardianLinkId = c.GuardianLinkId,
                 AwardId = c.AwardId,
                 EventId = c.Award?.EventId ?? Guid.Empty,
                 EventKey = c.Award?.Event?.EventKey ?? string.Empty,
@@ -112,6 +116,8 @@ public class PrizeClaimAdminService : IPrizeClaimAdminService
         Guid reviewedByUserId,
         CancellationToken cancellationToken = default)
     {
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await _dbContext.Database.ExecuteSqlInterpolatedAsync($"SELECT [Id] FROM [PrizeClaims] WITH (UPDLOCK, HOLDLOCK, ROWLOCK) WHERE [Id] = {claimId}", cancellationToken);
         var claim = await _dbContext.PrizeClaims
             .Include(c => c.Award)
             .FirstOrDefaultAsync(c => c.Id == claimId, cancellationToken);
@@ -133,6 +139,24 @@ public class PrizeClaimAdminService : IPrizeClaimAdminService
                 $"A claim cannot move from {WireEnum.ToWire(claim.State)} to {WireEnum.ToWire(target)}.",
                 new Dictionary<string, object?> { ["state"] = WireEnum.ToWire(claim.State) });
 
+        if (claim.ExpiresAtUtc <= DateTime.UtcNow && target is PrizeClaimState.AwaitingGuardian or PrizeClaimState.Fulfilled)
+            return ServiceResult<PrizeClaimAdminDto>.Failure(ApiErrors.PlayPrizeClaimInvalidTransition, ServiceErrorKind.Conflict,
+                "This claim has expired and cannot be approved or fulfilled.");
+
+        if (target == PrizeClaimState.AwaitingGuardian && (!request.EligibilityReviewed || !request.FraudReviewed))
+            return ServiceResult<PrizeClaimAdminDto>.Failure(ApiErrors.PlayPrizeClaimInvalidTransition, ServiceErrorKind.Validation,
+                "Record eligibility and fraud review before approving a physical prize.");
+        if (target == PrizeClaimState.Fulfilled)
+        {
+            if (claim.EligibilityReviewedAtUtc == null || claim.FraudReviewedAtUtc == null)
+                return ServiceResult<PrizeClaimAdminDto>.Failure(ApiErrors.PlayPrizeClaimInvalidTransition, ServiceErrorKind.Conflict, "Review evidence is incomplete.");
+            var adult = await _dbContext.StudentProfiles.AnyAsync(p => p.UserId == claim.UserId && p.Age >= 18, cancellationToken);
+            if (!adult && (!request.GuardianConfirmed || request.GuardianLinkId is not { } link
+                || !await _dbContext.GuardianLinks.AnyAsync(g => g.Id == link && g.LearnerUserId == claim.UserId
+                    && g.VerifiedAtUtc != null && g.RevokedAtUtc == null, cancellationToken)))
+                return ServiceResult<PrizeClaimAdminDto>.Failure(ApiErrors.PlayPrizeClaimInvalidTransition, ServiceErrorKind.Forbidden,
+                    "Record confirmation through a real verified guardian link.");
+        }
         var now = DateTime.UtcNow;
         var from = claim.State;
 
@@ -141,6 +165,9 @@ public class PrizeClaimAdminService : IPrizeClaimAdminService
         claim.ReviewedByUserId = reviewedByUserId;
         claim.ReviewedAtUtc = now;
         claim.UpdatedAtUtc = now;
+        if (target == PrizeClaimState.AwaitingGuardian) { claim.EligibilityReviewedAtUtc = now; claim.FraudReviewedAtUtc = now; }
+        if (target == PrizeClaimState.Fulfilled && request.GuardianConfirmed)
+        { claim.GuardianConfirmedAtUtc = now; claim.GuardianLinkId = request.GuardianLinkId; }
 
         if (target == PrizeClaimState.Fulfilled)
             claim.FulfilledAtUtc = now;
@@ -167,10 +194,12 @@ public class PrizeClaimAdminService : IPrizeClaimAdminService
             $"Moved a prize claim from {WireEnum.ToWire(from)} to {WireEnum.ToWire(target)}.",
             "prize_claim",
             claim.Id.ToString(),
-            new { claim.AwardId, eventId = claim.Award?.EventId, from = WireEnum.ToWire(from), to = WireEnum.ToWire(target) },
+            new { claim.AwardId, eventId = claim.Award?.EventId, from = WireEnum.ToWire(from), to = WireEnum.ToWire(target),
+                request.EligibilityReviewed, request.FraudReviewed, request.GuardianConfirmed, request.GuardianLinkId },
             ActingUserId: reviewedByUserId));
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         var updated = await ListAsync(null, claim.Award?.EventId, cancellationToken);
 

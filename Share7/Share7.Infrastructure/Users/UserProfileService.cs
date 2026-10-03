@@ -25,6 +25,12 @@ public class UserProfileService : IUserProfileService
     {
         var userId = targetUserId ?? callerId;
 
+        // This endpoint is the private account record, never a public gaming profile. Keeping its
+        // full-name/age/grade fields available to arbitrary signed-in accounts bypassed consent.
+        // Public presentation now has its own safe, policy-filtered DTO and route.
+        if (userId != callerId && !callerIsAdmin)
+            return ServiceResult<UserProfileDto>.Failure(ApiErrors.ProfileNotFound, ServiceErrorKind.NotFound, "Profile unavailable.");
+
         var user = await _dbContext.Users
             .AsNoTracking()
             .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);

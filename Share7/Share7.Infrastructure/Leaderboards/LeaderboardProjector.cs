@@ -35,6 +35,8 @@ public class LeaderboardProjector : ILeaderboardProjector
     public async Task<int> ProjectPendingAsync(
         int batchSize, CancellationToken cancellationToken = default)
     {
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await ProjectionLockAsync(cancellationToken);
         // Oldest first, so a cycle boundary is crossed in the order the results actually happened
         // rather than the order the database felt like returning them.
         // Unranked results are claimed here too rather than filtered out of the query: a row nothing
@@ -56,6 +58,7 @@ public class LeaderboardProjector : ILeaderboardProjector
             // board authored next month is backfilled by a rebuild rather than by leaving an
             // ever-growing pending queue for the projector to re-read on every pass.
             await StampAsync(pending, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
             return pending.Count;
         }
 
@@ -65,8 +68,6 @@ public class LeaderboardProjector : ILeaderboardProjector
         var hidden = await HiddenUsersAsync(handles.Keys, cancellationToken);
 
         var touchedCycles = new HashSet<Guid>();
-
-        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
         foreach (var result in pending)
         {
@@ -176,7 +177,8 @@ public class LeaderboardProjector : ILeaderboardProjector
             case LeaderboardAggregation.Best:
                 // A worse result is a no-op. Demoting on it would make "stop playing once you are
                 // ahead" the winning strategy, which is the opposite of the point.
-                if (!Beats(result.Value, entry.Value, cycle.Board?.SortDirection ?? LeaderboardSortDirection.Desc))
+                if (!Beats(result.Value, entry.Value, cycle.Board?.SortDirection ?? LeaderboardSortDirection.Desc)
+                    && !(result.Value == entry.Value && result.OccurredAtUtc < entry.AchievedAtUtc))
                     return;
 
                 entry.Value = result.Value;
@@ -185,6 +187,7 @@ public class LeaderboardProjector : ILeaderboardProjector
 
             case LeaderboardAggregation.Sum:
                 entry.Value += result.Value;
+                if (result.OccurredAtUtc < entry.AchievedAtUtc) entry.AchievedAtUtc = result.OccurredAtUtc;
 
                 // The tie-break stays at the *first* contribution: a player who reached 500 points
                 // on Monday should outrank one who reached 500 on Friday, and moving the timestamp
@@ -192,6 +195,7 @@ public class LeaderboardProjector : ILeaderboardProjector
                 break;
 
             case LeaderboardAggregation.Last:
+                if (result.OccurredAtUtc < entry.AchievedAtUtc) return;
                 entry.Value = result.Value;
                 entry.AchievedAtUtc = result.OccurredAtUtc;
                 break;
@@ -269,33 +273,47 @@ public class LeaderboardProjector : ILeaderboardProjector
         _logger.LogWarning("Rebuilding leaderboard cycle {CycleId} from GameResults.", cycleId);
 
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await ProjectionLockAsync(cancellationToken);
 
         await _dbContext.LeaderboardEntries
             .Where(e => e.CycleId == cycleId)
             .ExecuteDeleteAsync(cancellationToken);
 
-        // Unclaim every result this cycle covers so the ordinary projection path replays them.
-        // Rebuild deliberately reuses that path rather than having a second implementation — two
-        // code paths that must agree on ranking is one more than can be kept in agreement.
-        var grace = TimeSpan.FromSeconds(cycle.Board.GraceSeconds);
-
-        await _dbContext.GameResults
-            .Where(r => r.OccurredAtUtc >= cycle.StartsAtUtc
-                        && r.OccurredAtUtc < cycle.EndsAtUtc.Add(grace)
-                        && (cycle.Board.GameId == null || r.GameId == cycle.Board.GameId)
-                        && (cycle.Board.ModeId == null || r.ModeId == cycle.Board.ModeId)
-                        && (cycle.Board.EventId == null || r.EventId == cycle.Board.EventId)
-                        && r.CountsForRanking
-                        && r.Metric == cycle.Board.Metric)
-            .ExecuteUpdateAsync(
-                update => update.SetProperty(r => r.ProjectedAtUtc, (DateTime?)null),
-                cancellationToken);
-
+        foreach (var tracked in _dbContext.ChangeTracker.Entries<LeaderboardEntry>().Where(e => e.Entity.CycleId == cycleId).ToArray())
+            tracked.State = EntityState.Detached;
         cycle.TotalRanked = 0;
-
+        // Rebuild this cycle only. Resetting the global source stamp would replay already-counted
+        // contributions into every other overlapping Sum board. Pending rows stay pending and
+        // the ordinary projector adds them afterwards. Serialize both paths while rebuilding.
+        long after = 0;
+        while (true)
+        {
+            var results = await _dbContext.GameResults.AsNoTracking().Where(r => r.Sequence > after
+                && r.ProjectedAtUtc != null && !r.IsFlagged && r.CountsForRanking && r.Metric == cycle.Board.Metric
+                && r.OccurredAtUtc >= cycle.StartsAtUtc && r.OccurredAtUtc < cycle.EndsAtUtc
+                && (cycle.Board.GameId == null || r.GameId == cycle.Board.GameId)
+                && (cycle.Board.ModeId == null || r.ModeId == cycle.Board.ModeId)
+                && (cycle.Board.EventId == null || r.EventId == cycle.Board.EventId)
+                && (cycle.Board.GradeId == null || r.GradeId == cycle.Board.GradeId)
+                && (cycle.Board.LangId == null || r.LangId == cycle.Board.LangId))
+                .OrderBy(r => r.Sequence).Take(500).ToListAsync(cancellationToken);
+            if (results.Count == 0) break;
+            var handles = await _displayNames.EnsureHandlesAsync(results.Select(r => r.UserId).Distinct().ToArray(), cancellationToken);
+            var hidden = await HiddenUsersAsync(handles.Keys, cancellationToken);
+            foreach (var result in results.OrderBy(r => r.OccurredAtUtc).ThenBy(r => r.Sequence))
+                foreach (var (cohort, key) in CohortsFor(cycle.Board, result))
+                    await ApplyAsync(cycle, cohort, key, result, cycle.Board.Aggregation, handles[result.UserId], hidden.Contains(result.UserId), cancellationToken);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            after = results[^1].Sequence;
+            foreach (var tracked in _dbContext.ChangeTracker.Entries<LeaderboardEntry>().Where(e => e.Entity.CycleId == cycleId).ToArray())
+                tracked.State = EntityState.Detached;
+        }
         await _dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
+
+    private Task ProjectionLockAsync(CancellationToken token) => _dbContext.Database.ExecuteSqlRawAsync(
+        "DECLARE @result int; EXEC @result = sys.sp_getapplock @Resource=N'Share7.Leaderboard.Projection', @LockMode='Exclusive', @LockOwner='Transaction', @LockTimeout=30000; IF @result < 0 THROW 51000, 'Projection lock unavailable', 1;", token);
 
     // ------------------------------------------------------------- selection
 

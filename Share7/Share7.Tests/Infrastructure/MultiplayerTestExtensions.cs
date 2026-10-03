@@ -93,9 +93,24 @@ public static class MultiplayerTest
         return new(context,
             Results(context, resolved, warmup),
             SocialTest.Challenges(context, resolved),
+            Tournaments(context, resolved),
             MSOptions.Create(resolved),
             warmup,
             NullLogger<MultiplayerSweepService>.Instance);
+    }
+
+    /// <summary>The tournament orchestrator with the same persisted collaborators as production.</summary>
+    public static TournamentService Tournaments(ApplicationDbContext context, MultiplayerOptions? options = null)
+    {
+        var resolved = options ?? Options();
+        var wrapped = MSOptions.Create(resolved);
+        return new(context, Sessions(context, resolved), PlayTest.Resolver(context),
+            new SessionLessonMatcher(context, EngineTest.Unlocks(context), EngineTest.Reads(context)),
+            EngineTest.Unlocks(context), new StubLanguageService(LanguageIds.English), Names(context, wrapped),
+            SocialTest.Publisher(context, resolved),
+            new GameResultRecorder(context, new PlausibilityGuard(context), NullLogger<GameResultRecorder>.Instance),
+            new ObjectiveProjector(context, NullLogger<ObjectiveProjector>.Instance), PlayTest.Awards(context),
+            TestAudit.For(context), wrapped, MSOptions.Create(new RunOptions()), NullLogger<TournamentService>.Instance);
     }
 
     /// <summary>

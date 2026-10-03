@@ -23,11 +23,15 @@ namespace Share7.Tests;
 /// </para>
 /// </summary>
 [Collection(SqlServerCollection.Name)]
-public class SignalEconomyTests
+public class SignalEconomyTests : IAsyncLifetime
 {
     private readonly SqlServerFixture _fixture;
 
-    public SignalEconomyTests(SqlServerFixture fixture) => _fixture = fixture;
+    // These cases author global XP pricing, the level curve and the consumer checkpoint.
+    // Give each case its own migrated database so global configuration cannot leak across tests.
+    public SignalEconomyTests(SqlServerFixture fixture) => _fixture = new SqlServerFixture();
+    public Task InitializeAsync() => _fixture.InitializeAsync();
+    public Task DisposeAsync() => _fixture.DisposeAsync();
 
     // ---- ownership: one signal, one surface, one payment --------------------------------------
 
@@ -244,6 +248,11 @@ public class SignalEconomyTests
         // 150 XP crosses levels 2 and 3, so the rule pays twice — and no rule granted a single point
         // of the XP that caused it.
         Assert.Equal(50, await check.BalanceOfAsync(userId, coins.Id));
+        var payout = Assert.Single(await check.RunPayouts.Where(p => p.RunId == started.Value!.RunId && p.CurrencyId == coins.Id).ToListAsync());
+        Assert.Equal(50, payout.NetAmount);
+        Assert.Equal(50, Assert.Single(settled.Value!.Rewards.Where(r => r.Currency == coins.Key)).Amount);
+        var replay = await runs.SettleAsync(userId, started.Value!.RunId, RunTestExtensions.Result(coins: 15));
+        Assert.True(replay.Succeeded); Assert.Equal(50, Assert.Single(replay.Value!.Rewards.Where(r => r.Currency == coins.Key)).Amount);
     }
 
     [Fact]
@@ -393,6 +402,8 @@ public class SignalEconomyTests
 
         // 60 seconds at 12 m/s. Under this kind's own bound of 15/s, and far over the platform
         // default the coin uses.
+        var run = await context.Runs.SingleAsync(r => r.Id == started.Value!.RunId);
+        run.StartedAtUtc = DateTime.UtcNow.AddSeconds(-61); await context.SaveChangesAsync();
         var settled = await runs.SettleAsync(userId, started.Value!.RunId, new SubmitRunResultRequest
         {
             Signals = [new RunSignalReport { Kind = SignalKinds.DistanceM, Count = 720 }],

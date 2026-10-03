@@ -4,3 +4,10 @@ Share7/Auth.md
 Share7/UnityIntegration.md
 Share7/Share7/wwwroot/auth-test.html
 /client
+
+# Local dependencies, deployment output and private credential backups
+**/node_modules/
+**/publish_output/
+**/share7_backend_publish.zip
+Share7/app_offline.htm
+Share7/deployment-credentials.local.json

@@ -131,6 +131,14 @@ public class RewardAdminService : IRewardAdminService
         // with no grants if the insert then fails.
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
+        // Season publication and reward editing share an authoring lock. A published tier's
+        // reward stays the reward the player earned, including after the season is disabled.
+        await _dbContext.Database.ExecuteSqlRawAsync(
+            "DECLARE @result int; EXEC @result = sys.sp_getapplock @Resource=N'Share7.BrainPass.Authoring', @LockMode='Exclusive', @LockOwner='Transaction', @LockTimeout=10000; IF @result < 0 THROW 51000, 'Season authoring lock unavailable', 1;", cancellationToken);
+        if (await _dbContext.BrainPassTiers.AnyAsync(t => t.RewardRuleId == rule.Id
+            && _dbContext.BrainPassSeasons.Any(s => s.Id == t.SeasonId && s.State != Domain.BrainPass.BrainPassState.Draft), cancellationToken))
+            return ServiceResult<RewardRuleDto>.Conflict("A published season owns this reward definition; author a new rule instead.");
+
         // Deleted by query rather than through the navigation collection. Marking the children
         // removed *and* clearing the collection makes EF emit the delete twice — once for the
         // explicit removal and once for the orphan — and the second finds no row.

@@ -169,6 +169,8 @@ using (var scope = app.Services.CreateScope())
     {
         var contentSeeder = scope.ServiceProvider.GetRequiredService<IContentSeeder>();
         await contentSeeder.SeedAsync(CancellationToken.None);
+        if (app.Environment.IsDevelopment() && seedOptions.DemoPlayers && app.Configuration.GetValue<bool>("LocalSocialSeed:Enabled"))
+            await Share7.Infrastructure.Seeding.LocalSocialDemoSeeder.RunAsync(scope.ServiceProvider, seedOptions.DemoPlayerPassword);
     }
 
     // The platform's own accounts — see IdentitySeeder. In Production the seed admin is never

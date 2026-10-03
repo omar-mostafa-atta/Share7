@@ -140,6 +140,8 @@ export const NAV: NavGroup[] = [
   {
     section: 'Engagement',
     items: [
+      { to: '/brain-pass', label: 'Brain Pass', icon: Gift, blurb: 'Seasonal tiers, result XP caps, publication and reward claims' },
+      { to: '/social', label: 'Social operations', icon: ShieldCheck, blurb: 'Player reports, moderation decisions, appeals and curated official identities' },
       {
         to: '/objectives',
         label: 'Objectives',

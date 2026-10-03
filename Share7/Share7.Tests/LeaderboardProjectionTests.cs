@@ -14,6 +14,35 @@ namespace Share7.Tests;
 [Collection(SqlServerCollection.Name)]
 public class LeaderboardProjectionTests
 {
+    [Fact]
+    public async Task Rebuilding_one_sum_cycle_does_not_replay_contributions_into_another_cycle()
+    {
+        await using var db = _fixture.CreateContext(); var user = await TestData.CreateUserAsync(db);
+        var path = await TestData.CreateCurriculumPathAsync(db);
+        var (_, first) = await db.CreateBoardAsync(LeaderboardMetrics.LessonsAced, LeaderboardAggregation.Sum, gameId: path.GameId);
+        var (_, second) = await db.CreateBoardAsync(LeaderboardMetrics.LessonsAced, LeaderboardAggregation.Sum, gameId: path.GameId);
+        await db.AddResultAsync(user, path.GameId, LeaderboardMetrics.LessonsAced, 5);
+        var projector = LeaderboardTestExtensions.CreateProjector(db);
+        await projector.ProjectPendingAsync(500); await projector.RebuildCycleAsync(first.Id);
+        await projector.ProjectPendingAsync(500);
+        await using var check = _fixture.CreateContext();
+        foreach (var cycle in new[] { first.Id, second.Id })
+            Assert.Equal(5, (await check.LeaderboardEntries.SingleAsync(e => e.CycleId == cycle && e.UserId == user && e.Cohort == LeaderboardCohort.All)).Value);
+    }
+
+    [Fact]
+    public async Task Concurrent_projection_workers_claim_each_sum_contribution_once()
+    {
+        await using var db = _fixture.CreateContext(); var user = await TestData.CreateUserAsync(db);
+        var path = await TestData.CreateCurriculumPathAsync(db);
+        var (_, cycle) = await db.CreateBoardAsync(LeaderboardMetrics.LessonsAced, LeaderboardAggregation.Sum, gameId: path.GameId);
+        for (var n = 0; n < 8; n++) await db.AddResultAsync(user, path.GameId, LeaderboardMetrics.LessonsAced, 1);
+        await Task.WhenAll(Enumerable.Range(0, 4).Select(async _ => { await using var worker = _fixture.CreateContext(); await LeaderboardTestExtensions.CreateProjector(worker).ProjectPendingAsync(500); }));
+        await using var check = _fixture.CreateContext();
+        Assert.Equal(8, (await check.LeaderboardEntries.SingleAsync(e => e.CycleId == cycle.Id && e.UserId == user && e.Cohort == LeaderboardCohort.All)).Value);
+        Assert.Equal(8, await check.GameResults.CountAsync(r => r.UserId == user && r.GameId == path.GameId && r.ProjectedAtUtc != null));
+    }
+
     private readonly SqlServerFixture _fixture;
 
     public LeaderboardProjectionTests(SqlServerFixture fixture) => _fixture = fixture;
@@ -24,7 +53,7 @@ public class LeaderboardProjectionTests
         await using var context = _fixture.CreateContext();
         var userId = await TestData.CreateUserAsync(context);
         var path = await TestData.CreateCurriculumPathAsync(context);
-        var (_, cycle) = await context.CreateBoardAsync(LeaderboardMetrics.LessonsAced);
+        var (_, cycle) = await context.CreateBoardAsync(LeaderboardMetrics.LessonsAced, gameId: path.GameId);
 
         await context.AddResultAsync(userId, path.GameId, LeaderboardMetrics.LessonsAced, 1);
 
@@ -52,7 +81,7 @@ public class LeaderboardProjectionTests
         var userId = await TestData.CreateUserAsync(context);
         var path = await TestData.CreateCurriculumPathAsync(context);
         var (_, cycle) = await context.CreateBoardAsync(
-            LeaderboardMetrics.LessonsAced, LeaderboardAggregation.Sum);
+            LeaderboardMetrics.LessonsAced, LeaderboardAggregation.Sum, gameId: path.GameId);
 
         await context.AddResultAsync(userId, path.GameId, LeaderboardMetrics.LessonsAced, 1);
 
@@ -78,7 +107,7 @@ public class LeaderboardProjectionTests
         var userId = await TestData.CreateUserAsync(context);
         var path = await TestData.CreateCurriculumPathAsync(context);
         var (_, cycle) = await context.CreateBoardAsync(
-            LeaderboardMetrics.LessonBestPercent, LeaderboardAggregation.Best);
+            LeaderboardMetrics.LessonBestPercent, LeaderboardAggregation.Best, gameId: path.GameId);
 
         var projector = LeaderboardTestExtensions.CreateProjector(context);
 
@@ -102,7 +131,7 @@ public class LeaderboardProjectionTests
         var early = await TestData.CreateUserAsync(context);
         var late = await TestData.CreateUserAsync(context);
         var path = await TestData.CreateCurriculumPathAsync(context);
-        var (_, cycle) = await context.CreateBoardAsync(LeaderboardMetrics.LessonBestPercent);
+        var (_, cycle) = await context.CreateBoardAsync(LeaderboardMetrics.LessonBestPercent, gameId: path.GameId);
 
         var baseline = DateTime.UtcNow.AddHours(-5);
 
@@ -134,7 +163,7 @@ public class LeaderboardProjectionTests
         await using var context = _fixture.CreateContext();
         var userId = await TestData.CreateUserAsync(context);
         var path = await TestData.CreateCurriculumPathAsync(context);
-        var (_, cycle) = await context.CreateBoardAsync(LeaderboardMetrics.LessonsAced);
+        var (_, cycle) = await context.CreateBoardAsync(LeaderboardMetrics.LessonsAced, gameId: path.GameId);
 
         var gradeId = Guid.NewGuid();
         await context.AddResultAsync(
@@ -158,7 +187,7 @@ public class LeaderboardProjectionTests
         await using var context = _fixture.CreateContext();
         var userId = await TestData.CreateUserAsync(context);
         var path = await TestData.CreateCurriculumPathAsync(context);
-        var (_, cycle) = await context.CreateBoardAsync(LeaderboardMetrics.LessonsAced);
+        var (_, cycle) = await context.CreateBoardAsync(LeaderboardMetrics.LessonsAced, gameId: path.GameId);
 
         await context.AddResultAsync(userId, path.GameId, LeaderboardMetrics.LessonsAced, 1);
 
@@ -177,7 +206,7 @@ public class LeaderboardProjectionTests
         await using var context = _fixture.CreateContext();
         var userId = await TestData.CreateUserAsync(context);
         var path = await TestData.CreateCurriculumPathAsync(context);
-        var (_, cycle) = await context.CreateBoardAsync(LeaderboardMetrics.LessonsAced);
+        var (_, cycle) = await context.CreateBoardAsync(LeaderboardMetrics.LessonsAced, gameId: path.GameId);
 
         var flagged = await context.AddResultAsync(
             userId, path.GameId, LeaderboardMetrics.LessonsAced, 999, isFlagged: true);
@@ -201,7 +230,7 @@ public class LeaderboardProjectionTests
 
         var now = DateTime.UtcNow;
         var (_, cycle) = await context.CreateBoardAsync(
-            LeaderboardMetrics.LessonsAced,
+            LeaderboardMetrics.LessonsAced, gameId: path.GameId,
             startsAtUtc: now.AddDays(-2),
             endsAtUtc: now.AddDays(-1));
 
@@ -222,7 +251,7 @@ public class LeaderboardProjectionTests
         await using var context = _fixture.CreateContext();
         var path = await TestData.CreateCurriculumPathAsync(context);
         var (_, cycle) = await context.CreateBoardAsync(
-            LeaderboardMetrics.LessonsAced, LeaderboardAggregation.Sum);
+            LeaderboardMetrics.LessonsAced, LeaderboardAggregation.Sum, gameId: path.GameId);
 
         var players = new List<Guid>();
 
@@ -257,7 +286,7 @@ public class LeaderboardProjectionTests
         await using var context = _fixture.CreateContext();
         var userId = await TestData.CreateUserAsync(context);
         var path = await TestData.CreateCurriculumPathAsync(context);
-        var (_, cycle) = await context.CreateBoardAsync(LeaderboardMetrics.LessonsAced);
+        var (_, cycle) = await context.CreateBoardAsync(LeaderboardMetrics.LessonsAced, gameId: path.GameId);
 
         var displayNames = LeaderboardTestExtensions.CreateDisplayNames(context);
         await displayNames.EnsureHandleAsync(userId);

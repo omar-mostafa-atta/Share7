@@ -831,6 +831,245 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
                 });
 
+            modelBuilder.Entity("Share7.Domain.BrainPass.BrainPassClaim", b =>
+                {
+                    b.Property<Guid>("SeasonId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Tier")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Track")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("ClaimedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("RewardsJson")
+                        .IsRequired()
+                        .HasMaxLength(8000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("SeasonId", "UserId", "Tier", "Track");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("BrainPassClaims", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.BrainPass.BrainPassCredit", b =>
+                {
+                    b.Property<Guid>("SeasonId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ResultId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Xp")
+                        .HasColumnType("int");
+
+                    b.HasKey("SeasonId", "ResultId");
+
+                    b.HasIndex("UserId", "SeasonId");
+
+                    b.ToTable("BrainPassCredits", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.BrainPass.BrainPassDaily", b =>
+                {
+                    b.Property<Guid>("SeasonId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Metric")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("DayUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Xp")
+                        .HasColumnType("int");
+
+                    b.HasKey("SeasonId", "UserId", "Metric", "DayUtc");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("BrainPassDaily", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.BrainPass.BrainPassProgress", b =>
+                {
+                    b.Property<Guid>("SeasonId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("Xp")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("SeasonId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("BrainPassProgress", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.BrainPass.BrainPassSeason", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("ClaimUntilUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("EndsAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("NameAr")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("NameEn")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("ObjectiveGroupKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<Guid?>("PremiumProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("StartsAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("State")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Key")
+                        .IsUnique();
+
+                    b.HasIndex("PremiumProductId");
+
+                    b.HasIndex("State", "StartsAtUtc", "EndsAtUtc");
+
+                    b.ToTable("BrainPassSeasons", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.BrainPass.BrainPassSource", b =>
+                {
+                    b.Property<Guid>("SeasonId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Metric")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<Guid>("SourceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("CreditedXp")
+                        .HasColumnType("int");
+
+                    b.Property<long>("MaximumValue")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("SeasonId", "UserId", "Metric", "SourceId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("BrainPassSources", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.BrainPass.BrainPassTier", b =>
+                {
+                    b.Property<Guid>("SeasonId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Number")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Track")
+                        .HasColumnType("int");
+
+                    b.Property<long>("RequiredXp")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("RewardRuleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("SeasonId", "Number", "Track");
+
+                    b.HasIndex("RewardRuleId");
+
+                    b.ToTable("BrainPassTiers", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.BrainPass.BrainPassXpRule", b =>
+                {
+                    b.Property<Guid>("SeasonId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Metric")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int>("DailyCap")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MaxSourceXp")
+                        .HasColumnType("int");
+
+                    b.Property<long>("MinimumValue")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("UnitValue")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("XpPerUnit")
+                        .HasColumnType("int");
+
+                    b.HasKey("SeasonId", "Metric");
+
+                    b.ToTable("BrainPassXpRules", (string)null);
+                });
+
             modelBuilder.Entity("Share7.Domain.Commerce.Entitlement", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4403,6 +4642,28 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.ToTable("Challenges", (string)null);
                 });
 
+            modelBuilder.Entity("Share7.Domain.Multiplayer.GameObservationCapability", b =>
+                {
+                    b.Property<Guid>("GameId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("ProtocolVersion")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ContractVersion")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("MaxObservers")
+                        .HasColumnType("int");
+
+                    b.HasKey("GameId", "ProtocolVersion");
+
+                    b.ToTable("GameObservationCapabilities", (string)null);
+                });
+
             modelBuilder.Entity("Share7.Domain.Multiplayer.MatchAttemptScore", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4698,6 +4959,9 @@ namespace Share7.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<bool>("AllowObservers")
+                        .HasColumnType("bit");
+
                     b.Property<string>("ClosedReason")
                         .HasMaxLength(32)
                         .HasColumnType("nvarchar(32)");
@@ -4711,6 +4975,12 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.Property<string>("CurriculumPathJson")
                         .HasMaxLength(512)
                         .HasColumnType("nvarchar(512)");
+
+                    b.Property<long>("DirectorySequence")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("DirectorySequence"));
 
                     b.Property<DateTime?>("EndedAtUtc")
                         .HasColumnType("datetime2");
@@ -4820,6 +5090,9 @@ namespace Share7.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("State", "LastHeartbeatAtUtc")
                         .HasDatabaseName("IX_MultiplayerSession_Sweep");
+
+                    b.HasIndex("Visibility", "State", "ProtocolVersion", "DirectorySequence")
+                        .HasDatabaseName("IX_Session_PublicDirectory");
 
                     b.HasIndex("GameId", "State", "Visibility", "IsRanked", "ProtocolVersion", "LessonId")
                         .HasDatabaseName("IX_MultiplayerSession_Matchmaking");
@@ -5179,6 +5452,69 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.ToTable("RankedSeasonStandings", (string)null);
                 });
 
+            modelBuilder.Entity("Share7.Domain.Multiplayer.SessionArchive", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("ArchivedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("EndedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("GameId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ModeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("ParticipantCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("StartedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpiresAtUtc");
+
+                    b.ToTable("SessionArchives", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Multiplayer.SessionArchiveParticipant", b =>
+                {
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("Forfeited")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsWinner")
+                        .HasColumnType("bit");
+
+                    b.Property<int?>("Placement")
+                        .HasColumnType("int");
+
+                    b.HasKey("SessionId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("SessionArchiveParticipants", (string)null);
+                });
+
             modelBuilder.Entity("Share7.Domain.Multiplayer.SessionInvitation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5222,6 +5558,27 @@ namespace Share7.Infrastructure.Persistence.Migrations
                         .HasFilter("[State] = 'PENDING'");
 
                     b.ToTable("SessionInvitations", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Multiplayer.SessionObserver", b =>
+                {
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("SessionId", "UserId");
+
+                    b.HasIndex("ExpiresAtUtc");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.ToTable("SessionObservers", (string)null);
                 });
 
             modelBuilder.Entity("Share7.Domain.Multiplayer.Tournament", b =>
@@ -5318,7 +5675,9 @@ namespace Share7.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("IX_Tournament_Cohort");
 
                     b.HasIndex("EventId")
-                        .HasDatabaseName("IX_Tournament_Event");
+                        .IsUnique()
+                        .HasDatabaseName("UQ_Tournament_Event")
+                        .HasFilter("[EventId] IS NOT NULL AND [State] <> 'CANCELLED'");
 
                     b.HasIndex("State", "StartsAtUtc")
                         .HasDatabaseName("IX_Tournament_State");
@@ -6633,11 +6992,23 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("EligibilityReviewedAtUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("FraudReviewedAtUtc")
                         .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("FulfilledAtUtc")
                         .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("GuardianConfirmedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("GuardianLinkId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("ReviewNote")
                         .HasMaxLength(1000)
@@ -8068,6 +8439,159 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.ToTable("Friendships", (string)null);
                 });
 
+            modelBuilder.Entity("Share7.Domain.Social.InboxPreference", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Category")
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("bit");
+
+                    b.HasKey("UserId", "Category");
+
+                    b.ToTable("InboxPreferences", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Social.InboxRead", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("ReadAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("UserId", "EventId");
+
+                    b.HasIndex("ReadAtUtc");
+
+                    b.ToTable("InboxReads", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Social.OfficialActivity", b =>
+                {
+                    b.Property<long>("Sequence")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Sequence"));
+
+                    b.Property<Guid?>("EventId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PublicationKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("StartsAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("TitleAr")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<string>("TitleEn")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Sequence");
+
+                    b.HasIndex("ExpiresAtUtc");
+
+                    b.HasIndex("UserId", "PublicationKey")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "Sequence");
+
+                    b.ToTable("OfficialActivities", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Social.OfficialFollow", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("FollowedUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("UserId", "FollowedUserId");
+
+                    b.HasIndex("FollowedUserId", "UserId");
+
+                    b.ToTable("OfficialFollows", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Social.OfficialProfile", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("Discoverable")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("DisplayNameAr")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("DisplayNameEn")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("int");
+
+                    b.Property<long>("Sequence")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Sequence"));
+
+                    b.Property<string>("TitleAr")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("TitleEn")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("Verified")
+                        .HasColumnType("bit");
+
+                    b.HasKey("UserId");
+
+                    b.HasIndex("Sequence")
+                        .IsUnique();
+
+                    b.HasIndex("Discoverable", "Sequence");
+
+                    b.ToTable("OfficialProfiles", (string)null);
+                });
+
             modelBuilder.Entity("Share7.Domain.Social.PlayerBlock", b =>
                 {
                     b.Property<Guid>("UserId")
@@ -8109,6 +8633,24 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.ToTable("PlayerFriendCodes", (string)null);
                 });
 
+            modelBuilder.Entity("Share7.Domain.Social.PlayerMute", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("MutedUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("UserId", "MutedUserId");
+
+                    b.HasIndex("MutedUserId");
+
+                    b.ToTable("PlayerMutes", (string)null);
+                });
+
             modelBuilder.Entity("Share7.Domain.Social.PlayerPresence", b =>
                 {
                     b.Property<Guid>("UserId")
@@ -8120,6 +8662,264 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.HasKey("UserId");
 
                     b.ToTable("PlayerPresence", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Social.PlayerReport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DecidedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DecisionCode")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("EvidenceJson")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<bool>("PermanentRestriction")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("Reason")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("ReportedUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("RequestId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int?>("RestrictDays")
+                        .HasColumnType("int");
+
+                    b.Property<long>("Sequence")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Sequence"));
+
+                    b.Property<Guid?>("SessionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("State")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReportedUserId");
+
+                    b.HasIndex("Sequence")
+                        .IsUnique();
+
+                    b.HasIndex("State", "Sequence");
+
+                    b.HasIndex("UserId", "CreatedAtUtc");
+
+                    b.HasIndex("UserId", "RequestId")
+                        .IsUnique();
+
+                    b.ToTable("PlayerReports", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Social.PlayerShowcase", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SelectionJson")
+                        .IsRequired()
+                        .HasMaxLength(3000)
+                        .HasColumnType("nvarchar(3000)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("PlayerShowcases", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Social.PlayerTeam", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("OwnerUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("RequestId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerUserId", "RequestId")
+                        .IsUnique();
+
+                    b.ToTable("PlayerTeams", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Social.PlayerTeamMember", b =>
+                {
+                    b.Property<Guid>("TeamId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("Accepted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("AcceptedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("InvitedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("TeamId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("PlayerTeamMembers", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Social.ShowcaseContent", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("AssetKey")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<int>("ContractVersion")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("FallbackKey")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MinimumQuality")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("OfficialOnly")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid?>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Key");
+
+                    b.HasIndex("FallbackKey");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("Enabled", "Kind", "Key");
+
+                    b.ToTable("ShowcaseContents", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Social.SocialPrivacy", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Challenges")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("FriendRequests")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("Invitations")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Presence")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Profile")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Statistics")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("SocialPrivacy", (string)null);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Social.SocialRestriction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AppealCode")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("AppealResolutionCode")
+                        .HasMaxLength(48)
+                        .HasColumnType("nvarchar(48)");
+
+                    b.Property<DateTime?>("AppealReviewedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("AppealedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("ReportId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("RevokedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("StartsAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "RevokedAtUtc", "ExpiresAtUtc");
+
+                    b.ToTable("SocialRestrictions", (string)null);
                 });
 
             modelBuilder.Entity("Share7.Domain.Staff.StaffProfile", b =>
@@ -10000,6 +10800,113 @@ namespace Share7.Infrastructure.Persistence.Migrations
                     b.Navigation("ExamSpecificationVersion");
                 });
 
+            modelBuilder.Entity("Share7.Domain.BrainPass.BrainPassClaim", b =>
+                {
+                    b.HasOne("Share7.Domain.BrainPass.BrainPassSeason", null)
+                        .WithMany()
+                        .HasForeignKey("SeasonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Share7.Domain.BrainPass.BrainPassCredit", b =>
+                {
+                    b.HasOne("Share7.Domain.BrainPass.BrainPassSeason", null)
+                        .WithMany()
+                        .HasForeignKey("SeasonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Share7.Domain.BrainPass.BrainPassDaily", b =>
+                {
+                    b.HasOne("Share7.Domain.BrainPass.BrainPassSeason", null)
+                        .WithMany()
+                        .HasForeignKey("SeasonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Share7.Domain.BrainPass.BrainPassProgress", b =>
+                {
+                    b.HasOne("Share7.Domain.BrainPass.BrainPassSeason", null)
+                        .WithMany()
+                        .HasForeignKey("SeasonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Share7.Domain.BrainPass.BrainPassSeason", b =>
+                {
+                    b.HasOne("Share7.Domain.Commerce.Product", null)
+                        .WithMany()
+                        .HasForeignKey("PremiumProductId")
+                        .OnDelete(DeleteBehavior.NoAction);
+                });
+
+            modelBuilder.Entity("Share7.Domain.BrainPass.BrainPassSource", b =>
+                {
+                    b.HasOne("Share7.Domain.BrainPass.BrainPassSeason", null)
+                        .WithMany()
+                        .HasForeignKey("SeasonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Share7.Domain.BrainPass.BrainPassTier", b =>
+                {
+                    b.HasOne("Share7.Domain.Rewards.RewardRule", null)
+                        .WithMany()
+                        .HasForeignKey("RewardRuleId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Domain.BrainPass.BrainPassSeason", null)
+                        .WithMany()
+                        .HasForeignKey("SeasonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Share7.Domain.BrainPass.BrainPassXpRule", b =>
+                {
+                    b.HasOne("Share7.Domain.BrainPass.BrainPassSeason", null)
+                        .WithMany()
+                        .HasForeignKey("SeasonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Share7.Domain.Commerce.Entitlement", b =>
                 {
                     b.HasOne("Share7.Domain.Commerce.Product", "Product")
@@ -11035,6 +11942,15 @@ namespace Share7.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Share7.Domain.Multiplayer.GameObservationCapability", b =>
+                {
+                    b.HasOne("Share7.Domain.Games.Game", null)
+                        .WithMany()
+                        .HasForeignKey("GameId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Share7.Domain.Multiplayer.MatchAttemptScore", b =>
                 {
                     b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
@@ -11273,6 +12189,21 @@ namespace Share7.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Share7.Domain.Multiplayer.SessionArchiveParticipant", b =>
+                {
+                    b.HasOne("Share7.Domain.Multiplayer.SessionArchive", null)
+                        .WithMany()
+                        .HasForeignKey("SessionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Share7.Domain.Multiplayer.SessionInvitation", b =>
                 {
                     b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
@@ -11294,6 +12225,21 @@ namespace Share7.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Session");
+                });
+
+            modelBuilder.Entity("Share7.Domain.Multiplayer.SessionObserver", b =>
+                {
+                    b.HasOne("Share7.Domain.Multiplayer.MultiplayerSession", null)
+                        .WithMany()
+                        .HasForeignKey("SessionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Share7.Domain.Multiplayer.TournamentEntry", b =>
@@ -11870,6 +12816,57 @@ namespace Share7.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Share7.Domain.Social.InboxPreference", b =>
+                {
+                    b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Share7.Domain.Social.InboxRead", b =>
+                {
+                    b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Share7.Domain.Social.OfficialActivity", b =>
+                {
+                    b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Share7.Domain.Social.OfficialFollow", b =>
+                {
+                    b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("FollowedUserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Share7.Domain.Social.OfficialProfile", b =>
+                {
+                    b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Share7.Domain.Social.PlayerBlock", b =>
                 {
                     b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
@@ -11894,7 +12891,101 @@ namespace Share7.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Share7.Domain.Social.PlayerMute", b =>
+                {
+                    b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("MutedUserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Share7.Domain.Social.PlayerPresence", b =>
+                {
+                    b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Share7.Domain.Social.PlayerReport", b =>
+                {
+                    b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ReportedUserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Share7.Domain.Social.PlayerShowcase", b =>
+                {
+                    b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Share7.Domain.Social.PlayerTeam", b =>
+                {
+                    b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerUserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Share7.Domain.Social.PlayerTeamMember", b =>
+                {
+                    b.HasOne("Share7.Domain.Social.PlayerTeam", null)
+                        .WithMany()
+                        .HasForeignKey("TeamId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Share7.Domain.Social.ShowcaseContent", b =>
+                {
+                    b.HasOne("Share7.Domain.Social.ShowcaseContent", null)
+                        .WithMany()
+                        .HasForeignKey("FallbackKey")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Share7.Domain.Commerce.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.NoAction);
+                });
+
+            modelBuilder.Entity("Share7.Domain.Social.SocialPrivacy", b =>
+                {
+                    b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Share7.Domain.Social.SocialRestriction", b =>
                 {
                     b.HasOne("Share7.Infrastructure.Identity.ApplicationUser", null)
                         .WithMany()

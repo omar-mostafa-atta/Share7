@@ -1098,6 +1098,10 @@ function ClaimsPanel() {
 
   const [working, setWorking] = useState<PrizeClaimAdminDto | null>(null)
   const [note, setNote] = useState('')
+  const [eligibilityReviewed, setEligibilityReviewed] = useState(false)
+  const [fraudReviewed, setFraudReviewed] = useState(false)
+  const [guardianConfirmed, setGuardianConfirmed] = useState(false)
+  const [guardianLinkId, setGuardianLinkId] = useState('')
 
   const columns = useMemo<Column<PrizeClaimAdminDto>[]>(
     () => [
@@ -1202,6 +1206,10 @@ function ClaimsPanel() {
             loading={loading}
             onRowClick={(claim) => {
               setNote(claim.reviewNote ?? '')
+              setEligibilityReviewed(false)
+              setFraudReviewed(false)
+              setGuardianConfirmed(false)
+              setGuardianLinkId('')
               setWorking(claim)
             }}
             selectedId={working?.claimId ?? null}
@@ -1227,7 +1235,8 @@ function ClaimsPanel() {
                 variant={target.danger ? 'danger' : 'primary'}
                 onClick={async () => {
                   if (!working) return
-                  await update(working.claimId, { state: target.value, note: note || null })
+                  await update(working.claimId, { state: target.value, note: note || null,
+                    eligibilityReviewed, fraudReviewed, guardianConfirmed, guardianLinkId: guardianLinkId || null })
                   setWorking(null)
                 }}
               >
@@ -1254,6 +1263,16 @@ function ClaimsPanel() {
               placeholder="Guardian contacted by phone, delivery arranged"
             />
           </Field>
+          {working?.state === 'PENDING_REVIEW' && <>
+            <Switch checked={eligibilityReviewed} onChange={setEligibilityReviewed} label="Eligibility and result evidence reviewed" />
+            <Switch checked={fraudReviewed} onChange={setFraudReviewed} label="Fraud and opponent-pattern signals reviewed" />
+          </>}
+          {working?.state === 'AWAITING_GUARDIAN' && <>
+            <Switch checked={guardianConfirmed} onChange={setGuardianConfirmed} label="Guardian confirmation recorded" />
+            <Field label="Verified guardian link" hint="Required for a minor or an account without verified adult age.">
+              <Input value={guardianLinkId} onChange={e => setGuardianLinkId(e.target.value)} />
+            </Field>
+          </>}
         </div>
       </Modal>
     </>

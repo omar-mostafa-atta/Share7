@@ -110,6 +110,10 @@ public static class UserOwnedData
         // table. So memberships in *other people's* sessions are removed here instead. The purge
         // runs before the user row goes, which is also what keeps the NoAction FK satisfied.
         typeof(MultiplayerSessionPlayer),
+        typeof(SessionArchiveParticipant),
+        typeof(SessionObserver),
+        typeof(Domain.Social.PlayerTeamMember),
+        typeof(Domain.Social.PlayerTeam),
 
         // Removals from other people's sessions, for the same second-cascade-path reason as the seats
         // above. A ban names the account it kept out, and an erased account is not kept out of
@@ -133,6 +137,14 @@ public static class UserOwnedData
         typeof(Domain.Social.PlayerBlock),
         typeof(Domain.Social.Friendship),
         typeof(Domain.Social.FriendRequest),
+        typeof(Domain.Social.OfficialFollow),
+        typeof(Domain.Social.PlayerMute),
+        typeof(Domain.Social.PlayerReport),
+        typeof(Domain.BrainPass.BrainPassClaim),
+        typeof(Domain.BrainPass.BrainPassDaily),
+        typeof(Domain.BrainPass.BrainPassSource),
+        typeof(Domain.BrainPass.BrainPassCredit),
+        typeof(Domain.BrainPass.BrainPassProgress),
 
         // Leaderboard standings, for the same structural reason: the cascade already arrives via
         // the cycle's board, and SQL Server allows only one path.
@@ -326,5 +338,5 @@ public static class UserOwnedData
     /// slip past the guard by not being called <c>UserId</c>.
     /// </summary>
     public static readonly IReadOnlyList<string> UserKeyProperties =
-        ["UserId", "LearnerId", "GuardianUserId", "LearnerUserId", "BlockedUserId", "SenderUserId", "RecipientUserId", "ChallengerUserId", "FriendUserId", "OwnerUserId"];
+        ["UserId", "LearnerId", "GuardianUserId", "LearnerUserId", "BlockedUserId", "SenderUserId", "RecipientUserId", "ChallengerUserId", "FriendUserId", "OwnerUserId", "FollowedUserId", "MutedUserId", "ReportedUserId"];
 }

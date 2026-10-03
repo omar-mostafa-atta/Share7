@@ -10,7 +10,9 @@ public enum SocialAction
     SeePresence = 3,
 
     /// <summary>Never allowed today — see <see cref="ISocialPolicy"/>.</summary>
-    SeeRealName = 4
+    SeeRealName = 4,
+    SeeProfile = 5,
+    SeeStatistics = 6
 }
 
 /// <summary>How two players are connected, when they are.</summary>
@@ -202,6 +204,7 @@ public interface IFriendService
 
     /// <summary>The sender is not told.</summary>
     Task<ServiceResult<FriendRequestDto>> DeclineAsync(Guid userId, Guid requestId, CancellationToken cancellationToken = default);
+    Task<ServiceResult<FriendRequestDto>> CancelAsync(Guid userId, Guid requestId, CancellationToken cancellationToken = default);
 
     /// <summary>Unfriends, both ways, silently.</summary>
     Task<ServiceResult> RemoveAsync(Guid userId, Guid friendUserId, CancellationToken cancellationToken = default);

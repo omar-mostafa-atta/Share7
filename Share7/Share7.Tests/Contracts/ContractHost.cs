@@ -52,6 +52,7 @@ public class ContractHost : IAsyncLifetime
             WorkingDirectory = Path.GetDirectoryName(apiDll)!,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            CreateNoWindow = true,
             UseShellExecute = false
         };
         start.ArgumentList.Add(apiDll);
@@ -96,6 +97,23 @@ public class ContractHost : IAsyncLifetime
 
         _process?.Dispose();
         await _database.DisposeAsync();
+    }
+
+    /// <summary>An abrupt backend restart, preserving the test database and clients' access tokens.</summary>
+    public async Task RestartAsync()
+    {
+        var start = _process!.StartInfo;
+        if (!_process.HasExited)
+        {
+            _process.Kill(entireProcessTree: true);
+            await _process.WaitForExitAsync();
+        }
+        _process.Dispose();
+        _process = Process.Start(start) ?? throw new InvalidOperationException("Could not restart the API.");
+        _process.OutputDataReceived += (_, e) => { if (e.Data is not null) lock (_output) _output.AppendLine(e.Data); };
+        _process.ErrorDataReceived += (_, e) => { if (e.Data is not null) lock (_output) _output.AppendLine(e.Data); };
+        _process.BeginOutputReadLine(); _process.BeginErrorReadLine();
+        await WaitUntilReadyAsync();
     }
 
     /// <summary>A client signed in as one of the fixture's students.</summary>

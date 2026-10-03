@@ -45,7 +45,11 @@ public class SocialConsent : ISocialConsent
             .Select(g => g.LearnerUserId)
             .ToListAsync(cancellationToken);
 
-        return adults.Concat(consented).ToHashSet();
+        var now = DateTime.UtcNow;
+        var restricted = await _dbContext.SocialRestrictions.Where(r => ids.Contains(r.UserId)
+            && r.RevokedAtUtc == null && r.StartsAtUtc <= now && (r.ExpiresAtUtc == null || r.ExpiresAtUtc > now))
+            .Select(r => r.UserId).ToListAsync(cancellationToken);
+        return adults.Concat(consented).Except(restricted).ToHashSet();
     }
 }
 
@@ -209,6 +213,7 @@ public class FriendService : IFriendService
         // answer for all of them.
         if (owner is not { } target
             || !await _consent.MayHaveFriendsAsync(target, cancellationToken)
+            || await _dbContext.SocialPrivacy.AnyAsync(p => p.UserId == target && !p.FriendRequests, cancellationToken)
             || await _blocks.IsBlockedEitherWayAsync(userId, target, cancellationToken))
             return ServiceResult<FriendRequestDto>.Failure(
                 ApiErrors.FriendCodeNotFound, ServiceErrorKind.NotFound, "No player can be added with that code.");
@@ -363,6 +368,16 @@ public class FriendService : IFriendService
             .ExecuteDeleteAsync(cancellationToken);
 
         return ServiceResult.Success();
+    }
+
+    public async Task<ServiceResult<FriendRequestDto>> CancelAsync(Guid userId, Guid requestId, CancellationToken cancellationToken = default)
+    {
+        var request = await _dbContext.FriendRequests.AsNoTracking().FirstOrDefaultAsync(r => r.Id == requestId && r.SenderUserId == userId, cancellationToken);
+        if (request is null) return RequestNotFound(requestId);
+        if (!await RetireAsync(requestId, FriendRequestState.Cancelled, cancellationToken) && request.State != FriendRequestState.Cancelled)
+            return NotPending(request.State);
+        var current = await _dbContext.FriendRequests.AsNoTracking().FirstAsync(r => r.Id == requestId, cancellationToken);
+        return ServiceResult<FriendRequestDto>.Success(await MapAsync(current, cancellationToken));
     }
 
     // ---- helpers -------------------------------------------------------------------------------

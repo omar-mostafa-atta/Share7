@@ -68,6 +68,7 @@ export const REPEAT_POLICIES = [
  * the wire and a new subsystem can raise anything.
  */
 export const COMMON_EVENT_TYPES = [
+  'BRAIN_PASS_TIER',
   'LESSON_COMPLETED',
   'RUN_COMPLETED',
   'OBJECTIVE_CLAIMED',

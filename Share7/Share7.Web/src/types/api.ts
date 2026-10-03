@@ -1630,6 +1630,10 @@ export interface PrizeClaimAdminDto {
 export interface UpdatePrizeClaimRequest {
   state: string
   note: string | null
+  eligibilityReviewed?: boolean
+  fraudReviewed?: boolean
+  guardianConfirmed?: boolean
+  guardianLinkId?: string | null
 }
 
 // ---- guidance (Share7.Application.Guidance.Models) ------------------------

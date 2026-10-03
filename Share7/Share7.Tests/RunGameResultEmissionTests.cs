@@ -34,6 +34,8 @@ public class RunGameResultEmissionTests
         var runs = RunTestExtensions.CreateRunService(context);
 
         var started = await runs.StartAsync(userId, new StartRunRequest { GameId = game.Id });
+        var run = await context.Runs.SingleAsync(r => r.Id == started.Value!.RunId);
+        run.StartedAtUtc = DateTime.UtcNow.AddSeconds(-91); await context.SaveChangesAsync();
         var settled = await runs.SettleAsync(
             userId, started.Value!.RunId, RunTestExtensions.Result(durationMs: 90_000));
 
@@ -107,6 +109,8 @@ public class RunGameResultEmissionTests
 
         var started = await runs.StartAsync(userId, new StartRunRequest { GameId = game.Id });
 
+        var run = await context.Runs.SingleAsync(r => r.Id == started.Value!.RunId);
+        run.StartedAtUtc = DateTime.UtcNow.AddSeconds(-5); await context.SaveChangesAsync();
         await runs.SettleAsync(
             userId, started.Value!.RunId, RunTestExtensions.Result(durationMs: 3_600_000));
 

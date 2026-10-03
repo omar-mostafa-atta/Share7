@@ -81,6 +81,10 @@ public class MultiplayerSweepService : IMultiplayerSweepService
         var orphaned = await ReleaseSeatsInEndedSessionsAsync(now, cancellationToken);
         var logsPurged = await PurgeRequestLogsAsync(now, cancellationToken);
         var eventsPurged = await PurgeEventsAsync(now, cancellationToken);
+        await _dbContext.InboxReads.Where(r => !_dbContext.PlayerEvents.Any(e => e.EventId == r.EventId && e.RecipientUserId == r.UserId))
+            .OrderBy(r => r.ReadAtUtc).Take(BatchSize * 10).ExecuteDeleteAsync(cancellationToken);
+        await _dbContext.SessionObservers.Where(o => o.ExpiresAtUtc <= now)
+            .OrderBy(o => o.ExpiresAtUtc).Take(BatchSize * 10).ExecuteDeleteAsync(cancellationToken);
         var invitationsExpired = await ExpireInvitationsAsync(now, cancellationToken);
 
         // Last, so a match that ended in this very pass is already terminal when its result is

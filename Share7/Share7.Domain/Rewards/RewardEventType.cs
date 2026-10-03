@@ -123,5 +123,8 @@ public enum RewardEventType
     /// event authoring path creates and owns these rules, so they are not authored by hand.
     /// </para>
     /// </summary>
-    EventPrize
+    EventPrize,
+
+    /// <summary>One unlocked seasonal tier claimed by the server-authorized player. Rule owned by the tier.</summary>
+    BrainPassTier
 }

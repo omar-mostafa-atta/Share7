@@ -189,6 +189,21 @@ public class EventPrizeAwardService : ICycleSettlementObserver
     {
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
+        if (tier.Quantity is { } quantity)
+        {
+            // The in-memory issued count is only a fast path. Hold the tier row while checking the
+            // real count and writing the award, so two payout workers cannot promise its last item.
+            await _dbContext.Database.ExecuteSqlRawAsync(
+                "UPDATE [EventPrizeTiers] SET [Quantity] = [Quantity] WHERE [Id] = {0}",
+                [tier.Id], cancellationToken);
+            var issued = await _dbContext.EventAwards.CountAsync(a => a.TierId == tier.Id, cancellationToken);
+            if (issued >= quantity)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                return false;
+            }
+        }
+
         var now = DateTime.UtcNow;
 
         var award = new EventAward

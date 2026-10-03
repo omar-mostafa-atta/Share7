@@ -14,6 +14,8 @@ namespace Share7.Domain.Multiplayer;
 public class MultiplayerSession
 {
     public Guid Id { get; set; }
+    public long DirectorySequence { get; set; }
+    public bool AllowObservers { get; set; }
 
     public Guid GameId { get; set; }
     public Game? Game { get; set; }
